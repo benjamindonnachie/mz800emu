@@ -902,13 +902,18 @@ void z80_add_wait_states(z80_t *cpu, int wait) {
  * instrukci. Rozdíl je jen v eliminaci prologu/epilogu (RELOAD/WRITEBACK/
  * _lcache) - registry ŽIJÍ přímo v cpu->.
  *
+ * Rozdíl total_cycles se počítá v uint32_t (modulo 2^32), na int se převádí
+ * až malý výsledek. Odečet absolutních hodnot převedených na int by na
+ * hranici 2^31 přetekl (nedefinované chování v C).
+ *
  * @param cpu Ukazatel na CPU instanci.
- * @return Počet T-stavů spotřebovaných instrukcí.
+ * @return Počet T-stavů spotřebovaných instrukcí (správně i přes přetečení
+ *         total_cycles na hranici 2^32).
  */
 int z80_step(z80_t *cpu) {
-    int before = (int)cpu->total_cycles;
+    uint32_t before = cpu->total_cycles;
     z80_execute_step(cpu, 1);
-    return (int)cpu->total_cycles - before;
+    return (int)(uint32_t)(cpu->total_cycles - before);
 }
 
 void z80_int(z80_t *cpu) {

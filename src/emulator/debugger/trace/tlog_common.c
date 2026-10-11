@@ -374,8 +374,10 @@ int tlog_writer_update_meta ( st_TLOG_WRITER *w, const char *header_extra )
     json_builder_end_object ( b );
 
     JsonGenerator *gen = json_generator_new ( );
-    /* json_builder_get_root() vrací JsonNode vlastněný builderem - NEsmí
-     * se volat json_node_free(), uvolní se s g_object_unref(builder). */
+    /* json_builder_get_root() předává vlastnictví volajícímu (transfer full
+     * v Json-1.0.gir); json_generator_set_root() si uzel zkopíruje. Root se
+     * uvolní json_node_unref() na konci funkce - g_object_unref(builder) ho
+     * neuvolní a každé volání by ztratilo celý strom metadat. */
     JsonNode *root = json_builder_get_root ( b );
     json_generator_set_root ( gen, root );
     json_generator_set_pretty ( gen, TRUE );
@@ -407,6 +409,7 @@ int tlog_writer_update_meta ( st_TLOG_WRITER *w, const char *header_extra )
     g_free ( out );
     g_free ( path );
     g_object_unref ( gen );
+    if ( root ) json_node_unref ( root );
     g_object_unref ( b );
     return rc;
 }

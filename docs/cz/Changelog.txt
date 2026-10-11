@@ -1,3 +1,7 @@
+	- BUGFIX: CTC 8253 a reproduktor - okamžik zápisu do CTC (včetně GATE CTC0) a změny reproduktoru se počítal, jako by už provedená část instrukce uběhla dvakrát, např. 14 cyklů CPU od začátku LD (HL),A, která trvá 7. CTC0 tak začínal čítat o několik period CLK0 později a hrany reproduktoru dostávaly o stejnou dobu pozdější čas. Nahrávání hodnoty do CTC naměřené na skutečném MZ-800 se nemění.
+
+	- BUGFIX: Debugger - každé uložení metadat ve formátu JSON ztratilo v paměti celý strom JSON: záznamy trace (každý chunk přepisuje svá metadata), breakpointy, záložky, watch, proměnné breakpointů a Memory Heatmap. Paměť zabraná dlouhým záznamem trace tak rostla s jeho délkou.
+
 
 	- Nové volby --cmt <soubor>, --cmt-play, --cmt-play-pause a --cmt-boot: po startu vloží pásku (MZF, MZT, TAP nebo WAV) do virtuálního kazetofonu. CMT hack se vypne jen pro toto spuštění a otevře se okno Virtual CMT. --cmt-play stiskne PLAY, --cmt-play-pause nechá pásku čekat, dokud počítač nezapne motor kazetofonu, a --cmt-boot (MZ-800) navíc při startu drží klávesu C, takže bootovací nabídka nahraje program z pásky.
 

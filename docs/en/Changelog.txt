@@ -1,3 +1,7 @@
+	- BUGFIX: CTC 8253 and speaker - the time of a write to the CTC (including the CTC0 gate) and of a speaker change was taken as if the already executed part of the instruction had passed twice, e.g. 14 CPU cycles after the start of LD (HL),A, which takes 7. CTC0 thus started counting a few CLK0 periods late and speaker edges were timestamped late by the same amount. The measured load behaviour of the CTC on a real MZ-800 is unchanged.
+
+	- BUGFIX: Debugger - every save of JSON metadata leaked the whole JSON tree: trace recordings (each chunk rewrites its metadata), breakpoints, bookmarks, watches, breakpoint variables and the Memory Heatmap. The memory use of a long trace recording kept growing with its length.
+
 
 	- New options --cmt <file>, --cmt-play, --cmt-play-pause and --cmt-boot: insert a tape (MZF, MZT, TAP or WAV) into the virtual cassette recorder at startup. The CMT hack is turned off for that session only and the Virtual CMT window opens. --cmt-play presses PLAY, --cmt-play-pause leaves the tape waiting until the computer turns the cassette motor on, and --cmt-boot (MZ-800) also holds the C key at startup so the boot menu loads the program from the tape.
 
