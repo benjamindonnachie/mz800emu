@@ -70,6 +70,10 @@ are rejected with an error - use `--help` for a generated listing.
 | `--version` | - | Print the version, revision, build date, source origin (branch, commit, uncommitted changes, when available), compiler, compiled-in features, SDL and GLib versions and the host OS, then exit. Works in every binary (`mz800emu`, `mz700emu-pal`, `mz700emu-ntsc`, `mz1500emu`) and with `--mcp-pipe`; neither the emulator nor a window is started. |
 | `--console` | - | Windows only: allocate a console window for stdout/stderr. |
 | `--run-mzf` | `<filepath>` | Automatically load and run the given MZF file after the emulator boots. |
+| `--cmt` | `<filepath>` | Insert a tape into the virtual cassette recorder at startup: `.mzf`, `.m12`, `.mzt`, `.tap`, `.wav` or `.wave`. If the CMT hack is on, it is turned off for this session only (the `.ini` keeps the original setting). In the window, the Virtual CMT window opens. Missing file or unknown extension = error and exit. |
+| `--cmt-play` | - | With `--cmt`: press PLAY after inserting the tape. When the emulator boots through the ROM, the ROM stops the tape motor during its startup, so the tape waits in PLAY + PAUSE; it plays at once only together with `--run-mzf`. |
+| `--cmt-play-pause` | - | With `--cmt`: the tape waits in PLAY + PAUSE and starts moving when the ROM or the program turns the cassette motor on (e.g. `LOAD` in BASIC, loading from the monitor). Cannot be combined with `--cmt-play`. |
+| `--cmt-boot` | - | MZ-800 only, with `--cmt`: like `--cmt-play-pause`, and the emulator holds the C key from start until the ROM turns the motor on, so the boot menu loads the program from the tape. Works in both positions of the mode switch. Cannot be combined with `--run-mzf` or `--cmt-play`. |
 | `--cdl-mode` | `<off\|window\|always>` | Set the CDL (Memory Heatmap) recording mode. |
 | `--cdl-dir` | `<dirpath>` | Set the target directory for CDL export. The directory is created on export if it does not exist. |
 | `--cdl-name` | `<basename>` | Set the CDL export basename (without `.json`). The full meta path is `<dir>/<name>.json`; per-region binary files are saved as `<dir>/<name>_<region>.cdl`. |

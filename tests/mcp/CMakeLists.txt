@@ -363,6 +363,26 @@ if(Python3_FOUND)
     message(STATUS "  tests/mcp: registered mcp_cmt_snapshot "
                    "(Python ${Python3_VERSION})")
 
+    # CLI volby virtuální kazety --cmt, --cmt-play, --cmt-play-pause,
+    # --cmt-boot (všechny 4 binárky): vložení pásky, vypnutí CMT hacku jen
+    # pro běh (INI zůstane), PLAY / PLAY + PAUSE vůči hraně PC3 z inicializace
+    # ROM, na MZ-800 nahrání a spuštění MZF z pásky přes IPL (klávesa C),
+    # chybné kombinace. Pipe, varianty s --run-mzf přes MCP TCP (volný port
+    # od systému). Bez binárek 77 (SKIP).
+    add_test(
+        NAME    mcp_cli_cmt
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_cli_cmt.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_cli_cmt PROPERTIES
+        LABELS  "e2e;mcp;pipe;tcp;cmt"
+        TIMEOUT 300
+        SKIP_RETURN_CODE 77
+    )
+    message(STATUS "  tests/mcp: registered mcp_cli_cmt "
+                   "(Python ${Python3_VERSION})")
+
     # Snapshot obnoví i čekající GDG událost (GitHub issue #6): stav po
     # snapshot_load přes "špinavý" stroj + run se shoduje s během bez
     # loadu (všechny 4 binárky, fáze s každou čekající GDG událostí);

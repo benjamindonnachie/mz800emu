@@ -24,6 +24,7 @@
 #include "hw-generic/pio8255/pio8255.h"
 #include "hw-generic/cmt/cmt.h"
 #include "hw-generic/cmt/cmthack.h"
+#include "hw-generic/cmt/cmt_cli.h"
 #include "hw-generic/pioz80/pioz80.h"
 #include "hw-generic/printer/printer.h"
 #include "hw-generic/mz1p16/mz1p16_emu.h"
@@ -195,6 +196,9 @@ static inline void mz800_main_event_callback_screen_done(void)
     pioz80_input_resync();
 #endif
     cmt_on_screen_done_event();
+    /* --cmt-boot: uvolní drženou klávesu C, až ROM zapne motor (bez
+     * držené klávesy jen jedno čtení příznaku). */
+    cmt_cli_on_screen_done();
     customspeed_on_screen_done();
 
     /* Video záznam: per-frame bod (1 atomické čtení, když se nenahrává). */
@@ -1143,6 +1147,7 @@ static void mzarch_main_reset(void)
 
     g_mzarch_main.reset_count++;
     videorec_on_reset(); /* událost reset + auto marker (bez nahrávání no-op) */
+    cmt_cli_on_reset(); /* --cmt-boot: pustit drženou klávesu C */
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
     /* PC se změnilo na 0000 - zruš případný BP skip vázaný na předchozí PC,
      * aby se BP na nové adrese (typicky 0000) správně aktivoval. */
@@ -1232,22 +1237,8 @@ static uint8_t mzarch_debug_dasm_read(uint16_t addr, void *user_data)
     return memory_read_byte(addr);
 }
 
-/**
- * @brief Hodnota CLI volby s cestou souboru převedená do UTF-8.
- *
- * Interní cesty emulátoru jsou v UTF-8 (GLib). Na Windows je ale `argv`
- * v ANSI kódové stránce procesu, takže cesta s diakritikou z `argv` by
- * v UTF-8 API (g_fopen, g_file_test, avi_writer_open) selhala. Na Windows se
- * proto hodnota vezme z UTF-16 příkazové řádky (g_win32_get_command_line()),
- * bezeztrátově i pro znaky mimo ANSI kódovou stránku. Hledá se stejně jako
- * v sdlapp_options: token přesně `name` (hodnota v dalším tokenu), nebo
- * `name=hodnota`. Jinde (a když se na Windows volba nenajde) vrátí kopii
- * hodnoty z sdlapp_option_value().
- *
- * @param name Jméno volby včetně `--` (např. "--record").
- * @return Nově alokovaná hodnota v UTF-8 (g_free), nebo NULL bez hodnoty.
- */
-static gchar *mzarch_cli_option_value_utf8(const char *name)
+/* Dokumentace viz mzarch.h. */
+char *mzarch_cli_option_value_utf8(const char *name)
 {
     const char *raw = sdlapp_option_value(name);
     if (!raw) return NULL;
@@ -1288,6 +1279,11 @@ void mzarch_main(void)
             mzarch_bootstrap_run_mzf(mzf_path);
         };
     }
+
+    /* CLI volby --cmt, --cmt-play, --cmt-play-pause, --cmt-boot: vložení
+     * pásky do virtuálního CMT (po --run-mzf, aby program spuštěný z CLI
+     * mohl další díly nahrát z této pásky). */
+    cmt_cli_apply();
 
     /* CLI option --record: start video záznamu hned po bootu (a po --run-mzf).
      * Vlastní začátek nahrávání nastane na konci prvního emulovaného snímku. */
