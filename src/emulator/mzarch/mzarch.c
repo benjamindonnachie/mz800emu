@@ -51,6 +51,7 @@
 #include "debugger/stack_history.h"
 #include "debugger/dbgapi_emu.h"
 #include "debugger/trace/cputrack.h"
+#include "debugger/profiler_pc.h"
 #include "debugger/trace/intlog.h"
 #include "debugger/trace/eventlog.h"
 #include "debugger/callstack.h"
@@ -1233,6 +1234,31 @@ static void mzarch_main_reset(void)
 #endif
 }
 
+#ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
+/**
+ * @brief Háčky po dokončení instrukce (cputrack, profiler podle PC).
+ *
+ * Hlavní smyčka sem vstupuje jedinou podmínkou
+ * `TEST_TRACE_CPUTRACK_ACTIVE | TEST_PROFILER_PC_ACTIVE`; teprve tady se
+ * rozhoduje, který háček je aktivní. Atribut noinline drží tělo hlavní
+ * smyčky kompaktní (viz cputrack.h @section hot_path_compactness).
+ *
+ * @param pc      Adresa začátku instrukce.
+ * @param tstates T-stavy instrukce včetně WAIT.
+ * @param wait    Čekací stavy instrukce.
+ */
+__attribute__((noinline))
+static void mzarch_main_post_instruction_hooks(uint16_t pc, uint32_t tstates, uint32_t wait)
+{
+    if ( TEST_TRACE_CPUTRACK_ACTIVE ) {
+        cputrack_hot_path_hook ( pc, tstates, wait );
+    }
+    if ( TEST_PROFILER_PC_ACTIVE ) {
+        profiler_pc_on_instruction ( pc, tstates, wait );
+    }
+}
+#endif
+
 /* Debug helper: read byte z aktualne mapovane pameti pro z80_dasm callback.
  * Pouzity v mzarch_main hot loop pro per-instruction PC + disassembly trace. */
 static uint8_t mzarch_debug_dasm_read(uint16_t addr, void *user_data)
@@ -1392,25 +1418,24 @@ void mzarch_main(void)
         g_mzarch_main.instruction_tstates = z80_step(g_mzarch_main.cpu);
 
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
-        /* trace-suite cputrack hook - 1 event per dokončenou CPU instrukci.
-         * Test je 1 ALU op + branch, branch predictor naučí "vždy false"
-         * v default OFF stavu (= zero impact na hot path). Detail v
-         * docs/cz/debugger/Trace_Suite.md.
+        /* Háčky po instrukci (trace-suite cputrack, profiler podle PC) -
+         * 1 událost na dokončenou CPU instrukci. Oba příznaky se testují
+         * jedinou podmínkou (bitové OR, jedna větev), branch predictor se
+         * naučí "vždy false" v default OFF stavu. Detail v
+         * docs/cz/debugger/Trace_Suite.md a profiler_pc.h.
          *
          * wait_extra_tstates = g_mzarch_main.instruction_wait_tstates,
          * akumulovany v INSIDEOP_MREQ_MZ700_VRAMCTRL a INSIDEOP_IORQ_PSG_WRITE
          * paths (jediná místa volající z80_add_wait_states v hot loop).
          * V T-states units (z80 ISA), saturated na 0xFFFFFFFF. */
-        if ( TEST_TRACE_CPUTRACK_ACTIVE ) {
-            /* RPFIX: celá práce hooku (Z17b range-scope filtr, odečet WAIT,
-             * emit) je vynesena do NOINLINE cold helperu cputrack_hot_path_hook,
+        if ( TEST_TRACE_CPUTRACK_ACTIVE | TEST_PROFILER_PC_ACTIVE ) {
+            /* RPFIX: celá práce háčků je vynesena do NOINLINE helperu,
              * aby tělo této hot smyčky zůstalo kompaktní (stabilnější
              * code-layout / icache - viz cputrack.h @section hot_path_compactness).
-             * V OFF stavu (g_cputrack_active==0) se sem řízení vůbec nedostane
-             * = zero impact na hot path. */
-            cputrack_hot_path_hook (
+             * V OFF stavu se sem řízení vůbec nedostane. */
+            mzarch_main_post_instruction_hooks (
                 (uint16_t) g_mzarch_main.instruction_addr,
-                g_mzarch_main.instruction_tstates,
+                (uint32_t) g_mzarch_main.instruction_tstates,
                 g_mzarch_main.instruction_wait_tstates );
         }
 

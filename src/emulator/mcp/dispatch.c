@@ -492,6 +492,17 @@ static en_MCP_DISPATCH_RESULT _handle_screenshot_series_stop(const st_JSONL_MESS
                                                              char **out_response);
 static en_MCP_DISPATCH_RESULT _handle_screenshot_series_status(const st_JSONL_MESSAGE *req,
                                                                char **out_response);
+/* pc-stats - profiler podle PC fwd decls */
+static en_MCP_DISPATCH_RESULT _handle_profiler_pc_start(const st_JSONL_MESSAGE *req,
+                                                        char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_profiler_pc_stop(const st_JSONL_MESSAGE *req,
+                                                       char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_profiler_pc_reset(const st_JSONL_MESSAGE *req,
+                                                        char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_profiler_pc_get(const st_JSONL_MESSAGE *req,
+                                                      char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_profiler_pc_export(const st_JSONL_MESSAGE *req,
+                                                         char **out_response);
 
 /* V1.A.7 - Profiler Tools fwd decls */
 static en_MCP_DISPATCH_RESULT _handle_profiler_start(const st_JSONL_MESSAGE *req,
@@ -1110,6 +1121,14 @@ static const st_MCP_CMD_MAP_ENTRY g_cmd_map[] = {
     { "screenshot_series_start",  DBGAPI_CMD_SCREENSHOT_SERIES,       _handle_screenshot_series_start  },
     { "screenshot_series_stop",   DBGAPI_CMD_SCREENSHOT_SERIES,       _handle_screenshot_series_stop   },
     { "screenshot_series_status", DBGAPI_CMD_SCREENSHOT_SERIES,       _handle_screenshot_series_status },
+    /* Profiler podle PC (počet, T-stavy a WAIT pro každou adresu instrukce).
+     * Přidáno na KONEC tabulky kvůli stabilitě pozičního indexu v hello
+     * supported_commands. */
+    { "profiler_pc_start",        DBGAPI_CMD_PROFILER_PC,             _handle_profiler_pc_start        },
+    { "profiler_pc_stop",         DBGAPI_CMD_PROFILER_PC,             _handle_profiler_pc_stop         },
+    { "profiler_pc_reset",        DBGAPI_CMD_PROFILER_PC,             _handle_profiler_pc_reset        },
+    { "profiler_pc_get",          DBGAPI_CMD_PROFILER_PC,             _handle_profiler_pc_get          },
+    { "profiler_pc_export",       DBGAPI_CMD_PROFILER_PC,             _handle_profiler_pc_export       },
     /* sentinel */
     { NULL,              DBGAPI_CMD_NONE,              NULL                  },
 };
@@ -14110,5 +14129,227 @@ static en_MCP_DISPATCH_RESULT _handle_screenshot_series_status(const st_JSONL_ME
     return _ok_response(req_id, _screenshot_series_status_json(&p.out_status), out_response);
 }
 
+
+
+
+/* ============================================================================
+ *  pc-stats: profiler podle PC (počet, T-stavy a WAIT na adresu instrukce)
+ * ============================================================================ */
+
+/**
+ * @brief Souhrn profileru podle PC jako JSON objekt.
+ * @param s Souhrn.
+ * @return Nový JsonObject (vlastní volající).
+ */
+static JsonObject *_profiler_pc_summary_json(const st_PROFILER_PC_SUMMARY *s) {
+    JsonObject *o = json_object_new();
+    json_object_set_boolean_member(o, "active", s->active);
+    json_object_set_int_member(o, "instructions",    (gint64) s->instructions);
+    json_object_set_int_member(o, "tstates",         (gint64) s->tstates);
+    json_object_set_int_member(o, "wait",            (gint64) s->wait);
+    json_object_set_int_member(o, "halt_idle",       (gint64) s->halt_idle);
+    json_object_set_int_member(o, "other_tstates",   (gint64) s->other_tstates);
+    json_object_set_int_member(o, "elapsed_tstates", (gint64) s->elapsed_tstates);
+    json_object_set_int_member(o, "unique_pcs",      (gint64) s->unique_pcs);
+    return o;
+}
+
+/**
+ * @brief Přečte volitelné `sort` ("tstates", "count", "wait", "addr").
+ * @param obj  Data požadavku (může být NULL).
+ * @param def  Řazení, když parametr chybí.
+ * @param out  Výstup.
+ * @return false = neplatná hodnota.
+ */
+static bool _profiler_pc_sort_param(JsonObject *obj, en_PROFILER_PC_SORT def, en_PROFILER_PC_SORT *out) {
+    *out = def;
+    int has = _videorec_member(obj, "sort", G_TYPE_STRING);
+    if (has < 0) return false;
+    if (!has) return true;
+    const char *s = json_object_get_string_member(obj, "sort");
+    if (strcmp(s, "tstates") == 0) { *out = PROFILER_PC_SORT_TSTATES; return true; }
+    if (strcmp(s, "count") == 0)   { *out = PROFILER_PC_SORT_COUNT;   return true; }
+    if (strcmp(s, "wait") == 0)    { *out = PROFILER_PC_SORT_WAIT;    return true; }
+    if (strcmp(s, "addr") == 0)    { *out = PROFILER_PC_SORT_ADDR;    return true; }
+    return false;
+}
+
+/**
+ * @brief Provede operaci bez řádků a vrátí souhrn (start, stop, reset).
+ * @param req          Požadavek.
+ * @param p            Parametr (op vyplněn).
+ * @param out_response Výstup JSON.
+ * @return Výsledek dispatch.
+ */
+static en_MCP_DISPATCH_RESULT _profiler_pc_simple(const st_JSONL_MESSAGE *req,
+                                                  st_DBGAPI_PROFILER_PC_PARAM *p,
+                                                  char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    if (!_submit_dbgapi(DBGAPI_CMD_PROFILER_PC, p, NULL)) {
+        return _err_response(req_id, p->out_error[0] ? p->out_error : "profiler_pc command failed",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    return _ok_response(req_id, _profiler_pc_summary_json(&p->out_summary), out_response);
+}
+
+/**
+ * @brief `profiler_pc_start` handler - zapne sběr profileru podle PC.
+ *
+ * Parametr `reset` (bool, výchozí true): vynulovat data před startem.
+ * Response: souhrn (viz _profiler_pc_summary_json).
+ */
+static en_MCP_DISPATCH_RESULT _handle_profiler_pc_start(const st_JSONL_MESSAGE *req,
+                                                        char **out_response) {
+    JsonObject *obj = _videorec_data_obj(req);
+    int has_reset = _videorec_member(obj, "reset", G_TYPE_BOOLEAN);
+    if (has_reset < 0) {
+        return _err_response(jsonl_msg_get_req_id(req), "Invalid parameters: reset must be a boolean",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    st_DBGAPI_PROFILER_PC_PARAM p;
+    memset(&p, 0, sizeof(p));
+    p.op = DBGAPI_PROFILER_PC_OP_START;
+    p.reset = has_reset ? json_object_get_boolean_member(obj, "reset") : true;
+    return _profiler_pc_simple(req, &p, out_response);
+}
+
+/**
+ * @brief `profiler_pc_stop` handler - vypne sběr, data zůstanou.
+ *
+ * Bez parametrů. Response: souhrn.
+ */
+static en_MCP_DISPATCH_RESULT _handle_profiler_pc_stop(const st_JSONL_MESSAGE *req,
+                                                       char **out_response) {
+    st_DBGAPI_PROFILER_PC_PARAM p;
+    memset(&p, 0, sizeof(p));
+    p.op = DBGAPI_PROFILER_PC_OP_STOP;
+    return _profiler_pc_simple(req, &p, out_response);
+}
+
+/**
+ * @brief `profiler_pc_reset` handler - vynuluje data (stav sběru nemění).
+ *
+ * Bez parametrů. Response: souhrn.
+ */
+static en_MCP_DISPATCH_RESULT _handle_profiler_pc_reset(const st_JSONL_MESSAGE *req,
+                                                        char **out_response) {
+    st_DBGAPI_PROFILER_PC_PARAM p;
+    memset(&p, 0, sizeof(p));
+    p.op = DBGAPI_PROFILER_PC_OP_RESET;
+    return _profiler_pc_simple(req, &p, out_response);
+}
+
+/**
+ * @brief `profiler_pc_get` handler - nejvytíženější adresy inline.
+ *
+ * Parametry (volitelné): `sort` ("tstates" výchozí, "count", "wait", "addr"),
+ * `limit` (1..DBGAPI_PROFILER_PC_ROWS_MAX, výchozí 50), `from` a `to`
+ * (rozsah adres včetně, výchozí 0..65535).
+ *
+ * Response: souhrn + `sort`, `total_rows` (adres s vykonáním v rozsahu)
+ * a `rows` [{pc, count, tstates, wait, tstates_pct, avg_tstates, symbol,
+ * sym_offset}]; symbol = nejbližší symbol na adrese <= pc ("" = žádný).
+ */
+static en_MCP_DISPATCH_RESULT _handle_profiler_pc_get(const st_JSONL_MESSAGE *req,
+                                                      char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _videorec_data_obj(req);
+    en_PROFILER_PC_SORT sort;
+    if (!_profiler_pc_sort_param(obj, PROFILER_PC_SORT_TSTATES, &sort)) {
+        return _err_response(req_id, "Invalid parameters: sort must be tstates, count, wait or addr",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    int has_limit = _videorec_member(obj, "limit", G_TYPE_INT64);
+    int has_from = _videorec_member(obj, "from", G_TYPE_INT64);
+    int has_to = _videorec_member(obj, "to", G_TYPE_INT64);
+    if (has_limit < 0 || has_from < 0 || has_to < 0) {
+        return _err_response(req_id, "Invalid parameters: limit, from and to must be integers",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    gint64 limit = has_limit ? json_object_get_int_member(obj, "limit") : 50;
+    gint64 from = has_from ? json_object_get_int_member(obj, "from") : 0;
+    gint64 to = has_to ? json_object_get_int_member(obj, "to") : 0xFFFF;
+    if (limit < 1 || limit > DBGAPI_PROFILER_PC_ROWS_MAX || from < 0 || from > 0xFFFF
+        || to < 0 || to > 0xFFFF || to < from) {
+        return _err_response(req_id, "Invalid parameters: limit must be 1..1000, "
+                             "0 <= from <= to <= 65535",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    st_DBGAPI_PROFILER_PC_PARAM p;
+    memset(&p, 0, sizeof(p));
+    p.op = DBGAPI_PROFILER_PC_OP_GET;
+    p.sort = sort;
+    p.lo = (uint16_t) from;
+    p.hi = (uint16_t) to;
+    p.with_symbols = true;
+    p.rows_max = (size_t) limit;
+    p.rows = g_new0(st_DBGAPI_PROFILER_PC_ROW, p.rows_max);
+    if (!_submit_dbgapi(DBGAPI_CMD_PROFILER_PC, &p, NULL)) {
+        g_free(p.rows);
+        return _err_response(req_id, p.out_error[0] ? p.out_error : "profiler_pc_get failed",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    JsonObject *resp = _profiler_pc_summary_json(&p.out_summary);
+    static const char *const sort_names[] = { "tstates", "count", "wait", "addr" };
+    json_object_set_string_member(resp, "sort", sort_names[sort]);
+    json_object_set_int_member(resp, "total_rows", (gint64) p.out_total);
+    JsonArray *arr = json_array_new();
+    for (size_t i = 0; i < p.out_written; i++) {
+        const st_DBGAPI_PROFILER_PC_ROW *r = &p.rows[i];
+        JsonObject *item = json_object_new();
+        json_object_set_int_member(item, "pc", r->r.pc);
+        json_object_set_int_member(item, "count", (gint64) r->r.count);
+        json_object_set_int_member(item, "tstates", (gint64) r->r.tstates);
+        json_object_set_int_member(item, "wait", (gint64) r->r.wait);
+        double pct = p.out_summary.tstates
+                   ? 100.0 * (double) r->r.tstates / (double) p.out_summary.tstates : 0.0;
+        json_object_set_double_member(item, "tstates_pct", pct);
+        json_object_set_double_member(item, "avg_tstates",
+                                      r->r.count ? (double) r->r.tstates / (double) r->r.count : 0.0);
+        json_object_set_string_member(item, "symbol", r->symbol);
+        json_object_set_int_member(item, "sym_offset", r->sym_offset);
+        json_array_add_object_element(arr, item);
+    }
+    json_object_set_array_member(resp, "rows", arr);
+    g_free(p.rows);
+    return _ok_response(req_id, resp, out_response);
+}
+
+/**
+ * @brief `profiler_pc_export` handler - všechny adresy do CSV.
+ *
+ * Parametry: `path` (string, povinný; soubor se přepíše), `sort` (volitelný,
+ * výchozí "addr", jinak jako u profiler_pc_get). Response: souhrn + `path` a `rows` (zapsané
+ * řádky). Chyba zápisu => EMU_ERROR s textem.
+ */
+static en_MCP_DISPATCH_RESULT _handle_profiler_pc_export(const st_JSONL_MESSAGE *req,
+                                                         char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _videorec_data_obj(req);
+    en_PROFILER_PC_SORT sort;
+    if (!_profiler_pc_sort_param(obj, PROFILER_PC_SORT_ADDR, &sort)) {
+        return _err_response(req_id, "Invalid parameters: sort must be tstates, count, wait or addr",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    if (_videorec_member(obj, "path", G_TYPE_STRING) != 1
+        || !json_object_get_string_member(obj, "path")[0]) {
+        return _err_response(req_id, "Invalid parameters: path must be a non-empty string",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    const char *path = json_object_get_string_member(obj, "path");
+    st_DBGAPI_PROFILER_PC_PARAM p;
+    memset(&p, 0, sizeof(p));
+    p.op = DBGAPI_PROFILER_PC_OP_EXPORT;
+    p.sort = sort;
+    p.path = path;
+    if (!_submit_dbgapi(DBGAPI_CMD_PROFILER_PC, &p, NULL)) {
+        return _err_response(req_id, p.out_error[0] ? p.out_error : "profiler_pc_export failed",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    JsonObject *resp = _profiler_pc_summary_json(&p.out_summary);
+    json_object_set_string_member(resp, "path", path);
+    json_object_set_int_member(resp, "rows", (gint64) p.out_written);
+    return _ok_response(req_id, resp, out_response);
+}
 
 #endif /* MZ800EMU_CFG_MCP_SERVER_ENABLED */

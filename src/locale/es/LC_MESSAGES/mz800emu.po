@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mz800emu 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-13 18:02+0200\n"
+"POT-Creation-Date: 2026-10-13 20:15+0200\n"
 "PO-Revision-Date: 2026-03-11 22:00+0100\n"
 "Last-Translator: Claude Code\n"
 "Language-Team: Español\n"
@@ -987,8 +987,8 @@ msgstr ""
 msgid ""
 "HW event - trigger on named hardware event (vsync, raster, ctc:zc0, ...)."
 msgstr ""
-"Evento HW - disparar en evento hardware nombrado (vsync, raster, ctc:"
-"zc0, ...)."
+"Evento HW - disparar en evento hardware nombrado (vsync, raster, "
+"ctc:zc0, ...)."
 
 #: src/ui-imgui/debugger/breakpoints/bpt_edit_panel.cpp:227
 msgid "SP threshold - trigger when stack pointer crosses the threshold."
@@ -4800,6 +4800,7 @@ msgstr "Tamaño (hex)###mb_save_size"
 
 #: src/ui-imgui/debugger/membrowser/membrowser_fileio.cpp:473
 #: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1873
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:307
 msgid "Range:"
 msgstr "Rango:"
 
@@ -6715,9 +6716,17 @@ msgstr "Duracion de hueco key-up en ticks gdgclk."
 msgid "Tick stamp of current phase start."
 msgstr "Marca de tick del inicio de la fase actual."
 
-#: src/ui-imgui/debugger/profiler/profiler_window.cpp:104
+#: src/ui-imgui/debugger/profiler/profiler_window.cpp:107
 msgid "CPU Profiler###profiler_window"
 msgstr "Profiler de CPU###profiler_window"
+
+#: src/ui-imgui/debugger/profiler/profiler_window.cpp:121
+msgid "Functions###profiler_tab_func"
+msgstr "Funciones###profiler_tab_func"
+
+#: src/ui-imgui/debugger/profiler/profiler_window.cpp:125
+msgid "Per PC###profiler_tab_pc"
+msgstr "Por PC###profiler_tab_pc"
 
 #: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1173
 #: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1328
@@ -6987,8 +6996,9 @@ msgstr "Tipo de canal"
 #: src/ui-imgui/debugger/psg_window.cpp:418
 msgid "CH0-2 vzdy TONE, CH3 vzdy NOISE (initializace v psg_instance_init)."
 msgstr ""
-"CH0-2 siempre TONE, CH3 siempre NOISE (inicialización en psg_instance_init)."
-"CH0-2 siempre TONE, CH3 siempre NOISE (inicializacion en psg_instance_init)."
+"CH0-2 siempre TONE, CH3 siempre NOISE (inicialización en "
+"psg_instance_init).CH0-2 siempre TONE, CH3 siempre NOISE (inicializacion en "
+"psg_instance_init)."
 
 #: src/ui-imgui/debugger/psg_window.cpp:423
 msgid "Attenuation"
@@ -6997,8 +7007,8 @@ msgstr "Atenuación"
 #: src/ui-imgui/debugger/psg_window.cpp:426
 msgid "4-bit volume: 0 = max (0 dB), krok -2 dB, 15 = silent (channel off)."
 msgstr ""
-"Volumen de 4 bits: 0 = max (0 dB), paso -2 dB, 15 = silencio (canal off)."
-"Volumen 4-bit: 0 = max (0 dB), paso -2 dB, 15 = silent (canal apagado)."
+"Volumen de 4 bits: 0 = max (0 dB), paso -2 dB, 15 = silencio (canal "
+"off).Volumen 4-bit: 0 = max (0 dB), paso -2 dB, 15 = silent (canal apagado)."
 
 #: src/ui-imgui/debugger/psg_window.cpp:464
 msgid "Tone divider (10-bit)"
@@ -7701,18 +7711,22 @@ msgid "Export profiler data as CSV"
 msgstr "Exportar datos del profiler como CSV"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:770
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:289
 msgid "Stop###pf_startstop"
 msgstr "Stop###pf_startstop"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:771
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:289
 msgid "Start###pf_startstop"
 msgstr "Start###pf_startstop"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:777
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:296
 msgid "Reset###pf_reset"
 msgstr "Reset###pf_reset"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:786
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:301
 msgid "Export CSV...###pf_export"
 msgstr "Exportar CSV...###pf_export"
 
@@ -7873,6 +7887,7 @@ msgid "Right click: more actions (BP, Bookmark, Disasm #2-5)"
 msgstr "Clic derecho: más acciones (BP, marcador, Disasm #2-5)"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1040
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:420
 msgid "Set Breakpoint###pf_bp"
 msgstr "Establecer breakpoint###pf_bp"
 
@@ -7881,26 +7896,32 @@ msgid "Add Bookmark###pf_bm"
 msgstr "Añadir marcador###pf_bm"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1057
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:424
 msgid "Show in Disassembly #2###pf_d2"
 msgstr "Mostrar en Disassembly #2###pf_d2"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1060
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:425
 msgid "Show in Disassembly #3###pf_d3"
 msgstr "Mostrar en Disassembly #3###pf_d3"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1063
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:426
 msgid "Show in Disassembly #4###pf_d4"
 msgstr "Mostrar en Disassembly #4###pf_d4"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1066
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:427
 msgid "Show in Disassembly #5###pf_d5"
 msgstr "Mostrar en Disassembly #5###pf_d5"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1146
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:463
 msgid "● RUNNING"
 msgstr "● EN EJECUCIÓN"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1150
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:467
 msgid "○ STOPPED"
 msgstr "○ DETENIDO"
 
@@ -7999,12 +8020,140 @@ msgstr ""
 "Z80 normal. Investigue o haga Reset."
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1299
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:529
 msgid "Export error###pf_export_error"
 msgstr "Error de exportación###pf_export_error"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1305
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:533
 msgid "OK###pf_export_error_ok"
 msgstr "OK###pf_export_error_ok"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:251
+msgid "Export per-PC profile as CSV"
+msgstr "Exportar perfil por PC como CSV"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:275
+msgid "Export failed"
+msgstr "Error al exportar"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:293
+msgid "Start clears the previous data."
+msgstr "Start borra los datos anteriores."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:322
+msgid "Per-PC profiler"
+msgstr "Perfilador por PC"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:324
+msgid ""
+"Counts every executed instruction by its address: executions,\n"
+"T-states (including wait states) and WAIT states."
+msgstr ""
+"Cuenta cada instrucción ejecutada por su dirección: ejecuciones,\n"
+"T-states (incluidos los estados de espera) y estados WAIT."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:326
+msgid "Unlike Functions it also sees code that is jumped to, not called."
+msgstr "A diferencia de Funciones, también ve código al que se salta, no solo el llamado."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:327
+msgid "Block instructions (LDIR, ...) count every repetition."
+msgstr "Las instrucciones de bloque (LDIR, ...) cuentan cada repetición."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:328
+msgid "Address = logical PC, memory banks are not told apart."
+msgstr "Dirección = PC lógico, no se distinguen los bancos de memoria."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:329
+msgid "Range: show only addresses within it (hex)."
+msgstr "Rango: mostrar solo las direcciones dentro de él (hex)."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:330
+msgid ""
+"Only the first 1000 rows of the chosen sort column are shown;\n"
+"Export CSV writes all addresses."
+msgstr ""
+"Solo se muestran las primeras 1000 filas de la columna de orden elegida;\n"
+"Exportar CSV escribe todas las direcciones."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:342
+msgid "Collecting - the table fills while the emulation runs."
+msgstr "Recopilando - la tabla se llena mientras la emulación se ejecuta."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:343
+msgid "No data. Press Start and let the emulation run."
+msgstr "Sin datos. Pulse Start y deje que la emulación se ejecute."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:369
+msgid ""
+"Address of the instruction (logical PC).\n"
+"Left click: open in Disassembly #1."
+msgstr ""
+"Dirección de la instrucción (PC lógico).\n"
+"Clic izquierdo: abrir en Disassembly #1."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:370
+msgid "Nearest symbol at or below the address, + offset."
+msgstr "Símbolo más cercano en la dirección o por debajo, + desplazamiento."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:371
+msgid "How many times the instruction was executed."
+msgstr "Cuántas veces se ejecutó la instrucción."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:372
+msgid ""
+"Share of all instruction T-states (without HALT idle\n"
+"and interrupt acknowledge)."
+msgstr ""
+"Proporción de los T-states de todas las instrucciones (sin HALT inactivo\n"
+"ni aceptación de interrupciones)."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:373
+msgid ""
+"T-states spent in the instruction, including wait states.\n"
+"Sort here to find hot spots."
+msgstr ""
+"T-states empleados en la instrucción, incluidos los estados de espera.\n"
+"Ordene aquí para encontrar los puntos calientes."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:374
+msgid "Average T-states per execution = T-states / Count."
+msgstr "Media de T-states por ejecución = T-states / Recuento."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:375
+msgid "Wait states inserted by the hardware (VRAM access, PSG write)."
+msgstr "Estados de espera insertados por el hardware (acceso a VRAM, escritura en PSG)."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:472
+#, c-format
+msgid "Instructions: %llu"
+msgstr "Instrucciones: %llu"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:477
+#, c-format
+msgid "Time: %llu T = instructions %.1f%% + HALT %.1f%% + other %.1f%%"
+msgstr "Tiempo: %llu T = instrucciones %.1f%% + HALT %.1f%% + otros %.1f%%"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:483
+msgid ""
+"Emulated CPU time since Start.\n"
+"HALT = CPU waiting in HALT for an interrupt.\n"
+"Other = mainly interrupt acknowledge."
+msgstr ""
+"Tiempo de CPU emulado desde Start.\n"
+"HALT = la CPU espera en HALT una interrupción.\n"
+"Otros = principalmente aceptación de interrupciones."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:490
+#, c-format
+msgid "WAIT: %llu T"
+msgstr "WAIT: %llu T"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:494
+#, c-format
+msgid "Addresses: %u of %u"
+msgstr "Direcciones: %u de %u"
 
 #: src/ui-imgui/debugger/sections/dbg_stack_panel.cpp:903
 #: src/ui-imgui/debugger/sections/dbg_stack_panel.cpp:1022
@@ -8736,8 +8885,8 @@ msgstr "Símbolos###sym_main"
 
 #: src/ui-imgui/debugger/symbols/sym_window.cpp:1186
 msgid ""
-"No symbols loaded. Use [+ Add] above or [Load From...] to import .noi/.map/."
-"sym/.lbl."
+"No symbols loaded. Use [+ Add] above or [Load From...] to "
+"import .noi/.map/.sym/.lbl."
 msgstr ""
 "No hay símbolos cargados. Use [+ Añadir] arriba o [Cargar desde...] para "
 "importar .noi/.map/.sym/.lbl."
@@ -11512,8 +11661,8 @@ msgstr ""
 
 #: src/ui-imgui/topmenu/devices/menu_unicard.cpp:356
 msgid ""
-"Overwrites manager files in '{SD}/unicard/' (mgr.mzf, mgr800.mzf, mgr700."
-"mzf, mgr1500.mzf) with the selected version.\n"
+"Overwrites manager files in '{SD}/unicard/' (mgr.mzf, mgr800.mzf, "
+"mgr700.mzf, mgr1500.mzf) with the selected version.\n"
 "On MZ-800 prompts for mgr V2.4 vs V2.11b."
 msgstr ""
 "Sobrescribe los archivos del gestor en '{SD}/unicard/' (mgr.mzf, mgr800.mzf, "

@@ -366,6 +366,40 @@ bool dbgapi_ui_submit_cmd_sync_with_origin(st_DBGAPI_CMDRQ_QUEUE *queue,
 
     /* Cmd-specific fake fill */
     switch (cmd) {
+        case DBGAPI_CMD_PROFILER_PC:
+            /* Profiler podle PC: zapamatuje vstup, u GET vrátí 3 adresy
+             * (zapsané do kapacity rows_max), u EXPORT 3 řádky. */
+            if (data_ptr) {
+                st_DBGAPI_PROFILER_PC_PARAM *p = (st_DBGAPI_PROFILER_PC_PARAM *)data_ptr;
+                g_stub_state.pc_calls++;
+                g_stub_state.pc_last = *p;
+                g_strlcpy(g_stub_state.pc_last_path, p->path ? p->path : "", sizeof(g_stub_state.pc_last_path));
+                memset(&p->out_summary, 0, sizeof(p->out_summary));
+                p->out_summary.active = (p->op == DBGAPI_PROFILER_PC_OP_START);
+                p->out_summary.tstates = 300;
+                p->out_summary.instructions = 30;
+                p->out_summary.unique_pcs = 3;
+                p->out_error[0] = '\0';
+                p->out_total = 0;
+                p->out_written = 0;
+                if (p->op == DBGAPI_PROFILER_PC_OP_GET) {
+                    p->out_total = 3;
+                    for (size_t i = 0; i < 3 && i < p->rows_max && p->rows; i++) {
+                        memset(&p->rows[i], 0, sizeof(p->rows[i]));
+                        p->rows[i].r.pc = (uint16_t)(0x1200 + i);
+                        p->rows[i].r.count = 10;
+                        p->rows[i].r.tstates = 100;
+                        p->rows[i].r.wait = i;
+                        strcpy(p->rows[i].symbol, "loop");
+                        p->rows[i].sym_offset = (uint32_t) i;
+                        p->out_written++;
+                    }
+                } else if (p->op == DBGAPI_PROFILER_PC_OP_EXPORT) {
+                    p->out_written = 3;
+                }
+            }
+            break;
+
         case DBGAPI_CMD_SCREENSHOT_SERIES:
             if (data_ptr) {
                 st_DBGAPI_SCREENSHOT_SERIES_PARAM *p = (st_DBGAPI_SCREENSHOT_SERIES_PARAM *)data_ptr;

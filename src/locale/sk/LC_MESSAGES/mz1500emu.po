@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mz800emu 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-13 18:02+0200\n"
+"POT-Creation-Date: 2026-10-13 20:15+0200\n"
 "PO-Revision-Date: 2026-03-11 21:00+0100\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -4186,8 +4186,8 @@ msgid ""
 "16-bit CRTC family port. Bus addr is 0x<RR>CF (Z80 OUT (C),A pattern with "
 "B=register index, C=0xCF). MZ notation 0xCF<RR> is human-readable display."
 msgstr ""
-"16-bitový port rodiny CRTC. Zbernicová adresa je 0x<RR>CF (Z80 vzor OUT (C),"
-"A s B=index registra, C=0xCF). MZ notácia 0xCF<RR> je človeku čitateľné "
+"16-bitový port rodiny CRTC. Zbernicová adresa je 0x<RR>CF (Z80 vzor OUT "
+"(C),A s B=index registra, C=0xCF). MZ notácia 0xCF<RR> je človeku čitateľné "
 "zobrazenie."
 
 #: src/ui-imgui/debugger/ioview/io_window.cpp:654
@@ -4730,6 +4730,7 @@ msgstr "Veľkosť (hex)###mb_save_size"
 
 #: src/ui-imgui/debugger/membrowser/membrowser_fileio.cpp:473
 #: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1873
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:307
 msgid "Range:"
 msgstr "Rozsah:"
 
@@ -5064,8 +5065,8 @@ msgid ""
 "(Debugger -> Memory Heatmap). Without recording, CDL X/R/W and Heatmap "
 "layers stay invisible."
 msgstr ""
-"Stav záznamu Memory Heatmap / CDL. Zapnite v okne Memory Heatmap (Debugger -"
-"> Memory Heatmap). Bez záznamu zostanú vrstvy CDL X/R/W a Heatmap "
+"Stav záznamu Memory Heatmap / CDL. Zapnite v okne Memory Heatmap (Debugger "
+"-> Memory Heatmap). Bez záznamu zostanú vrstvy CDL X/R/W a Heatmap "
 "neviditeľné."
 
 #: src/ui-imgui/debugger/membrowser/membrowser_layers.cpp:356
@@ -6550,8 +6551,9 @@ msgstr "iba g_pio8255.vkbd_matrix[] (VKBD / autotype)."
 #: src/ui-imgui/debugger/ppi_window.cpp:328
 msgid "Cell '*' = key pressed (bit=0, active LOW), '.' = released (bit=1)."
 msgstr ""
-"Bunka '*' = klávesa stlačená (bit=0, aktívne LOW), '.' = uvoľnená (bit=1)."
-"Bunka '*' = klaves stlaceny (bit=0, active LOW), '.' = uvolneny (bit=1)."
+"Bunka '*' = klávesa stlačená (bit=0, aktívne LOW), '.' = uvoľnená "
+"(bit=1).Bunka '*' = klaves stlaceny (bit=0, active LOW), '.' = uvolneny "
+"(bit=1)."
 
 #: src/ui-imgui/debugger/ppi_window.cpp:335
 msgid "Port C###PPI_PC"
@@ -6560,9 +6562,9 @@ msgstr "Port C###PPI_PC"
 #: src/ui-imgui/debugger/ppi_window.cpp:348
 msgid "Port C raw output state (D0-D3 OUT, D4-D7 IN; D5-D7 computed on read)."
 msgstr ""
-"Port C surový výstupný stav (D0-D3 OUT, D4-D7 IN; D5-D7 počítané pri čítaní)."
-"Surovy vystupny stav Port C (D0-D3 OUT, D4-D7 IN; D5-D7 dopocitane pri "
-"citani)."
+"Port C surový výstupný stav (D0-D3 OUT, D4-D7 IN; D5-D7 počítané pri "
+"čítaní).Surovy vystupny stav Port C (D0-D3 OUT, D4-D7 IN; D5-D7 dopocitane "
+"pri citani)."
 
 #: src/ui-imgui/debugger/ppi_window.cpp:358
 msgid "CTC0 audio mask (0 = mute, 1 = pass)"
@@ -6632,9 +6634,17 @@ msgstr "Doba medzery key-up v gdgclk tikoch."
 msgid "Tick stamp of current phase start."
 msgstr "Casova znacka zaciatku aktualnej fazy."
 
-#: src/ui-imgui/debugger/profiler/profiler_window.cpp:104
+#: src/ui-imgui/debugger/profiler/profiler_window.cpp:107
 msgid "CPU Profiler###profiler_window"
 msgstr "CPU Profiler###profiler_window"
+
+#: src/ui-imgui/debugger/profiler/profiler_window.cpp:121
+msgid "Functions###profiler_tab_func"
+msgstr "Funkcie###profiler_tab_func"
+
+#: src/ui-imgui/debugger/profiler/profiler_window.cpp:125
+msgid "Per PC###profiler_tab_pc"
+msgstr "Podľa PC###profiler_tab_pc"
 
 #: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1173
 #: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1328
@@ -7605,18 +7615,22 @@ msgid "Export profiler data as CSV"
 msgstr "Exportovať dáta profilera ako CSV"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:770
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:289
 msgid "Stop###pf_startstop"
 msgstr "Stop###pf_startstop"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:771
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:289
 msgid "Start###pf_startstop"
 msgstr "Štart###pf_startstop"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:777
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:296
 msgid "Reset###pf_reset"
 msgstr "Reset###pf_reset"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:786
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:301
 msgid "Export CSV...###pf_export"
 msgstr "Export CSV...###pf_export"
 
@@ -7777,6 +7791,7 @@ msgid "Right click: more actions (BP, Bookmark, Disasm #2-5)"
 msgstr "Pravý klik: ďalšie akcie (BP, záložka, Disasm #2-5)"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1040
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:420
 msgid "Set Breakpoint###pf_bp"
 msgstr "Nastaviť Breakpoint###pf_bp"
 
@@ -7785,26 +7800,32 @@ msgid "Add Bookmark###pf_bm"
 msgstr "Pridať záložku###pf_bm"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1057
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:424
 msgid "Show in Disassembly #2###pf_d2"
 msgstr "Zobraziť v Disassembly #2###pf_d2"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1060
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:425
 msgid "Show in Disassembly #3###pf_d3"
 msgstr "Zobraziť v Disassembly #3###pf_d3"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1063
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:426
 msgid "Show in Disassembly #4###pf_d4"
 msgstr "Zobraziť v Disassembly #4###pf_d4"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1066
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:427
 msgid "Show in Disassembly #5###pf_d5"
 msgstr "Zobraziť v Disassembly #5###pf_d5"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1146
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:463
 msgid "● RUNNING"
 msgstr "● BEŽÍ"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1150
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:467
 msgid "○ STOPPED"
 msgstr "○ ZASTAVENÉ"
 
@@ -7903,12 +7924,140 @@ msgstr ""
 "stávať nemalo. Preskúmajte alebo dajte Reset."
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1299
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:529
 msgid "Export error###pf_export_error"
 msgstr "Chyba exportu###pf_export_error"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1305
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:533
 msgid "OK###pf_export_error_ok"
 msgstr "OK###pf_export_error_ok"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:251
+msgid "Export per-PC profile as CSV"
+msgstr "Export profilu podľa PC do CSV"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:275
+msgid "Export failed"
+msgstr "Export zlyhal"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:293
+msgid "Start clears the previous data."
+msgstr "Štart zmaže predchádzajúce dáta."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:322
+msgid "Per-PC profiler"
+msgstr "Profiler podľa PC"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:324
+msgid ""
+"Counts every executed instruction by its address: executions,\n"
+"T-states (including wait states) and WAIT states."
+msgstr ""
+"Počíta každú vykonanú inštrukciu podľa jej adresy: počet vykonaní,\n"
+"T-stavy (vrátane čakacích stavov) a stavy WAIT."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:326
+msgid "Unlike Functions it also sees code that is jumped to, not called."
+msgstr "Na rozdiel od záložky Funkcie vidí aj kód, na ktorý sa skáče, nie len volá."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:327
+msgid "Block instructions (LDIR, ...) count every repetition."
+msgstr "Blokové inštrukcie (LDIR, ...) sa počítajú pri každom opakovaní."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:328
+msgid "Address = logical PC, memory banks are not told apart."
+msgstr "Adresa = logické PC, pamäťové banky sa nerozlišujú."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:329
+msgid "Range: show only addresses within it (hex)."
+msgstr "Rozsah: zobraziť len adresy v ňom (hex)."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:330
+msgid ""
+"Only the first 1000 rows of the chosen sort column are shown;\n"
+"Export CSV writes all addresses."
+msgstr ""
+"Zobrazí sa len prvých 1000 riadkov podľa zvoleného stĺpca radenia;\n"
+"Export CSV zapíše všetky adresy."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:342
+msgid "Collecting - the table fills while the emulation runs."
+msgstr "Zbiera sa - tabuľka sa plní, kým emulácia beží."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:343
+msgid "No data. Press Start and let the emulation run."
+msgstr "Žiadne dáta. Stlačte Štart a nechajte emuláciu bežať."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:369
+msgid ""
+"Address of the instruction (logical PC).\n"
+"Left click: open in Disassembly #1."
+msgstr ""
+"Adresa inštrukcie (logické PC).\n"
+"Ľavý klik: otvoriť v Disassembly #1."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:370
+msgid "Nearest symbol at or below the address, + offset."
+msgstr "Najbližší symbol na adrese alebo pod ňou, + posun."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:371
+msgid "How many times the instruction was executed."
+msgstr "Koľkokrát bola inštrukcia vykonaná."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:372
+msgid ""
+"Share of all instruction T-states (without HALT idle\n"
+"and interrupt acknowledge)."
+msgstr ""
+"Podiel na T-stavoch všetkých inštrukcií (bez nečinného HALT\n"
+"a prijatia prerušenia)."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:373
+msgid ""
+"T-states spent in the instruction, including wait states.\n"
+"Sort here to find hot spots."
+msgstr ""
+"T-stavy strávené v inštrukcii vrátane čakacích stavov.\n"
+"Raďte podľa tohto stĺpca na nájdenie horúcich miest."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:374
+msgid "Average T-states per execution = T-states / Count."
+msgstr "Priemer T-stavov na vykonanie = T-stavy / Počet."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:375
+msgid "Wait states inserted by the hardware (VRAM access, PSG write)."
+msgstr "Čakacie stavy vložené hardvérom (prístup do VRAM, zápis do PSG)."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:472
+#, c-format
+msgid "Instructions: %llu"
+msgstr "Inštrukcie: %llu"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:477
+#, c-format
+msgid "Time: %llu T = instructions %.1f%% + HALT %.1f%% + other %.1f%%"
+msgstr "Čas: %llu T = inštrukcie %.1f%% + HALT %.1f%% + ostatné %.1f%%"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:483
+msgid ""
+"Emulated CPU time since Start.\n"
+"HALT = CPU waiting in HALT for an interrupt.\n"
+"Other = mainly interrupt acknowledge."
+msgstr ""
+"Emulovaný čas CPU od štartu.\n"
+"HALT = CPU čaká v HALT na prerušenie.\n"
+"Ostatné = hlavne prijatie prerušenia."
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:490
+#, c-format
+msgid "WAIT: %llu T"
+msgstr "WAIT: %llu T"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:494
+#, c-format
+msgid "Addresses: %u of %u"
+msgstr "Adresy: %u z %u"
 
 #: src/ui-imgui/debugger/sections/dbg_stack_panel.cpp:903
 #: src/ui-imgui/debugger/sections/dbg_stack_panel.cpp:1022
@@ -8636,8 +8785,8 @@ msgstr "Symboly###sym_main"
 
 #: src/ui-imgui/debugger/symbols/sym_window.cpp:1186
 msgid ""
-"No symbols loaded. Use [+ Add] above or [Load From...] to import .noi/.map/."
-"sym/.lbl."
+"No symbols loaded. Use [+ Add] above or [Load From...] to "
+"import .noi/.map/.sym/.lbl."
 msgstr ""
 "Nie sú načítané žiadne symboly. Použite [+ Pridať] vyššie alebo [Načítať "
 "z...] pre import .noi/.map/.sym/.lbl."
@@ -8740,8 +8889,8 @@ msgstr "Uložiť##vars_save"
 msgid ""
 "Save to default per-arch .vars file (mz800.vars / mz1500.vars in cfg dir)."
 msgstr ""
-"Uložiť do predvoleného .vars súboru podľa architektúry (mz800.vars / mz1500."
-"vars v cfg adresári)."
+"Uložiť do predvoleného .vars súboru podľa architektúry (mz800.vars / "
+"mz1500.vars v cfg adresári)."
 
 #: src/ui-imgui/debugger/vars/vars_window.cpp:676
 msgid "Save As...##vars_saveas"
@@ -11395,8 +11544,8 @@ msgstr "Súbory Unicard runtime v '{SD}/unicard/' boli reinicializované."
 
 #: src/ui-imgui/topmenu/devices/menu_unicard.cpp:356
 msgid ""
-"Overwrites manager files in '{SD}/unicard/' (mgr.mzf, mgr800.mzf, mgr700."
-"mzf, mgr1500.mzf) with the selected version.\n"
+"Overwrites manager files in '{SD}/unicard/' (mgr.mzf, mgr800.mzf, "
+"mgr700.mzf, mgr1500.mzf) with the selected version.\n"
 "On MZ-800 prompts for mgr V2.4 vs V2.11b."
 msgstr ""
 "Prepíše súbory správcu v '{SD}/unicard/' (mgr.mzf, mgr800.mzf, mgr700.mzf, "

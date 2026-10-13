@@ -7322,6 +7322,115 @@ async def emu_screenshot_series_status() -> str:
     return json.dumps(_data_or_error(resp))
 
 
+# ---------------------------------------------------------------------------
+# Profiler podle PC - počet vykonání, T-stavy a WAIT pro každou adresu
+# instrukce. Data i API v emulátoru: src/emulator/debugger/profiler_pc.h,
+# příkaz DBGAPI_CMD_PROFILER_PC.
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+async def emu_profiler_pc_start(reset: bool = True) -> str:
+    """Start the per-PC profiler: for every instruction address it counts
+    executions, T-states (including wait states) and wait states (VRAM and
+    PSG WAIT) - to find where a program spends its time.
+
+    Unlike ``emu_profiler_start`` (per function, via the call stack) it
+    sees every instruction, also code that is jumped to, not called. The
+    key is the logical PC (banks are not told apart). The overhead is one
+    function call per instruction while it runs; with the profiler off the
+    emulation is not slowed down.
+
+    Time not spent in instructions is counted separately: ``halt_idle``
+    (CPU waiting in HALT) and ``other_tstates`` (mainly interrupt
+    acknowledge), so ``tstates + halt_idle + other_tstates ==
+    elapsed_tstates``.
+
+    Typical use: ``emu_profiler_pc_start()``, ``emu_run(frames=N)``,
+    ``emu_profiler_pc_get()``.
+
+    Args:
+        reset: ``True`` (default) = clear previous data first; ``False`` =
+            continue adding to it.
+
+    Returns:
+        Summary ``{"active", "instructions", "tstates", "wait",
+        "halt_idle", "other_tstates", "elapsed_tstates", "unique_pcs"}``.
+    """
+    resp = await _send_request("profiler_pc_start", {"reset": reset})
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_profiler_pc_stop() -> str:
+    """Stop the per-PC profiler. The data stays for ``emu_profiler_pc_get``
+    and ``emu_profiler_pc_export``.
+
+    Returns:
+        Summary ``{"active", "instructions", "tstates", "wait",
+        "halt_idle", "other_tstates", "elapsed_tstates", "unique_pcs"}``.
+    """
+    resp = await _send_request("profiler_pc_stop", {})
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_profiler_pc_reset() -> str:
+    """Clear the per-PC profiler data. Whether it runs is not changed.
+
+    Returns:
+        Summary ``{"active", "instructions", "tstates", "wait",
+        "halt_idle", "other_tstates", "elapsed_tstates", "unique_pcs"}``.
+    """
+    resp = await _send_request("profiler_pc_reset", {})
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_profiler_pc_get(sort: str = "tstates", limit: int = 50,
+                              from_addr: int = 0, to_addr: int = 0xFFFF) -> str:
+    """Get the busiest instruction addresses of the per-PC profiler.
+
+    Works while it runs and after ``emu_profiler_pc_stop``.
+
+    Args:
+        sort: ``tstates`` (default, where time is spent), ``count``
+            (executions), ``wait`` (wait states) or ``addr`` (by address).
+        limit: rows to return, 1-1000 (default 50).
+        from_addr: lowest address (default 0).
+        to_addr: highest address, inclusive (default 65535).
+
+    Returns:
+        Summary plus ``{"sort", "total_rows" (addresses executed in the
+        range), "rows": [{"pc", "count", "tstates", "wait", "tstates_pct"
+        (share of all instruction T-states), "avg_tstates", "symbol"
+        (nearest symbol at or below pc, "" = none), "sym_offset"}]}``.
+    """
+    resp = await _send_request("profiler_pc_get",
+                               {"sort": sort, "limit": limit,
+                                "from": from_addr, "to": to_addr})
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_profiler_pc_export(path: str, sort: str = "addr") -> str:
+    """Write all executed addresses of the per-PC profiler to a CSV file.
+
+    Columns ``pc,count,tstates,wait,tstates_pct`` (pc as 4 hex digits,
+    tstates_pct = share of all instruction T-states in %).
+
+    Args:
+        path: output file on the server host (overwritten); the folder
+            must exist.
+        sort: ``addr`` (default), ``tstates``, ``count`` or ``wait``.
+
+    Returns:
+        Summary plus ``{"path", "rows"}``, or an error when the file
+        cannot be written.
+    """
+    resp = await _send_request("profiler_pc_export", {"path": path, "sort": sort})
+    return json.dumps(_data_or_error(resp))
+
+
 
 
 @mcp.resource("emulator://video/text_dump")

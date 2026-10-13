@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mz800emu 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-13 18:02+0200\n"
+"POT-Creation-Date: 2026-10-13 20:15+0200\n"
 "PO-Revision-Date: 2026-03-11 21:00+0100\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -4696,6 +4696,7 @@ msgstr "サイズ (hex)###mb_save_size"
 
 #: src/ui-imgui/debugger/membrowser/membrowser_fileio.cpp:473
 #: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1873
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:307
 msgid "Range:"
 msgstr "範囲:"
 
@@ -5030,9 +5031,9 @@ msgid ""
 "(Debugger -> Memory Heatmap). Without recording, CDL X/R/W and Heatmap "
 "layers stay invisible."
 msgstr ""
-"メモリヒートマップ / CDL 記録状態。メモリヒートマップウィンドウ (デバッガー -"
-"> メモリヒートマップ) で有効化。記録なしでは CDL X/R/W とヒートマップレイヤー"
-"は非表示。"
+"メモリヒートマップ / CDL 記録状態。メモリヒートマップウィンドウ (デバッガー "
+"-> メモリヒートマップ) で有効化。記録なしでは CDL X/R/W とヒートマップレイ"
+"ヤーは非表示。"
 
 #: src/ui-imgui/debugger/membrowser/membrowser_layers.cpp:356
 msgid "CDL Code (X)###mb_layer_cdl_x"
@@ -6591,9 +6592,17 @@ msgstr "key-up ギャップ持続時間 (gdgclk ティック)."
 msgid "Tick stamp of current phase start."
 msgstr "現在のフェーズ開始時のティックスタンプ."
 
-#: src/ui-imgui/debugger/profiler/profiler_window.cpp:104
+#: src/ui-imgui/debugger/profiler/profiler_window.cpp:107
 msgid "CPU Profiler###profiler_window"
 msgstr "CPU プロファイラ###profiler_window"
+
+#: src/ui-imgui/debugger/profiler/profiler_window.cpp:121
+msgid "Functions###profiler_tab_func"
+msgstr "関数###profiler_tab_func"
+
+#: src/ui-imgui/debugger/profiler/profiler_window.cpp:125
+msgid "Per PC###profiler_tab_pc"
+msgstr "PC別###profiler_tab_pc"
 
 #: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1173
 #: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1328
@@ -7565,18 +7574,22 @@ msgid "Export profiler data as CSV"
 msgstr "プロファイラデータをCSVとしてエクスポート"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:770
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:289
 msgid "Stop###pf_startstop"
 msgstr "停止###pf_startstop"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:771
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:289
 msgid "Start###pf_startstop"
 msgstr "開始###pf_startstop"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:777
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:296
 msgid "Reset###pf_reset"
 msgstr "リセット###pf_reset"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:786
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:301
 msgid "Export CSV...###pf_export"
 msgstr "CSVエクスポート...###pf_export"
 
@@ -7736,6 +7749,7 @@ msgid "Right click: more actions (BP, Bookmark, Disasm #2-5)"
 msgstr "右クリック: その他のアクション (BP、ブックマーク、Disasm #2-5)"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1040
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:420
 msgid "Set Breakpoint###pf_bp"
 msgstr "ブレークポイントを設定###pf_bp"
 
@@ -7744,26 +7758,32 @@ msgid "Add Bookmark###pf_bm"
 msgstr "ブックマークを追加###pf_bm"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1057
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:424
 msgid "Show in Disassembly #2###pf_d2"
 msgstr "Disassembly #2で表示###pf_d2"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1060
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:425
 msgid "Show in Disassembly #3###pf_d3"
 msgstr "Disassembly #3で表示###pf_d3"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1063
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:426
 msgid "Show in Disassembly #4###pf_d4"
 msgstr "Disassembly #4で表示###pf_d4"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1066
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:427
 msgid "Show in Disassembly #5###pf_d5"
 msgstr "Disassembly #5で表示###pf_d5"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1146
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:463
 msgid "● RUNNING"
 msgstr "● 実行中"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1150
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:467
 msgid "○ STOPPED"
 msgstr "○ 停止"
 
@@ -7861,12 +7881,140 @@ msgstr ""
 "調査するかResetしてください。"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1299
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:529
 msgid "Export error###pf_export_error"
 msgstr "エクスポートエラー###pf_export_error"
 
 #: src/ui-imgui/debugger/sections/dbg_profiler.cpp:1305
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:533
 msgid "OK###pf_export_error_ok"
 msgstr "OK###pf_export_error_ok"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:251
+msgid "Export per-PC profile as CSV"
+msgstr "PC別プロファイルをCSVでエクスポート"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:275
+msgid "Export failed"
+msgstr "エクスポートに失敗しました"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:293
+msgid "Start clears the previous data."
+msgstr "開始すると以前のデータは消去されます。"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:322
+msgid "Per-PC profiler"
+msgstr "PC別プロファイラ"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:324
+msgid ""
+"Counts every executed instruction by its address: executions,\n"
+"T-states (including wait states) and WAIT states."
+msgstr ""
+"実行された各命令をアドレスごとに集計します: 実行回数、\n"
+"Tステート (ウェイトを含む) とWAITステート。"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:326
+msgid "Unlike Functions it also sees code that is jumped to, not called."
+msgstr "関数タブと異なり、呼び出しだけでなくジャンプ先のコードも捕捉します。"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:327
+msgid "Block instructions (LDIR, ...) count every repetition."
+msgstr "ブロック命令 (LDIR など) は繰り返しごとに数えます。"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:328
+msgid "Address = logical PC, memory banks are not told apart."
+msgstr "アドレス = 論理PC、メモリバンクは区別しません。"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:329
+msgid "Range: show only addresses within it (hex)."
+msgstr "範囲: この範囲内のアドレスのみ表示 (16進)。"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:330
+msgid ""
+"Only the first 1000 rows of the chosen sort column are shown;\n"
+"Export CSV writes all addresses."
+msgstr ""
+"選択したソート列の先頭1000行のみ表示します。\n"
+"CSVエクスポートは全アドレスを書き出します。"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:342
+msgid "Collecting - the table fills while the emulation runs."
+msgstr "収集中 - エミュレーション実行中にテーブルが埋まります。"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:343
+msgid "No data. Press Start and let the emulation run."
+msgstr "データがありません。開始を押してエミュレーションを実行してください。"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:369
+msgid ""
+"Address of the instruction (logical PC).\n"
+"Left click: open in Disassembly #1."
+msgstr ""
+"命令のアドレス (論理PC)。\n"
+"左クリック: Disassembly #1で開く。"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:370
+msgid "Nearest symbol at or below the address, + offset."
+msgstr "アドレス以下で最も近いシンボル + オフセット。"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:371
+msgid "How many times the instruction was executed."
+msgstr "命令が実行された回数。"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:372
+msgid ""
+"Share of all instruction T-states (without HALT idle\n"
+"and interrupt acknowledge)."
+msgstr ""
+"全命令のTステートに占める割合 (HALT待機と\n"
+"割り込み受付を除く)。"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:373
+msgid ""
+"T-states spent in the instruction, including wait states.\n"
+"Sort here to find hot spots."
+msgstr ""
+"命令で費やしたTステート (ウェイトを含む)。\n"
+"ここでソートするとホットスポットが分かります。"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:374
+msgid "Average T-states per execution = T-states / Count."
+msgstr "1回あたりの平均Tステート = Tステート / 回数。"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:375
+msgid "Wait states inserted by the hardware (VRAM access, PSG write)."
+msgstr "ハードウェアが挿入したウェイト (VRAMアクセス、PSG書き込み)。"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:472
+#, c-format
+msgid "Instructions: %llu"
+msgstr "命令数: %llu"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:477
+#, c-format
+msgid "Time: %llu T = instructions %.1f%% + HALT %.1f%% + other %.1f%%"
+msgstr "時間: %llu T = 命令 %.1f%% + HALT %.1f%% + その他 %.1f%%"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:483
+msgid ""
+"Emulated CPU time since Start.\n"
+"HALT = CPU waiting in HALT for an interrupt.\n"
+"Other = mainly interrupt acknowledge."
+msgstr ""
+"開始からのエミュレートされたCPU時間。\n"
+"HALT = CPUがHALTで割り込みを待っている時間。\n"
+"その他 = 主に割り込み受付。"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:490
+#, c-format
+msgid "WAIT: %llu T"
+msgstr "WAIT: %llu T"
+
+#: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:494
+#, c-format
+msgid "Addresses: %u of %u"
+msgstr "アドレス: %u / %u"
 
 #: src/ui-imgui/debugger/sections/dbg_stack_panel.cpp:903
 #: src/ui-imgui/debugger/sections/dbg_stack_panel.cpp:1022
@@ -8594,11 +8742,11 @@ msgstr "シンボル###sym_main"
 
 #: src/ui-imgui/debugger/symbols/sym_window.cpp:1186
 msgid ""
-"No symbols loaded. Use [+ Add] above or [Load From...] to import .noi/.map/."
-"sym/.lbl."
+"No symbols loaded. Use [+ Add] above or [Load From...] to "
+"import .noi/.map/.sym/.lbl."
 msgstr ""
-"シンボル未読み込み。上の [+ 追加] または [Load From...] で .noi/.map/.sym/."
-"lbl をインポートしてください。"
+"シンボル未読み込み。上の [+ 追加] または [Load From...] "
+"で .noi/.map/.sym/.lbl をインポートしてください。"
 
 #: src/ui-imgui/debugger/symbols/sym_window.cpp:1200
 msgid "Own##sym_col_owner"
@@ -8694,8 +8842,8 @@ msgstr "保存##vars_save"
 msgid ""
 "Save to default per-arch .vars file (mz800.vars / mz1500.vars in cfg dir)."
 msgstr ""
-"アーキテクチャ別のデフォルト.varsファイルに保存 (cfgディレクトリ内の mz800."
-"vars / mz1500.vars)。"
+"アーキテクチャ別のデフォルト.varsファイルに保存 (cfgディレクトリ内の "
+"mz800.vars / mz1500.vars)。"
 
 #: src/ui-imgui/debugger/vars/vars_window.cpp:676
 msgid "Save As...##vars_saveas"
@@ -11335,8 +11483,8 @@ msgstr "'{SD}/unicard/' のUnicardランタイムファイルが再初期化さ�
 
 #: src/ui-imgui/topmenu/devices/menu_unicard.cpp:356
 msgid ""
-"Overwrites manager files in '{SD}/unicard/' (mgr.mzf, mgr800.mzf, mgr700."
-"mzf, mgr1500.mzf) with the selected version.\n"
+"Overwrites manager files in '{SD}/unicard/' (mgr.mzf, mgr800.mzf, "
+"mgr700.mzf, mgr1500.mzf) with the selected version.\n"
 "On MZ-800 prompts for mgr V2.4 vs V2.11b."
 msgstr ""
 "'{SD}/unicard/' のマネージャファイル (mgr.mzf, mgr800.mzf, mgr700.mzf, "

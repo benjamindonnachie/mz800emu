@@ -82,6 +82,11 @@ documented separately in [Resources overview](resources-overview.md).
 | `emu_profiler_reset` | no | Clear profiler aggregator |
 | `emu_profiler_export` | no | Export profile to CSV or JSON file |
 | `emu_profiler_get` | no | Inline JSON with entries + global stats |
+| `emu_profiler_pc_start` | no | Start the per-PC profiler (executions, T-states and WAIT per instruction address) |
+| `emu_profiler_pc_stop` | no | Stop the per-PC profiler (data preserved) |
+| `emu_profiler_pc_reset` | no | Clear the per-PC profiler data |
+| `emu_profiler_pc_get` | no | Busiest instruction addresses with the nearest symbol (sort, limit, address range) |
+| `emu_profiler_pc_export` | no | All executed addresses to a CSV file |
 | `emu_media_load_mzf` | no | CMT-hack instant load of MZF (header + body) into RAM at LOAD_ADDR (path or bytes_b64) |
 | `emu_media_run_mzf` | **YES** | Reset + start MZF in the `--run-mzf` state (default); `bootstrap=false` = load + ROM disconnect + JP STRT without reset |
 | `emu_media_load_binary` | **YES** | Raw bytes from file to Z80 memory, **destructive** |
@@ -1159,6 +1164,82 @@ Response:
 The `entries` array is in hash-map iteration order (= not sorted).
 The client is expected to sort it according to its own metric
 (typically `excl_cycles` descending).
+
+## Per-PC profiler tools
+
+The per-PC profiler counts every executed instruction by its address
+(logical PC): executions, T-states including wait states, and wait
+states alone (VRAM access, PSG write). Unlike the function profiler
+above it needs no CALL/RET pairing, so it also sees code that is
+jumped to, interrupt handlers and self-contained loops - typically the
+place to start when optimizing a program.
+
+- Block instructions (LDIR, LDDR, ...) count every repetition as one
+  execution (the CPU fetches them again).
+- Memory banks are not told apart: code at the same address in
+  different banks adds up.
+- Time outside instructions is counted separately: `halt_idle` (the CPU
+  waits in HALT, the HALT instruction itself counts at its address) and
+  `other_tstates` (mainly interrupt acknowledge). Always
+  `tstates + halt_idle + other_tstates == elapsed_tstates`.
+- Overhead: one function call per instruction while it runs. With the
+  profiler stopped the emulation is not slowed down.
+
+Typical use:
+
+```
+emu_profiler_pc_start()          # clears previous data
+emu_run(frames=50)               # one second of an MZ-800 (PAL)
+emu_profiler_pc_get(limit=20)    # where the time went
+emu_profiler_pc_stop()
+```
+
+All five tools return the summary `{"active", "instructions",
+"tstates", "wait", "halt_idle", "other_tstates", "elapsed_tstates",
+"unique_pcs"}` (plus the fields below).
+
+### `emu_profiler_pc_start`
+
+Start collecting. Argument `reset` (bool, default true): clear previous
+data first; false continues adding to it.
+
+### `emu_profiler_pc_stop`
+
+Stop collecting; the data stays for `emu_profiler_pc_get` and
+`emu_profiler_pc_export`.
+
+### `emu_profiler_pc_reset`
+
+Clear the data. Whether the profiler runs is not changed.
+
+### `emu_profiler_pc_get`
+
+The busiest addresses inline. Arguments (all optional):
+
+- `sort` - `tstates` (default), `count`, `wait` or `addr`,
+- `limit` - rows, 1..1000 (default 50),
+- `from_addr`, `to_addr` - address range, inclusive (default 0..65535).
+
+Adds `sort`, `total_rows` (executed addresses in the range, may exceed
+`limit`) and `rows`:
+
+```json
+{"pc": 33667, "count": 109893, "tstates": 2307503, "wait": 0,
+ "tstates_pct": 64.79, "avg_tstates": 21.0,
+ "symbol": "fill_loop", "sym_offset": 3}
+```
+
+`tstates_pct` is the share of all instruction T-states. `symbol` is the
+nearest loaded symbol at or below `pc` (CPU view, as
+`emu_symbol_lookup`), `""` when there is none.
+
+### `emu_profiler_pc_export`
+
+Write all executed addresses to a CSV file. Arguments: `path` (required,
+overwritten; the folder must exist) and `sort` (default `addr`). CSV:
+UTF-8, LF line endings, decimal point regardless of the locale; header
+`pc,count,tstates,wait,tstates_pct`, `pc` as 4 hex digits. Adds `path`
+and `rows`.
 
 ## Media tools
 

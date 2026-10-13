@@ -90,8 +90,11 @@
  *
  * screenshot-series doplnil screenshot_series_start, _stop a _status
  * (série PNG emulovaných snímků, na KONEC cmd_map[]) = 169 + 3 = 172.
+ *
+ * pc-stats doplnil profiler_pc_start, _stop, _reset, _get a _export
+ * (profiler podle PC, na KONEC cmd_map[]) = 172 + 5 = 177.
  */
-#define MCP_EXPECTED_CMD_COUNT 172
+#define MCP_EXPECTED_CMD_COUNT 177
 
 
 /* ====================================================================== */
@@ -6751,6 +6754,90 @@ void test_screenshot_series_status_stop(void) {
 
 
 /**
+ * @brief profiler_pc_start/stop/reset: předaná operace a reset (výchozí true),
+ *        odpověď = souhrn.
+ */
+void test_profiler_pc_lifecycle(void) {
+    dispatch_stub_reset();
+    char *resp = NULL;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("profiler_pc_start", "{}", &resp));
+    TEST_ASSERT_EQUAL_INT(DBGAPI_PROFILER_PC_OP_START, g_stub_state.pc_last.op);
+    TEST_ASSERT_TRUE(g_stub_state.pc_last.reset);
+    TEST_ASSERT_NOT_NULL(strstr(resp, "\"active\":true"));
+    TEST_ASSERT_NOT_NULL(strstr(resp, "\"elapsed_tstates\""));
+    free(resp);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("profiler_pc_start", "{\"reset\":false}", NULL));
+    TEST_ASSERT_FALSE(g_stub_state.pc_last.reset);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("profiler_pc_stop", "{}", NULL));
+    TEST_ASSERT_EQUAL_INT(DBGAPI_PROFILER_PC_OP_STOP, g_stub_state.pc_last.op);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("profiler_pc_reset", "{}", NULL));
+    TEST_ASSERT_EQUAL_INT(DBGAPI_PROFILER_PC_OP_RESET, g_stub_state.pc_last.op);
+    TEST_ASSERT_EQUAL_INT(4, g_stub_state.pc_calls);
+}
+
+
+/**
+ * @brief profiler_pc_get: výchozí parametry (tstates, 50, celý rozsah, se
+ *        symboly), předání sort/limit/from/to a řádky v odpovědi.
+ */
+void test_profiler_pc_get_params(void) {
+    dispatch_stub_reset();
+    char *resp = NULL;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("profiler_pc_get", "{}", &resp));
+    const st_DBGAPI_PROFILER_PC_PARAM *p = &g_stub_state.pc_last;
+    TEST_ASSERT_EQUAL_INT(DBGAPI_PROFILER_PC_OP_GET, p->op);
+    TEST_ASSERT_EQUAL_INT(PROFILER_PC_SORT_TSTATES, p->sort);
+    TEST_ASSERT_EQUAL_UINT(50, p->rows_max);
+    TEST_ASSERT_EQUAL_HEX16(0x0000, p->lo);
+    TEST_ASSERT_EQUAL_HEX16(0xFFFF, p->hi);
+    TEST_ASSERT_TRUE(p->with_symbols);
+    TEST_ASSERT_NOT_NULL(strstr(resp, "\"total_rows\":3"));
+    TEST_ASSERT_NOT_NULL(strstr(resp, "\"pc\":4608"));
+    TEST_ASSERT_NOT_NULL(strstr(resp, "\"symbol\":\"loop\""));
+    TEST_ASSERT_NOT_NULL(strstr(resp, "\"sort\":\"tstates\""));
+    free(resp);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("profiler_pc_get",
+        "{\"sort\":\"wait\",\"limit\":2,\"from\":4096,\"to\":8191}", &resp));
+    TEST_ASSERT_EQUAL_INT(PROFILER_PC_SORT_WAIT, p->sort);
+    TEST_ASSERT_EQUAL_UINT(2, p->rows_max);
+    TEST_ASSERT_EQUAL_HEX16(0x1000, p->lo);
+    TEST_ASSERT_EQUAL_HEX16(0x1FFF, p->hi);
+    /* Stub vrátí 3 adresy, zapíše jen kapacitu 2. */
+    TEST_ASSERT_NOT_NULL(strstr(resp, "\"pc\":4609"));
+    TEST_ASSERT_NULL(strstr(resp, "\"pc\":4610"));
+    free(resp);
+}
+
+
+/**
+ * @brief profiler_pc_get/export: neplatné parametry => INVALID_PARAMS bez
+ *        předání; export předá cestu a výchozí řazení podle adresy.
+ */
+void test_profiler_pc_errors_export(void) {
+    dispatch_stub_reset();
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("profiler_pc_get", "{\"sort\":\"x\"}", NULL));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("profiler_pc_get", "{\"limit\":0}", NULL));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("profiler_pc_get", "{\"limit\":1001}", NULL));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("profiler_pc_get", "{\"from\":5,\"to\":4}", NULL));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("profiler_pc_get", "{\"to\":65536}", NULL));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("profiler_pc_start", "{\"reset\":1}", NULL));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("profiler_pc_export", "{}", NULL));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("profiler_pc_export", "{\"path\":\"\"}", NULL));
+    TEST_ASSERT_EQUAL_INT(0, g_stub_state.pc_calls);
+
+    char *resp = NULL;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("profiler_pc_export", "{\"path\":\"C:/tmp/pc.csv\"}", &resp));
+    TEST_ASSERT_EQUAL_INT(DBGAPI_PROFILER_PC_OP_EXPORT, g_stub_state.pc_last.op);
+    TEST_ASSERT_EQUAL_INT(PROFILER_PC_SORT_ADDR, g_stub_state.pc_last.sort);
+    TEST_ASSERT_EQUAL_STRING("C:/tmp/pc.csv", g_stub_state.pc_last_path);
+    TEST_ASSERT_NOT_NULL(strstr(resp, "\"rows\":3"));
+    free(resp);
+}
+
+
+/**
  * @brief V1.D.4 - get_video_text_dump available (default v stubu).
  */
 void test_get_video_text_dump_available(void) {
@@ -7237,6 +7324,9 @@ int main(void) {
     RUN_TEST(test_screenshot_series_start_params);
     RUN_TEST(test_screenshot_series_errors);
     RUN_TEST(test_screenshot_series_status_stop);
+    RUN_TEST(test_profiler_pc_lifecycle);
+    RUN_TEST(test_profiler_pc_get_params);
+    RUN_TEST(test_profiler_pc_errors_export);
     RUN_TEST(test_get_video_text_dump_available);
     RUN_TEST(test_get_video_text_dump_unavailable);
 

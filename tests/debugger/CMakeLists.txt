@@ -343,6 +343,14 @@ mz_add_test(profiler
     LABELS   "emu;debugger"
 )
 
+# Profiler podle PC (profiler_pc.h): součty na adresu, nečinný HALT,
+# přijetí přerušení, nespojitost čítače cyklů, výběr řádků a export CSV.
+mz_add_test(profiler_pc
+    TYPE     EMU
+    SOURCES  test_profiler_pc.c
+    LABELS   "emu;debugger"
+)
+
 mz_add_test(mhmap_resolve
     TYPE     EMU
     SOURCES  test_mhmap_resolve.c

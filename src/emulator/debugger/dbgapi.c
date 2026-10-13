@@ -48,6 +48,7 @@
 #include "stack_history.h"
 #include "callstack.h"
 #include "profiler.h"
+#include "profiler_pc.h"
 #include "watch.h"
 #include "watch_emu_cache.h"  /* V1.D.2.C: dispatch-side mirror lookup */
 #include "bp_vars.h"
@@ -141,6 +142,67 @@
 #endif
 #include "iface/iface_video.h"
 #include "hw-generic/gdg/framebuffer.h"
+
+/**
+ * @brief Porovnání adres symbolů pro qsort (vzestupně).
+ */
+static int dbgapi_profiler_pc_addr_cmp ( const void *a, const void *b )
+{
+    uint16_t x = *(const uint16_t *) a, y = *(const uint16_t *) b;
+    return (int) x - (int) y;
+}
+
+
+/**
+ * @brief Doplní do řádků profileru podle PC nejbližší symbol (adresa <= pc).
+ *
+ * Bere jen globální symboly (bank_id 0, CPU pohled), stejně jako MCP
+ * symbol_lookup. Při více symbolech na jedné adrese rozhoduje priorita
+ * sym_db_lookup_by_addr (LBL > MAP > NOI > SYM).
+ *
+ * @param rows Řádky (vyplněné `r.pc`).
+ * @param n    Počet řádků.
+ * @post Řádky bez symbolu mají symbol "" a sym_offset 0.
+ * @note Volá se v emu vlákně jako ostatní MCP příkazy nad sym_db
+ *       (symbol_lookup, symbol_list).
+ */
+static void dbgapi_profiler_pc_fill_symbols ( st_DBGAPI_PROFILER_PC_ROW *rows, size_t n )
+{
+    for ( size_t i = 0; i < n; i++ ) {
+        rows[ i ].symbol[ 0 ] = '\0';
+        rows[ i ].sym_offset = 0;
+    };
+    size_t count = sym_db_count ( );
+    if ( n == 0 || count == 0 ) return;
+    uint16_t *addrs = (uint16_t *) g_malloc ( count * sizeof ( uint16_t ) );
+    size_t na = 0;
+    st_SYM_DB_ITER it;
+    sym_db_iter_init ( &it );
+    const st_SYMBOL *s;
+    while ( ( s = sym_db_iter_next ( &it ) ) != NULL && na < count ) {
+        if ( s->bank_id != 0 || s->addr > 0xFFFFu ) continue;
+        addrs[ na++ ] = (uint16_t) s->addr;
+    };
+    qsort ( addrs, na, sizeof ( uint16_t ), dbgapi_profiler_pc_addr_cmp );
+    for ( size_t i = 0; i < n; i++ ) {
+        uint16_t pc = rows[ i ].r.pc;
+        /* Binární hledání poslední adresy <= pc. */
+        size_t lo = 0, hi = na;
+        while ( lo < hi ) {
+            size_t mid = ( lo + hi ) / 2;
+            if ( addrs[ mid ] <= pc ) lo = mid + 1;
+            else hi = mid;
+        };
+        if ( lo == 0 ) continue;
+        uint16_t sa = addrs[ lo - 1 ];
+        const st_SYMBOL *sym = sym_db_lookup_by_addr ( sa, 0 );
+        if ( !sym || !sym->name ) continue;
+        g_strlcpy ( rows[ i ].symbol, sym->name, sizeof ( rows[ i ].symbol ) );
+        rows[ i ].sym_offset = (uint32_t) ( pc - sa );
+    };
+    g_free ( addrs );
+}
+
 
 /**
  * @brief Převede délky pulzů (sekundy) na pole µs v pořadí hlavičky CMTSPEED.
@@ -883,6 +945,7 @@ const char *dbgapi_cmd_to_str(en_DBGAPI_CMD cmd)
         case DBGAPI_CMD_HID_SCRIPT_START:          return "hid_script_start";
         case DBGAPI_CMD_HID_SCRIPT_CANCEL:         return "hid_script_cancel";
         case DBGAPI_CMD_SCREENSHOT_SERIES:         return "screenshot_series";
+        case DBGAPI_CMD_PROFILER_PC:               return "profiler_pc";
         /* V1.D.1 - Core + CPU extras Resources */
         case DBGAPI_CMD_GET_CPU_IM2_VECTOR:        return "get_cpu_im2_vector";
         case DBGAPI_CMD_GET_CPU_INTERRUPT_BUS:     return "get_cpu_interrupt_bus";
@@ -5467,6 +5530,75 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
             };
             screenshot_series_get_status ( &p->out_status );
             rq->success = ( p->out_result == DBGAPI_SCREENSHOT_SERIES_RESULT_OK );
+            break;
+        }
+
+        case DBGAPI_CMD_PROFILER_PC:
+        {
+            /* Profiler podle PC (profiler_pc.h). Souhrn se vrací vždy. */
+            st_DBGAPI_PROFILER_PC_PARAM *p = (st_DBGAPI_PROFILER_PC_PARAM *) rq->data_ptr;
+            if ( !p )
+            {
+                rq->success = false;
+                break;
+            };
+            p->out_error[ 0 ] = 0;
+            p->out_total = 0;
+            p->out_written = 0;
+            switch ( p->op )
+            {
+                case DBGAPI_PROFILER_PC_OP_START:
+                    if ( p->reset ) profiler_pc_reset ( );
+                    profiler_pc_set_active ( true );
+                    break;
+                case DBGAPI_PROFILER_PC_OP_STOP:
+                    profiler_pc_set_active ( false );
+                    break;
+                case DBGAPI_PROFILER_PC_OP_RESET:
+                    profiler_pc_reset ( );
+                    break;
+                case DBGAPI_PROFILER_PC_OP_GET:
+                {
+                    if ( !p->rows || p->rows_max == 0 )
+                    {
+                        p->out_total = profiler_pc_get_rows ( p->sort, p->lo, p->hi, NULL, 0 );
+                        break;
+                    };
+                    st_PROFILER_PC_ROW *tmp = (st_PROFILER_PC_ROW *) g_malloc ( p->rows_max * sizeof ( *tmp ) );
+                    p->out_total = profiler_pc_get_rows ( p->sort, p->lo, p->hi, tmp, p->rows_max );
+                    p->out_written = ( p->out_total < p->rows_max ) ? p->out_total : p->rows_max;
+                    for ( size_t i = 0; i < p->out_written; i++ )
+                    {
+                        p->rows[ i ].r = tmp[ i ];
+                    };
+                    g_free ( tmp );
+                    if ( p->with_symbols )
+                    {
+                        dbgapi_profiler_pc_fill_symbols ( p->rows, p->out_written );
+                    }
+                    else
+                    {
+                        for ( size_t i = 0; i < p->out_written; i++ )
+                        {
+                            p->rows[ i ].symbol[ 0 ] = '\0';
+                            p->rows[ i ].sym_offset = 0;
+                        };
+                    };
+                    break;
+                }
+                case DBGAPI_PROFILER_PC_OP_EXPORT:
+                {
+                    int n = profiler_pc_export_csv ( p->path, p->sort, p->out_error, sizeof ( p->out_error ) );
+                    if ( n >= 0 ) p->out_written = (size_t) n;
+                    else if ( !p->out_error[ 0 ] ) g_strlcpy ( p->out_error, "export failed", sizeof ( p->out_error ) );
+                    break;
+                }
+                default:
+                    g_strlcpy ( p->out_error, "unknown operation", sizeof ( p->out_error ) );
+                    break;
+            };
+            profiler_pc_get_summary ( &p->out_summary );
+            rq->success = ( p->out_error[ 0 ] == 0 );
             break;
         }
 

@@ -82,6 +82,11 @@ dokumentu [Resources overview](resources-overview.md).
 | `emu_profiler_reset` | ne | Vynuluje agregátor profileru |
 | `emu_profiler_export` | ne | Export profile do CSV nebo JSON souboru |
 | `emu_profiler_get` | ne | Inline JSON s entries + globální stats |
+| `emu_profiler_pc_start` | ne | Start profileru podle PC (vykonání, T-stavy a WAIT na adresu instrukce) |
+| `emu_profiler_pc_stop` | ne | Stop profileru podle PC (data zachována) |
+| `emu_profiler_pc_reset` | ne | Smaže data profileru podle PC |
+| `emu_profiler_pc_get` | ne | Nejvytíženější adresy instrukcí s nejbližším symbolem (řazení, limit, rozsah adres) |
+| `emu_profiler_pc_export` | ne | Všechny vykonané adresy do CSV souboru |
 | `emu_media_load_mzf` | ne | CMT-hack instant load MZF (header + body) do RAM na LOAD_ADDR (path nebo bytes_b64) |
 | `emu_media_run_mzf` | **ANO** | Reset + spuštění MZF ve stavu jako po `--run-mzf` (výchozí); `bootstrap=false` = load + ROM disconnect + JP STRT bez resetu |
 | `emu_media_load_binary` | **ANO** | Raw bajty z file do Z80 paměti, **destruktivní** |
@@ -1130,6 +1135,82 @@ Response:
 Pole `entries` je v pořadí hash-map iterace (= bez sortování).
 Klient si sortuje podle vlastní metriky (typicky `excl_cycles`
 descending).
+
+## Profiler podle PC
+
+Profiler podle PC počítá každou vykonanou instrukci podle její adresy
+(logické PC): počet vykonání, T-stavy včetně čekacích stavů a samotné
+čekací stavy (přístup do VRAM, zápis do PSG). Na rozdíl od profileru po
+funkcích výše nepotřebuje párování CALL/RET, takže vidí i kód, na který
+se skáče, obsluhy přerušení a samostatné smyčky - obvykle první krok
+při optimalizaci programu.
+
+- Blokové instrukce (LDIR, LDDR, ...) se počítají při každém opakování
+  jako jedno vykonání (CPU je načítá znovu).
+- Paměťové banky se nerozlišují: kód na stejné adrese v různých bankách
+  se sčítá.
+- Čas mimo instrukce se vede zvlášť: `halt_idle` (CPU čeká v HALT,
+  samotná instrukce HALT se počítá na své adrese) a `other_tstates`
+  (hlavně přijetí přerušení). Vždy platí
+  `tstates + halt_idle + other_tstates == elapsed_tstates`.
+- Režie: jedno volání funkce na instrukci, dokud sběr běží. Se
+  zastaveným profilerem se emulace nezpomalí.
+
+Typické použití:
+
+```
+emu_profiler_pc_start()          # smaže předchozí data
+emu_run(frames=50)               # jedna sekunda MZ-800 (PAL)
+emu_profiler_pc_get(limit=20)    # kam čas odešel
+emu_profiler_pc_stop()
+```
+
+Všech pět nástrojů vrací souhrn `{"active", "instructions", "tstates",
+"wait", "halt_idle", "other_tstates", "elapsed_tstates", "unique_pcs"}`
+(plus položky uvedené níže).
+
+### `emu_profiler_pc_start`
+
+Spustí sběr. Argument `reset` (bool, výchozí true): nejdřív smazat
+předchozí data; false pokračuje v přičítání.
+
+### `emu_profiler_pc_stop`
+
+Zastaví sběr; data zůstanou pro `emu_profiler_pc_get`
+a `emu_profiler_pc_export`.
+
+### `emu_profiler_pc_reset`
+
+Smaže data. Zda profiler běží, se nemění.
+
+### `emu_profiler_pc_get`
+
+Nejvytíženější adresy inline. Argumenty (všechny volitelné):
+
+- `sort` - `tstates` (výchozí), `count`, `wait` nebo `addr`,
+- `limit` - počet řádků, 1..1000 (výchozí 50),
+- `from_addr`, `to_addr` - rozsah adres včetně (výchozí 0..65535).
+
+Přidá `sort`, `total_rows` (vykonané adresy v rozsahu, může být víc než
+`limit`) a `rows`:
+
+```json
+{"pc": 33667, "count": 109893, "tstates": 2307503, "wait": 0,
+ "tstates_pct": 64.79, "avg_tstates": 21.0,
+ "symbol": "fill_loop", "sym_offset": 3}
+```
+
+`tstates_pct` je podíl na T-stavech všech instrukcí. `symbol` je
+nejbližší načtený symbol na adrese `pc` nebo pod ní (pohled CPU, jako
+`emu_symbol_lookup`), `""` když žádný není.
+
+### `emu_profiler_pc_export`
+
+Zapíše všechny vykonané adresy do CSV. Argumenty: `path` (povinný,
+přepíše se; složka musí existovat) a `sort` (výchozí `addr`). CSV:
+UTF-8, konce řádků LF, desetinná tečka bez ohledu na locale; hlavička
+`pc,count,tstates,wait,tstates_pct`, `pc` jako 4 hex číslice. Přidá
+`path` a `rows`.
 
 ## Media tools
 

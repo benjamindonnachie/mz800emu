@@ -34,6 +34,7 @@
 #include "app/app_thread.h"
 #include "screenshot/screenshot.h"
 #include "screenshot/screenshot_series.h"
+#include "debugger/profiler_pc.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -690,6 +691,14 @@ typedef enum en_DBGAPI_CMD
      * a dispatch test build je přes stub. Přidáno na KONEC enumu kvůli
      * stabilitě číselných hodnot. */
     DBGAPI_CMD_SCREENSHOT_SERIES,    /* Série screenshotů (start/stop/stav) - data_ptr: st_DBGAPI_SCREENSHOT_SERIES_PARAM* */
+
+    /* pc-stats - profiler podle PC (profiler_pc.h)
+     *
+     * Jeden příkaz s operací (vzor DBGAPI_CMD_SCREENSHOT_SERIES): start,
+     * stop, reset, výběr řádků a export do CSV. Data zapisuje emu vlákno,
+     * proto čtení i export jdou přes frontu. Přidáno na KONEC enumu kvůli
+     * stabilitě číselných hodnot. */
+    DBGAPI_CMD_PROFILER_PC,          /* Profiler podle PC - data_ptr: st_DBGAPI_PROFILER_PC_PARAM* */
 
 } en_DBGAPI_CMD;
 
@@ -2810,6 +2819,64 @@ typedef struct st_DBGAPI_SCREENSHOT_SERIES_PARAM
     char out_error[ SCREENSHOT_SERIES_TEXT_MAX ]; /**< OUT: anglický text chyby ("" při úspěchu). */
     st_SCREENSHOT_SERIES_STATUS out_status;     /**< OUT: stav série po operaci. */
 } st_DBGAPI_SCREENSHOT_SERIES_PARAM;
+
+
+/**
+ * @brief Operace příkazu DBGAPI_CMD_PROFILER_PC (MCP `profiler_pc_*`, GUI záložka Per PC).
+ */
+typedef enum en_DBGAPI_PROFILER_PC_OP
+{
+    DBGAPI_PROFILER_PC_OP_START = 0, /**< profiler_pc_set_active(true); s `reset` nejdřív vynuluje. */
+    DBGAPI_PROFILER_PC_OP_STOP,      /**< profiler_pc_set_active(false), data zůstanou. */
+    DBGAPI_PROFILER_PC_OP_RESET,     /**< profiler_pc_reset(). */
+    DBGAPI_PROFILER_PC_OP_GET,       /**< Souhrn + nejvýše `rows_max` řádků do `rows`. */
+    DBGAPI_PROFILER_PC_OP_EXPORT,    /**< profiler_pc_export_csv() do `path`. */
+} en_DBGAPI_PROFILER_PC_OP;
+
+/** @brief Nejvíc řádků, které vrací jeden GET přes MCP. */
+#define DBGAPI_PROFILER_PC_ROWS_MAX 1000
+/** @brief Velikost bufferu na název symbolu v řádku (delší název se zkrátí). */
+#define DBGAPI_PROFILER_PC_SYM_MAX  48
+
+/**
+ * @brief Řádek výsledku GET: data adresy a nejbližší symbol.
+ *
+ * Symbol se vyplní jen při `with_symbols` (MCP); GUI si symboly dohledává
+ * samo v UI vlákně.
+ */
+typedef struct st_DBGAPI_PROFILER_PC_ROW
+{
+    st_PROFILER_PC_ROW r;                         /**< Data adresy. */
+    char     symbol[ DBGAPI_PROFILER_PC_SYM_MAX ]; /**< Nejbližší symbol na adrese <= pc (CPU pohled), "" = žádný. */
+    uint32_t sym_offset;                          /**< pc - adresa symbolu (0 = symbol přímo na pc). */
+} st_DBGAPI_PROFILER_PC_ROW;
+
+/**
+ * @brief Parametr pro DBGAPI_CMD_PROFILER_PC.
+ *
+ * Handler vždy vyplní `out_summary` (stav po operaci) a `out_error`.
+ *
+ * @par Vlastnictví
+ * `rows` a `path` vlastní volající; handler do `rows` jen zapisuje.
+ *
+ * @invariant rq->success == false <=> out_error != "" nebo chybí parametr.
+ */
+typedef struct st_DBGAPI_PROFILER_PC_PARAM
+{
+    en_DBGAPI_PROFILER_PC_OP op;   /**< IN: operace. */
+    bool     reset;                /**< IN (START): vynulovat data před startem. */
+    en_PROFILER_PC_SORT sort;      /**< IN (GET, EXPORT): řazení. */
+    uint16_t lo;                   /**< IN (GET): nejnižší adresa. */
+    uint16_t hi;                   /**< IN (GET): nejvyšší adresa (včetně). */
+    bool     with_symbols;         /**< IN (GET): vyplnit symbol v řádcích. */
+    st_DBGAPI_PROFILER_PC_ROW *rows; /**< IN (GET): pole na řádky, nebo NULL. */
+    size_t   rows_max;             /**< IN (GET): kapacita `rows`. */
+    const char *path;              /**< IN (EXPORT): cílový CSV soubor. */
+    size_t   out_total;            /**< OUT (GET): adres s vykonáním v rozsahu. */
+    size_t   out_written;          /**< OUT (GET): zapsaných řádků; (EXPORT): řádků v CSV. */
+    st_PROFILER_PC_SUMMARY out_summary; /**< OUT: souhrn po operaci. */
+    char     out_error[ 256 ];     /**< OUT: anglický text chyby, "" = OK. */
+} st_DBGAPI_PROFILER_PC_PARAM;
 
 
 /**
