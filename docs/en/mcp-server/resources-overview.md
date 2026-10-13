@@ -102,7 +102,7 @@ transport call).
 | `emulator://docs/mz800_keyboard` | MZ-800 keyboard - layout, matrix, modifiers, character layers, key names for `emu_input_send_keys`, special-character recipes (MZ-700/1500 as a diff) |
 | `emulator://docs/cmt_workflow` | CMT workflow - real tape vs cmthack, transport, WAV recording, speed ratios, SIMPLE_TAPE multi-block seek + per-block speed |
 | `emulator://docs/videorec_workflow` | Video recording workflow - `emu_videorec_*` tools, recipe start, play, markers, retake from a snapshot, stop, export to MP4 |
-| `emulator://docs/screenshot_workflow` | Screenshot workflow - `emu_screenshot_save_to_file` with area, scale (framebuffer / native dots / window 1-4) and crop, picture sizes per build, recipes |
+| `emulator://docs/screenshot_workflow` | Screenshot workflow - `emu_screenshot_save_to_file` with area, scale (framebuffer / native dots / window 1-4) and crop, picture sizes per build, recipes, frame series `emu_screenshot_series_*` for animation bugs |
 
 AI clients should read `emulator://docs/index` first - it shows what
 is documented and when to consult each topic.

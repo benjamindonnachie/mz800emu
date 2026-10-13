@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mz800emu 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-13 17:00+0200\n"
+"POT-Creation-Date: 2026-10-13 18:02+0200\n"
 "PO-Revision-Date: 2026-03-11 21:00+0100\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -63,21 +63,21 @@ msgstr ""
 "Dirección = 0x%04x\n"
 "Instrucción = '%s'\n"
 
-#: src/emulator/emulator.c:392
+#: src/emulator/emulator.c:395
 #: src/ui-imgui/mcp_activity/mcp_activity_window.cpp:421
 #: src/ui-imgui/videorec/videorec_menu.cpp:140
 msgid "PAUSED"
 msgstr "PAUSADO"
 
-#: src/emulator/emulator.c:395
+#: src/emulator/emulator.c:398
 msgid "Max speed"
 msgstr "Velocidad máxima"
 
-#: src/emulator/emulator.c:398
+#: src/emulator/emulator.c:401
 msgid "Custom speed"
 msgstr "Velocidad personalizada"
 
-#: src/emulator/emulator.c:400
+#: src/emulator/emulator.c:403
 msgid "Normal speed"
 msgstr "Velocidad normal"
 
@@ -654,7 +654,7 @@ msgstr "Cada duración debe ser mayor que 0 y como máximo %.0f µs."
 #: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:109
 #: src/ui-imgui/joy/joy_setup_window.cpp:564
 #: src/ui-imgui/message/message_window.cpp:90
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:308
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:406
 #: src/ui-imgui/snapshot/snapshot_notification.cpp:95
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:338
 msgid "OK"
@@ -672,7 +672,7 @@ msgstr "OK"
 #: src/ui-imgui/memext/memext_save_dialog.cpp:207
 #: src/ui-imgui/ramdisk/pezik_settings_window.cpp:289
 #: src/ui-imgui/rom/rom_settings_window.cpp:323
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:313
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:411
 #: src/ui-imgui/snapshot/snapshot_save_dialog.cpp:139
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:176
 #: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:99
@@ -956,8 +956,8 @@ msgstr ""
 msgid ""
 "HW event - trigger on named hardware event (vsync, raster, ctc:zc0, ...)."
 msgstr ""
-"Evento HW - disparar en evento hardware nombrado (vsync, raster, "
-"ctc:zc0, ...)."
+"Evento HW - disparar en evento hardware nombrado (vsync, raster, ctc:"
+"zc0, ...)."
 
 #: src/ui-imgui/debugger/breakpoints/bpt_edit_panel.cpp:227
 msgid "SP threshold - trigger when stack pointer crosses the threshold."
@@ -6956,9 +6956,8 @@ msgstr "Tipo de canal"
 #: src/ui-imgui/debugger/psg_window.cpp:418
 msgid "CH0-2 vzdy TONE, CH3 vzdy NOISE (initializace v psg_instance_init)."
 msgstr ""
-"CH0-2 siempre TONE, CH3 siempre NOISE (inicialización en "
-"psg_instance_init).CH0-2 siempre TONE, CH3 siempre NOISE (inicializacion en "
-"psg_instance_init)."
+"CH0-2 siempre TONE, CH3 siempre NOISE (inicialización en psg_instance_init)."
+"CH0-2 siempre TONE, CH3 siempre NOISE (inicializacion en psg_instance_init)."
 
 #: src/ui-imgui/debugger/psg_window.cpp:423
 msgid "Attenuation"
@@ -6967,8 +6966,8 @@ msgstr "Atenuación"
 #: src/ui-imgui/debugger/psg_window.cpp:426
 msgid "4-bit volume: 0 = max (0 dB), krok -2 dB, 15 = silent (channel off)."
 msgstr ""
-"Volumen de 4 bits: 0 = max (0 dB), paso -2 dB, 15 = silencio (canal "
-"off).Volumen 4-bit: 0 = max (0 dB), paso -2 dB, 15 = silent (canal apagado)."
+"Volumen de 4 bits: 0 = max (0 dB), paso -2 dB, 15 = silencio (canal off)."
+"Volumen 4-bit: 0 = max (0 dB), paso -2 dB, 15 = silent (canal apagado)."
 
 #: src/ui-imgui/debugger/psg_window.cpp:464
 msgid "Tone divider (10-bit)"
@@ -8706,8 +8705,8 @@ msgstr "Símbolos###sym_main"
 
 #: src/ui-imgui/debugger/symbols/sym_window.cpp:1186
 msgid ""
-"No symbols loaded. Use [+ Add] above or [Load From...] to "
-"import .noi/.map/.sym/.lbl."
+"No symbols loaded. Use [+ Add] above or [Load From...] to import .noi/.map/."
+"sym/.lbl."
 msgstr ""
 "No hay símbolos cargados. Use [+ Añadir] arriba o [Cargar desde...] para "
 "importar .noi/.map/.sym/.lbl."
@@ -10370,129 +10369,183 @@ msgstr "Archivos binarios ROM"
 msgid "CMT Hack Patch ROM"
 msgstr "ROM del parche CMT Hack"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:57
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:60
 msgid "The emulator screen is not available"
 msgstr "La pantalla del emulador no está disponible"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:92
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:95
 #, c-format
 msgid "Screenshot saved (%u x %u): %s"
 msgstr "Captura de pantalla guardada (%u x %u): %s"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:96
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:99
 #, c-format
 msgid "Cannot save screenshot to '%s': %s"
 msgstr "No se puede guardar la captura de pantalla en '%s': %s"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:97
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:142
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:100
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:145
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:221
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:235
 msgid "Screenshot Error"
 msgstr "Error de captura de pantalla"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:127
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:159
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:130
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:162
 msgid "Save Screenshot"
 msgstr "Guardar captura de pantalla"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:141
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:144
 #: src/ui-imgui/videorec/videorec_menu.cpp:422
 #, c-format
 msgid "Cannot open folder: %s"
 msgstr "No se puede abrir la carpeta: %s"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:158
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:161
 msgid "Screenshot"
 msgstr "Captura de pantalla"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:162
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:165
 msgid "Save Screenshot As..."
 msgstr "Guardar captura de pantalla como..."
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:166
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:170
+msgid "Record Changed Frames"
+msgstr "Grabar fotogramas cambiados"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:174
+msgid ""
+"Saves a PNG of every emulated frame that differs from the previous one (area "
+"and scale from Settings) until you stop it."
+msgstr ""
+"Guarda un PNG de cada fotograma emulado que difiere del anterior (área y "
+"escala de los ajustes) hasta que lo detengas."
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:178
 #: src/ui-imgui/videorec/videorec_menu.cpp:462
 #: src/ui-imgui/videorec/videorec_remote_window.cpp:317
 msgid "Settings..."
 msgstr "Ajustes..."
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:169
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:181
 #: src/ui-imgui/videorec/videorec_menu.cpp:466
 #: src/ui-imgui/videorec/videorec_remote_window.cpp:315
 msgid "Open Output Folder"
 msgstr "Abrir carpeta de salida"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:199
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:220
+#, c-format
+msgid "Cannot start the frame series: %s"
+msgstr "No se puede iniciar la serie de fotogramas: %s"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:234
+#, c-format
+msgid "Frame series stopped after %u files: %s"
+msgstr "Serie de fotogramas detenida tras %u archivos: %s"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:238
+#, c-format
+msgid "Frame series saved: %u files of %u frames to %s"
+msgstr "Serie de fotogramas guardada: %u archivos de %u fotogramas en %s"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:253
+#, c-format
+msgid "FRAMES %u / %u"
+msgstr "FOTOGRAMAS %u / %u"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:288
 msgid "Native (computer dots, 320 or 640 wide)"
 msgstr "Nativa (puntos del ordenador, ancho 320 o 640)"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:200
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:289
 msgid "1x"
 msgstr "1x"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:201
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:290
 msgid "2x (window at 100 %)"
 msgstr "2x (ventana al 100 %)"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:202
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:291
 msgid "3x"
 msgstr "3x"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:203
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:292
 msgid "4x"
 msgstr "4x"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:218
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:307
 #, c-format
 msgid "Image size: %u x %u or %u x %u (640-dot modes)"
 msgstr "Tamaño de la imagen: %u x %u o %u x %u (modos de 640 puntos)"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:221
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:310
 #, c-format
 msgid "Image size: %u x %u"
 msgstr "Tamaño de la imagen: %u x %u"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:238
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:327
 msgid "Screenshot Settings"
 msgstr "Ajustes de captura de pantalla"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:243
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:332
 msgid "Area"
 msgstr "Área"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:244
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:333
 msgid "Whole frame with border"
 msgstr "Imagen completa con borde"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:247
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:336
 msgid "Picture without border"
 msgstr "Imagen sin borde"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:253
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:342
 msgid "Scale"
 msgstr "Escala"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:277
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:366
 msgid "1x drops every second column in the 640-dot modes."
 msgstr "1x omite una de cada dos columnas en los modos de 640 puntos."
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:282
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:371
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:260
 msgid "Output folder"
 msgstr "Carpeta de salida"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:285
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:374
 msgid "(default: screenshots folder next to the emulator)"
 msgstr "(predeterminado: carpeta screenshots junto al emulador)"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:295
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:384
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:80
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:273
 msgid "Select Directory"
 msgstr "Seleccionar directorio"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:300
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:389
+msgid "Frame series: only changed frames"
+msgstr "Serie de fotogramas: solo fotogramas cambiados"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:391
+msgid ""
+"Checked: Record Changed Frames saves only frames that differ from the last "
+"saved one. Unchecked: every emulated frame."
+msgstr ""
+"Marcado: Grabar fotogramas cambiados guarda solo los fotogramas distintos "
+"del último guardado. Sin marcar: cada fotograma emulado."
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:396
 #, c-format
 msgid "Save Screenshot (%s) saves the picture shown in the window."
-msgstr "Guardar captura de pantalla (%s) guarda la imagen mostrada en la ventana."
+msgstr ""
+"Guardar captura de pantalla (%s) guarda la imagen mostrada en la ventana."
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:397
+#, c-format
+msgid "Record Changed Frames (%s) saves emulated frames into a new folder."
+msgstr ""
+"Grabar fotogramas cambiados (%s) guarda los fotogramas emulados en una "
+"carpeta nueva."
 
 #: src/ui-imgui/snapshot/snapshot_load_dialog.cpp:157
 msgid "Snapshot Preview"
@@ -11428,8 +11481,8 @@ msgstr ""
 
 #: src/ui-imgui/topmenu/devices/menu_unicard.cpp:356
 msgid ""
-"Overwrites manager files in '{SD}/unicard/' (mgr.mzf, mgr800.mzf, "
-"mgr700.mzf, mgr1500.mzf) with the selected version.\n"
+"Overwrites manager files in '{SD}/unicard/' (mgr.mzf, mgr800.mzf, mgr700."
+"mzf, mgr1500.mzf) with the selected version.\n"
 "On MZ-800 prompts for mgr V2.4 vs V2.11b."
 msgstr ""
 "Sobrescribe los archivos del gestor en '{SD}/unicard/' (mgr.mzf, mgr800.mzf, "

@@ -31,6 +31,7 @@
 #include "hw-generic/joy/joymz-1x03.h"
 #include "audio.h"
 #include "videorec/videorec.h"
+#include "screenshot/screenshot_series.h"
 
 #if CFG_HWEXT_HAVE_FDC
 #include "hw-generic/fdc/fdc.h"
@@ -203,6 +204,9 @@ static inline void mz800_main_event_callback_screen_done(void)
 
     /* Video záznam: per-frame bod (1 atomické čtení, když se nenahrává). */
     videorec_on_screen_done();
+
+    /* Série screenshotů: per-frame bod (1 atomické čtení, když neběží). */
+    screenshot_series_on_screen_done();
 
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
     /* dbgapi CMDRQ drain a Freeze Bytes se tady jen OHLÁSÍ. Samotné

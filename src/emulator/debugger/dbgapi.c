@@ -57,6 +57,7 @@
 #include "freeze/freeze.h"
 #include "png_encode.h"
 #include "screenshot/screenshot_capture.h"
+#include "screenshot/screenshot_series.h"
 #include "trace/eventlog.h"
 #include "trace/eventlog_trigger.h"
 #include "io_history.h"
@@ -881,6 +882,7 @@ const char *dbgapi_cmd_to_str(en_DBGAPI_CMD cmd)
         case DBGAPI_CMD_INPUT_JOY_CLEAR:           return "input_joy_clear";
         case DBGAPI_CMD_HID_SCRIPT_START:          return "hid_script_start";
         case DBGAPI_CMD_HID_SCRIPT_CANCEL:         return "hid_script_cancel";
+        case DBGAPI_CMD_SCREENSHOT_SERIES:         return "screenshot_series";
         /* V1.D.1 - Core + CPU extras Resources */
         case DBGAPI_CMD_GET_CPU_IM2_VECTOR:        return "get_cpu_im2_vector";
         case DBGAPI_CMD_GET_CPU_INTERRUPT_BUS:     return "get_cpu_interrupt_bus";
@@ -5428,6 +5430,43 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
              * i v pauze - paused smyčka frontu dbgapi také vybírá. */
             rq->success = hid_script_cancel (
                 (st_DBGAPI_HID_SCRIPT *) rq->data_ptr );
+            break;
+        }
+
+        case DBGAPI_CMD_SCREENSHOT_SERIES:
+        {
+            /* Série screenshotů (screenshot_series.h): start, stop, stav.
+             * Stav se vrací vždy, i při chybě operace. */
+            st_DBGAPI_SCREENSHOT_SERIES_PARAM *p =
+                (st_DBGAPI_SCREENSHOT_SERIES_PARAM *) rq->data_ptr;
+            if ( !p )
+            {
+                rq->success = false;
+                break;
+            };
+            p->out_result = DBGAPI_SCREENSHOT_SERIES_RESULT_OK;
+            p->out_error[ 0 ] = 0;
+            switch ( p->op )
+            {
+                case DBGAPI_SCREENSHOT_SERIES_OP_START:
+                    if ( !screenshot_series_start ( &p->params, p->out_error, sizeof ( p->out_error ) ) )
+                    {
+                        p->out_result = DBGAPI_SCREENSHOT_SERIES_RESULT_FAILED;
+                    };
+                    break;
+                case DBGAPI_SCREENSHOT_SERIES_OP_STOP:
+                    if ( !screenshot_series_stop ( ) )
+                    {
+                        p->out_result = DBGAPI_SCREENSHOT_SERIES_RESULT_NOT_RUNNING;
+                        g_strlcpy ( p->out_error, "No frame series is running", sizeof ( p->out_error ) );
+                    };
+                    break;
+                case DBGAPI_SCREENSHOT_SERIES_OP_STATUS:
+                default:
+                    break;
+            };
+            screenshot_series_get_status ( &p->out_status );
+            rq->success = ( p->out_result == DBGAPI_SCREENSHOT_SERIES_RESULT_OK );
             break;
         }
 

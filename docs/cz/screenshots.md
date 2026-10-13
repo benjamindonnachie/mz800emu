@@ -7,6 +7,7 @@ a NTSC, MZ-1500). Menu **Tools -> Screenshot**:
 |---------|---------|---------|
 | Save Screenshot | `Alt + F` | Uloží PNG obrazu zobrazeného v okně do výstupní složky se jménem `<platforma>_RRRRMMDD_HHMMSS.png` (např. `mz800_20261013_183005.png`). Notifikace ukáže rozměr a cestu. |
 | Save Screenshot As... | | Totéž, ale zeptá se na jméno souboru. |
+| Record Changed Frames | `Alt + Shift + F` | Spustí / ukončí sérii snímků (viz níže). |
 | Settings... | | Oblast, měřítko a výstupní složka (viz níže). |
 | Open Output Folder | | Otevře výstupní složku ve správci souborů. |
 
@@ -32,9 +33,26 @@ Menu **Tools -> Screenshot -> Settings...**, ukládá se do konfigurace
 
 Dialog ukazuje výsledný rozměr obrázku.
 
+## Série snímků
+
+Pro hledání chyb v animacích: **Record Changed Frames** (`Alt + Shift + F`)
+ukládá PNG každého emulovaného snímku, který se liší od předchozího, dokud
+ji znovu nestisknete. Oblast a měřítko jsou ty z nastavení.
+
+- Snímky se berou v emulovaném čase, takže se ani při MAX SPEED žádný
+  nevynechá; když disk nestíhá, emulace se zpomalí.
+- Soubory jdou do nové složky `<platforma>_frames_RRRRMMDD_HHMMSS` ve
+  výstupní složce: `frame_NNNNNNN.png`, kde NNNNNNN je emulovaný snímek od
+  startu (mezery = snímky, které se nezměnily), a `index.csv`.
+- Během série je v levém horním rohu obrazu počítadlo `FRAMES soubory /
+  snímky`; po skončení notifikace ukáže složku.
+- Settings... -> **Frame series: only changed frames** (klíč v INI
+  `series_only_changed`, výchozí zapnuto). Nezaškrtnuto = každý snímek.
+
 ## MCP
 
 AI klienti ukládají screenshoty nástrojem `emu_screenshot_save_to_file`
-(stejná oblast a měřítko, navíc ořez), viz
+(stejná oblast a měřítko, navíc ořez) a série snímků nástroji
+`emu_screenshot_series_start` / `_stop` / `_status`, viz
 [mcp-server/headless-mode.md](mcp-server/headless-mode.md) a MCP dokument
 `emulator://docs/screenshot_workflow`.

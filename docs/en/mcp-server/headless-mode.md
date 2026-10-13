@@ -141,6 +141,35 @@ emu_screenshot_save_to_file(path="C:/tmp/viewport.png", area="canvas",
 An unknown value or a crop outside the image is an error, no file is
 written.
 
+### Frame series - every changed frame as PNG
+
+For finding animation bugs, `emu_screenshot_series_start` saves a PNG of
+every emulated frame that differs from the last saved one (commands
+`screenshot_series_start`, `screenshot_series_stop`,
+`screenshot_series_status`).
+
+- Frames are taken in emulated time at the end of each frame, so no frame
+  is skipped even at MAX SPEED. When writing cannot keep up, the emulation
+  waits. The series only captures while the emulation runs.
+- `area`, `scale` and `crop` work as with a single screenshot (default
+  scale `native`). Only changes inside them count - with a crop you can
+  follow one sprite and ignore the rest of the screen.
+- Files: `frame_NNNNNNN.png`, where NNNNNNN is the emulated frame since
+  the start of the series (gaps = unchanged frames), and `index.csv` with
+  `frame,file,gdg_screen`.
+- `only_changed` (default true), `frames` (stop after N emulated frames,
+  0 = until stop), `max_files` (safety limit, default 10000), `dir`
+  (default: a new folder in the screenshot output folder).
+
+```python
+emu_screenshot_series_start(area="canvas", frames=250)   # 5 s of PAL frames
+emu_run(frames=250)
+emu_screenshot_series_status()   # files, unchanged, dir, stop_reason
+```
+
+`emu_screenshot_series_stop(wait=True)` ends a series early and waits until
+all frames are written.
+
 ### Known limitations
 
 - **Race condition in GUI mode** - if the client requests

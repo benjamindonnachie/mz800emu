@@ -7,6 +7,7 @@ and NTSC, MZ-1500). Menu **Tools -> Screenshot**:
 |------|-----|--------------|
 | Save Screenshot | `Alt + F` | Saves a PNG of the picture shown in the window into the output folder, named `<platform>_YYYYMMDD_HHMMSS.png` (e.g. `mz800_20261013_183005.png`). A notification shows the size and the path. |
 | Save Screenshot As... | | The same, but asks for the file name. |
+| Record Changed Frames | `Alt + Shift + F` | Starts / stops a frame series (see below). |
 | Settings... | | Area, scale and output folder (see below). |
 | Open Output Folder | | Opens the output folder in the file manager. |
 
@@ -32,9 +33,27 @@ Menu **Tools -> Screenshot -> Settings...**, saved in the configuration
 
 The dialog shows the resulting image size.
 
+## Frame series
+
+For finding animation bugs: **Record Changed Frames** (`Alt + Shift + F`)
+saves a PNG of every emulated frame that differs from the previous one,
+until you press it again. Area and scale are those from Settings.
+
+- Frames are taken in emulated time, so none is skipped even at MAX
+  SPEED; when the disk cannot keep up, the emulation slows down.
+- Files go to a new folder `<platform>_frames_YYYYMMDD_HHMMSS` in the
+  output folder: `frame_NNNNNNN.png`, where NNNNNNN is the emulated frame
+  since the start (gaps = frames that did not change), and `index.csv`.
+- While the series runs, a counter `FRAMES files / frames` is shown in the
+  top left corner of the picture; when it ends, a notification shows the
+  folder.
+- Settings... -> **Frame series: only changed frames** (INI key
+  `series_only_changed`, default on). Unchecked = every frame.
+
 ## MCP
 
 AI clients save screenshots with `emu_screenshot_save_to_file` (same
-area and scale, plus a crop), see
+area and scale, plus a crop) and frame series with
+`emu_screenshot_series_start` / `_stop` / `_status`, see
 [mcp-server/headless-mode.md](mcp-server/headless-mode.md) and the MCP
 document `emulator://docs/screenshot_workflow`.

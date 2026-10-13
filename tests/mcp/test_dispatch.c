@@ -87,8 +87,11 @@
  *
  * mcp-run-mzf-bootstrap doplnil media_run_mzf (reset + bootstrap jako
  * --run-mzf, přidán na KONEC cmd_map[]) = 168 + 1 = 169.
+ *
+ * screenshot-series doplnil screenshot_series_start, _stop a _status
+ * (série PNG emulovaných snímků, na KONEC cmd_map[]) = 169 + 3 = 172.
  */
-#define MCP_EXPECTED_CMD_COUNT 169
+#define MCP_EXPECTED_CMD_COUNT 172
 
 
 /* ====================================================================== */
@@ -6660,6 +6663,93 @@ void test_screenshot_save_to_file_invalid_options(void) {
 }
 
 
+/** @brief Pomocník: request `cmd` s daty `data_json`; vrátí kód, odpověď do *out (free). */
+static en_MCP_DISPATCH_RESULT _ss_request(const char *cmd, const char *data_json, char **out) {
+    char *line = g_strdup_printf("{\"type\":\"request\",\"req_id\":914,\"cmd\":\"%s\",\"data\":%s}",
+                                 cmd, data_json);
+    st_JSONL_MESSAGE *req = _make_request(line);
+    g_free(line);
+    char *resp = NULL;
+    en_MCP_DISPATCH_RESULT rc = mcp_dispatch_request(req, &resp);
+    jsonl_msg_free(req);
+    if (out) *out = resp; else free(resp);
+    return rc;
+}
+
+
+/**
+ * @brief screenshot_series_start: výchozí parametry (full, native, jen změněné)
+ *        a předání dir, area, scale, crop, only_changed, frames, max_files.
+ */
+void test_screenshot_series_start_params(void) {
+    dispatch_stub_reset();
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("screenshot_series_start", "{}", NULL));
+    const st_DBGAPI_SCREENSHOT_SERIES_PARAM *p = &g_stub_state.ss_last;
+    TEST_ASSERT_EQUAL_INT(DBGAPI_SCREENSHOT_SERIES_OP_START, p->op);
+    TEST_ASSERT_EQUAL_INT(SCREENSHOT_AREA_FULL, p->params.opts.area);
+    TEST_ASSERT_EQUAL_INT(SCREENSHOT_SCALE_NATIVE, p->params.opts.scale_mode);
+    TEST_ASSERT_TRUE(p->params.only_changed);
+    TEST_ASSERT_EQUAL_UINT64(0, p->params.frames);
+    TEST_ASSERT_EQUAL_STRING("", p->params.dir);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("screenshot_series_start",
+        "{\"dir\":\"C:/tmp/s\",\"area\":\"canvas\",\"scale\":2,\"only_changed\":false,"
+        "\"frames\":100,\"max_files\":50}", NULL));
+    TEST_ASSERT_EQUAL_STRING("C:/tmp/s", p->params.dir);
+    TEST_ASSERT_EQUAL_INT(SCREENSHOT_AREA_CANVAS, p->params.opts.area);
+    TEST_ASSERT_EQUAL_INT(SCREENSHOT_SCALE_WINDOW, p->params.opts.scale_mode);
+    TEST_ASSERT_EQUAL_UINT(2, p->params.opts.window_scale);
+    TEST_ASSERT_FALSE(p->params.only_changed);
+    TEST_ASSERT_EQUAL_UINT64(100, p->params.frames);
+    TEST_ASSERT_EQUAL_UINT(50, p->params.max_files);
+}
+
+
+/**
+ * @brief screenshot_series_*: neplatné parametry => INVALID_PARAMS bez
+ *        předání, chyba jádra (např. série už běží) => EMU_ERROR s textem.
+ */
+void test_screenshot_series_errors(void) {
+    dispatch_stub_reset();
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS,
+        _ss_request("screenshot_series_start", "{\"frames\":-1}", NULL));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS,
+        _ss_request("screenshot_series_start", "{\"only_changed\":\"yes\"}", NULL));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS,
+        _ss_request("screenshot_series_start", "{\"scale\":7}", NULL));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS,
+        _ss_request("screenshot_series_stop", "{\"wait\":1}", NULL));
+    TEST_ASSERT_EQUAL_INT(0, g_stub_state.ss_calls);
+
+    g_stub_state.ss_fake_result = DBGAPI_SCREENSHOT_SERIES_RESULT_FAILED;
+    char *resp = NULL;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_EMU_ERROR, _ss_request("screenshot_series_start", "{}", &resp));
+    TEST_ASSERT_NOT_NULL(strstr(resp, "already running"));
+    free(resp);
+}
+
+
+/**
+ * @brief screenshot_series_status a stop: stav v odpovědi.
+ */
+void test_screenshot_series_status_stop(void) {
+    dispatch_stub_reset();
+    char *resp = NULL;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("screenshot_series_status", "{}", &resp));
+    JsonParser *parser = NULL;
+    JsonObject *obj = _parse_response_object(resp, &parser);
+    JsonObject *data = json_object_get_object_member(obj, "data");
+    TEST_ASSERT_TRUE(json_object_has_member(data, "frames_seen"));
+    TEST_ASSERT_TRUE(json_object_has_member(data, "unchanged"));
+    TEST_ASSERT_EQUAL_STRING("C:/tmp/series", json_object_get_string_member(data, "dir"));
+    g_object_unref(parser);
+    free(resp);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("screenshot_series_stop", "{\"wait\":false}", NULL));
+    TEST_ASSERT_EQUAL_INT(DBGAPI_SCREENSHOT_SERIES_OP_STOP, g_stub_state.ss_last.op);
+}
+
+
 /**
  * @brief V1.D.4 - get_video_text_dump available (default v stubu).
  */
@@ -7144,6 +7234,9 @@ int main(void) {
     RUN_TEST(test_screenshot_save_to_file_png_unavailable);
     RUN_TEST(test_screenshot_save_to_file_options_passed);
     RUN_TEST(test_screenshot_save_to_file_invalid_options);
+    RUN_TEST(test_screenshot_series_start_params);
+    RUN_TEST(test_screenshot_series_errors);
+    RUN_TEST(test_screenshot_series_status_stop);
     RUN_TEST(test_get_video_text_dump_available);
     RUN_TEST(test_get_video_text_dump_unavailable);
 

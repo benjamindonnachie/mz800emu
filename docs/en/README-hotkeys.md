@@ -80,6 +80,7 @@ Settings...; Tools -> Screenshot -> Save Screenshot As... asks for a file name. 
 | Key                        | Action                                                                      |
 |----------------------------|-----------------------------------------------------------------------------|
 | `Alt + F`                  | Save a PNG screenshot of the picture shown in the window to the output folder |
+| `Alt + Shift + F`          | Start / stop a frame series: a PNG of every changed emulated frame         |
 
 ## Debugger
 

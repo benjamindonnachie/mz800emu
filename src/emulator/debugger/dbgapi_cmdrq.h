@@ -33,6 +33,7 @@
 #include <stdbool.h>
 #include "app/app_thread.h"
 #include "screenshot/screenshot.h"
+#include "screenshot/screenshot_series.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -680,6 +681,15 @@ typedef enum en_DBGAPI_CMD
      * stabilitě číselných hodnot. */
     DBGAPI_CMD_HID_SCRIPT_START,     /* Spustit sekvenci vstupu - data_ptr: st_DBGAPI_HID_SCRIPT* (vlastník = volající, viz kontrakt struktury) */
     DBGAPI_CMD_HID_SCRIPT_CANCEL,    /* Zrušit běžící sekvenci (uvolní drženou klávesu/joystick) - data_ptr: st_DBGAPI_HID_SCRIPT* (zruší jen tuto sekvenci) */
+
+    /* === screenshot-series: série PNG každého (změněného) emulovaného snímku ===
+     *
+     * Jeden příkaz s operací (vzor DBGAPI_CMD_VIDEOREC): start, stop a stav
+     * série (screenshot_series.h). Start a stop jsou thread-safe i bez fronty,
+     * průchod emu vláknem drží MCP ve stejném modelu jako ostatní příkazy
+     * a dispatch test build je přes stub. Přidáno na KONEC enumu kvůli
+     * stabilitě číselných hodnot. */
+    DBGAPI_CMD_SCREENSHOT_SERIES,    /* Série screenshotů (start/stop/stav) - data_ptr: st_DBGAPI_SCREENSHOT_SERIES_PARAM* */
 
 } en_DBGAPI_CMD;
 
@@ -2765,6 +2775,41 @@ typedef struct st_DBGAPI_VIDEOREC_PARAM
     char     out_event_path[ DBGAPI_VIDEOREC_PATH_MAX ]; /**< OUT: cesta nahrávky u STARTED/SAVED/FAILED, jinak "". */
     char     out_event_text[ DBGAPI_VIDEOREC_TEXT_MAX ]; /**< OUT: anglický text události. */
 } st_DBGAPI_VIDEOREC_PARAM;
+
+
+/**
+ * @brief Operace příkazu DBGAPI_CMD_SCREENSHOT_SERIES (MCP `screenshot_series_*`).
+ */
+typedef enum en_DBGAPI_SCREENSHOT_SERIES_OP
+{
+    DBGAPI_SCREENSHOT_SERIES_OP_START = 0, /**< screenshot_series_start() s `params`. */
+    DBGAPI_SCREENSHOT_SERIES_OP_STOP,      /**< screenshot_series_stop(). */
+    DBGAPI_SCREENSHOT_SERIES_OP_STATUS,    /**< Jen stav. */
+} en_DBGAPI_SCREENSHOT_SERIES_OP;
+
+/** @brief Výsledek DBGAPI_CMD_SCREENSHOT_SERIES: operace provedena. */
+#define DBGAPI_SCREENSHOT_SERIES_RESULT_OK          0
+/** @brief Výsledek DBGAPI_CMD_SCREENSHOT_SERIES: start selhal (text v out_error). */
+#define DBGAPI_SCREENSHOT_SERIES_RESULT_FAILED      ( -1 )
+/** @brief Výsledek DBGAPI_CMD_SCREENSHOT_SERIES: stop bez běžící série. */
+#define DBGAPI_SCREENSHOT_SERIES_RESULT_NOT_RUNNING ( -2 )
+
+/**
+ * @brief Parametr pro DBGAPI_CMD_SCREENSHOT_SERIES.
+ *
+ * `params` vyplní volající jen pro START. Handler vždy vyplní `out_result`,
+ * `out_error` a `out_status` (stav po operaci).
+ *
+ * @invariant `out_result != DBGAPI_SCREENSHOT_SERIES_RESULT_OK` <=> `rq->success == false`.
+ */
+typedef struct st_DBGAPI_SCREENSHOT_SERIES_PARAM
+{
+    en_DBGAPI_SCREENSHOT_SERIES_OP op;          /**< IN: operace. */
+    st_SCREENSHOT_SERIES_PARAMS params;         /**< IN (START): parametry série. */
+    int  out_result;                            /**< OUT: DBGAPI_SCREENSHOT_SERIES_RESULT_*. */
+    char out_error[ SCREENSHOT_SERIES_TEXT_MAX ]; /**< OUT: anglický text chyby ("" při úspěchu). */
+    st_SCREENSHOT_SERIES_STATUS out_status;     /**< OUT: stav série po operaci. */
+} st_DBGAPI_SCREENSHOT_SERIES_PARAM;
 
 
 /**

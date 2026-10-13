@@ -11,6 +11,8 @@
  * - `scale`      - "native" nebo "1".."4" (výchozí "2" = okno na 100 %);
  *                  "framebuffer" se z INI nepřijímá (nahradí se výchozím),
  * - `output_dir` - adresář; prázdný = `<home_dir>/screenshots`.
+ * - `series_only_changed` - série snímků z GUI ukládá jen změněné snímky
+ *                  (výchozí 1).
  *
  * @par Vlákna
  * g_screenshot_settings čte a mění jen UI vlákno (a cfgmain při startu
@@ -37,6 +39,7 @@ typedef struct st_SCREENSHOT_SETTINGS {
     en_SCREENSHOT_SCALE_MODE scale_mode; /**< SCALE_NATIVE nebo SCALE_WINDOW (ne FRAMEBUFFER). */
     unsigned window_scale;               /**< Měřítko okna 1..4 (při SCALE_WINDOW). */
     char output_dir[1024];               /**< Výstupní adresář; prázdný = výchozí. */
+    bool series_only_changed;            /**< Série snímků z GUI: jen změněné snímky (jinak každý). */
 } st_SCREENSHOT_SETTINGS;
 
 /** @brief Nastavení screenshotu (UI vlákno). */

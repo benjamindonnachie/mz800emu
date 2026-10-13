@@ -29,11 +29,38 @@ void screenshot_ui_save_quick(void);
 /** @brief Otevře dialog pro uložení screenshotu do zvoleného souboru. */
 void screenshot_ui_save_as(void);
 
-/** @brief Podmenu "Screenshot" v menu Tools (uložit, uložit jako, nastavení, složka). */
+/**
+ * @brief Spustí nebo ukončí sérii snímků (každý změněný emulovaný snímek jako PNG).
+ *
+ * Start bere oblast, měřítko a "jen změněné" z g_screenshot_settings, adresář
+ * série vytvoří ve výstupní složce. Chybu startu ohlásí notifikací.
+ */
+void screenshot_ui_toggle_series(void);
+
+/** @brief Podmenu "Screenshot" v menu Tools (uložit, uložit jako, série, nastavení, složka). */
 void imgui_screenshot_menu(void);
 
-/** @brief Zkratka Alt+F (uložit screenshot); volá se v Alt větvi globálních zkratek. */
+/**
+ * @brief Zkratky screenshotu; volá se v Alt větvi globálních zkratek.
+ *
+ * Alt+F = uložit screenshot, Alt+Shift+F = spustit / ukončit sérii snímků.
+ */
 void imgui_screenshot_shortcuts(void);
+
+/**
+ * @brief Indikátor běžící série v levém horním rohu obrazu (jen UI).
+ *
+ * Volá se hned po vykreslení obrazu emulátoru (ImGui::Image), obdélník
+ * obrazu bere z GetItemRect*.
+ */
+void imgui_screenshot_series_overlay(void);
+
+/**
+ * @brief Po dokončení zápisu série zobrazí notifikaci (počet souborů, adresář, chyba).
+ *
+ * Volá se jednou za snímek UI.
+ */
+void imgui_screenshot_series_poll(void);
 
 /**
  * @brief Dialog nastavení screenshotu (zobrazí se při g_gui->showScreenshotSetupWindow).

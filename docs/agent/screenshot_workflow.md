@@ -1,8 +1,9 @@
 # Screenshot workflow (AI saves and compares pictures)
 
 Recipe for an AI client that needs a picture of the emulator screen: to
-check what a program draws, to compare it with an expected picture, or to
-cut out one part of the screen.
+check what a program draws, to compare it with an expected picture, to
+cut out one part of the screen, or to save every changed frame of an
+animation (frame series).
 
 Use `emu_screenshot_save_to_file`. It writes a PNG straight to a file on
 the server host, so no large base64 payload goes through the context; read
@@ -72,6 +73,44 @@ emu_screenshot_save_to_file(path="C:/tmp/field.png", area="canvas", scale="nativ
 ```python
 emu_screenshot_save_to_file(path="C:/tmp/shot.png", scale="2")
 ```
+
+## Frame series - finding animation bugs
+
+`emu_screenshot_series_start` saves a PNG of **every emulated frame that
+differs from the last saved one**. Use it when something flickers, jumps
+or tears in an animation and you need to see the exact frames.
+
+| Tool | What it does |
+|------|--------------|
+| `emu_screenshot_series_start(dir="", area="full", scale="native", crop=None, only_changed=True, frames=0, max_files=0)` | Starts the series. Empty `dir` = a new `<platform>_frames_YYYYMMDD_HHMMSS` folder in the screenshot output folder. `frames` > 0 = stop after that many emulated frames. `max_files` = safety limit (0 = 10000). |
+| `emu_screenshot_series_stop(wait=True)` | Stops; with `wait` returns after all queued frames are written. |
+| `emu_screenshot_series_status()` | `active`, `writing`, `frames_seen`, `files`, `unchanged`, `dir`, `stop_reason` (`Stopped`, `Frame count reached`, `File limit reached`, `Error`), `last_error`. |
+
+How it works:
+
+- Frames are taken in **emulated time** at the end of every frame, so
+  none is skipped even at MAX SPEED. When writing cannot keep up, the
+  emulation waits. Nothing is captured while the emulation is paused.
+- "Changed" is decided on the **resulting image**: only differences
+  inside `area` and `crop` count. Crop to the sprite you follow and the
+  rest of the screen (score, border, blinking cursor) is ignored.
+- Files `frame_NNNNNNN.png`: NNNNNNN = emulated frame since the start of
+  the series. Gaps = frames that did not change. `index.csv` has
+  `frame,file,gdg_screen` (`gdg_screen` = absolute GDG frame counter).
+- Only one series at a time; a second start is an error.
+
+**Recipe - capture 3 seconds of an animation exactly:**
+
+```python
+emu_pause()                                     # at the scene to examine
+emu_screenshot_series_start(dir="C:/tmp/anim", area="canvas", frames=150)
+emu_run(frames=150)                             # 150 emulated frames = 3 s PAL
+st = emu_screenshot_series_status()             # wait until active and writing are false
+# read C:/tmp/anim/index.csv, open the frame_*.png files in order
+```
+
+With `only_changed=False` every frame is saved (to see how long a state
+lasts).
 
 ## Related state
 

@@ -80,6 +80,7 @@ na jméno souboru. Podrobnosti viz [`screenshots.md`](screenshots.md).
 | Klávesa                    | Akce                                                                        |
 |----------------------------|-----------------------------------------------------------------------------|
 | `Alt + F`                  | Uložit PNG screenshot obrazu zobrazeného v okně do výstupní složky          |
+| `Alt + Shift + F`          | Spustit / ukončit sérii snímků: PNG každého změněného emulovaného snímku   |
 
 ## Debugger
 

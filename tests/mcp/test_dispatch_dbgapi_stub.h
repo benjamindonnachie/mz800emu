@@ -59,6 +59,9 @@ typedef struct st_DISPATCH_STUB_STATE {
     void                *last_data;    /**< data_ptr poslední call. */
     uint16_t             cpu_flags_last_mask; /**< update_mask posledního SET_CPU_FLAGS. */
     uint8_t              cpu_flags_last_r;    /**< r_reg posledního SET_CPU_FLAGS. */
+    st_DBGAPI_SCREENSHOT_SERIES_PARAM ss_last;      /**< Kopie posledního DBGAPI_CMD_SCREENSHOT_SERIES (vstup). */
+    int                  ss_calls;                  /**< Počet DBGAPI_CMD_SCREENSHOT_SERIES. */
+    int                  ss_fake_result;            /**< out_result, který stub vrátí (0 = OK). */
     void                *last_result;  /**< result_ptr poslední call. */
     int                  call_count;   /**< Počet volání mocku. */
     bool                 fail_next;    /**< Pokud true, příští call vrátí false. */

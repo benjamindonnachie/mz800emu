@@ -100,7 +100,7 @@ file-based, žádný transport call).
 | `emulator://docs/mz800_keyboard` | Klávesnice MZ-800 - layout, matice, modifikátory, znakové vrstvy, jména kláves pro `emu_input_send_keys`, recepty na speciální znaky (MZ-700/1500 jako diff) |
 | `emulator://docs/cmt_workflow` | CMT workflow - reálná páska vs cmthack, transport, WAV recording, rychlostní poměry, SIMPLE_TAPE multi-blok seek + per-blok speed |
 | `emulator://docs/videorec_workflow` | Workflow nahrávání videa - nástroje `emu_videorec_*`, postup start, hraní, markery, retake ze snapshotu, stop, export do MP4 |
-| `emulator://docs/screenshot_workflow` | Workflow screenshotů - `emu_screenshot_save_to_file` s oblastí, měřítkem (framebuffer / nativní body / okno 1-4) a ořezem, rozměry obrázků podle platformy, recepty |
+| `emulator://docs/screenshot_workflow` | Workflow screenshotů - `emu_screenshot_save_to_file` s oblastí, měřítkem (framebuffer / nativní body / okno 1-4) a ořezem, rozměry obrázků podle platformy, recepty, série snímků `emu_screenshot_series_*` pro chyby v animacích |
 
 AI klient by měl číst `emulator://docs/index` jako první - poskytne
 přehled co se kde nachází a kdy to číst.

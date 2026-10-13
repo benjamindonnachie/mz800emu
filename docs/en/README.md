@@ -242,8 +242,9 @@ mz800emu --cputrack-mode always \
 
 Tools -> Screenshot -> Save Screenshot (`Alt + F`) saves a PNG of the picture
 shown in the window; area (with or without the border) and scale (native dots
-or 1x to 4x of the window) are set in Settings... For details see
-[`screenshots.md`](screenshots.md).
+or 1x to 4x of the window) are set in Settings... Record Changed Frames
+(`Alt + Shift + F`) saves every changed emulated frame, for finding animation
+bugs. For details see [`screenshots.md`](screenshots.md).
 
 ## MAX SPEED benchmark
 

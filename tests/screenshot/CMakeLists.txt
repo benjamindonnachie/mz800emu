@@ -8,3 +8,11 @@ mz_add_test(screenshot
     LIBS     mz::glib
     LABELS   "standalone;screenshot"
 )
+
+# Série screenshotů (jen změněné snímky, limity, oblast) nad emu core;
+# konce snímků se simulují voláním screenshot_series_on_screen_done().
+mz_add_test(screenshot_series
+    TYPE     EMU
+    SOURCES  test_screenshot_series.c
+    LABELS   "emu;screenshot"
+)

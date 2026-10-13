@@ -504,6 +504,25 @@ if(Python3_FOUND)
                    "(Python ${Python3_VERSION})")
 
     # -----------------------------------------------------------
+    # Test 7d1e: série screenshotů (screenshot_series_*)
+    # -----------------------------------------------------------
+    # Statický obraz + only_changed -> 1 soubor, všechny snímky -> N souborů,
+    # druhý start a stop bez série jsou chyby.
+    add_test(
+        NAME    mcp_screenshot_series
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_screenshot_series_e2e.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_screenshot_series PROPERTIES
+        LABELS  "e2e;mcp;tcp"
+        TIMEOUT 90
+        SKIP_RETURN_CODE 77
+    )
+    message(STATUS "  tests/mcp: registered mcp_screenshot_series "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
     # Test 7d2: rozsahové breakpointy (addr_end / addr_match_mode, pipe)
     # -----------------------------------------------------------
     # bp_create_with_init s addr_end bez RANGE vrátí warning (BP vznikne,

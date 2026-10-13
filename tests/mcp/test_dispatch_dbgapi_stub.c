@@ -280,6 +280,9 @@ void dispatch_stub_reset(void) {
     g_stub_state.frame_screenshot_png_calls     = 0;
     memset(&g_stub_state.frame_screenshot_png_last_opts, 0, sizeof(g_stub_state.frame_screenshot_png_last_opts));
     g_stub_state.frame_screenshot_png_fake_bad_opts = 0;
+    memset(&g_stub_state.ss_last, 0, sizeof(g_stub_state.ss_last));
+    g_stub_state.ss_calls = 0;
+    g_stub_state.ss_fake_result = 0;
     g_stub_state.video_text_dump_calls          = 0;
     g_stub_state.text_dump_available            = 1;
 
@@ -363,6 +366,22 @@ bool dbgapi_ui_submit_cmd_sync_with_origin(st_DBGAPI_CMDRQ_QUEUE *queue,
 
     /* Cmd-specific fake fill */
     switch (cmd) {
+        case DBGAPI_CMD_SCREENSHOT_SERIES:
+            if (data_ptr) {
+                st_DBGAPI_SCREENSHOT_SERIES_PARAM *p = (st_DBGAPI_SCREENSHOT_SERIES_PARAM *)data_ptr;
+                g_stub_state.ss_calls++;
+                g_stub_state.ss_last = *p;
+                p->out_result = g_stub_state.ss_fake_result;
+                if (p->out_result != 0) {
+                    strcpy(p->out_error, "A frame series is already running");
+                    return false;
+                }
+                memset(&p->out_status, 0, sizeof(p->out_status));
+                p->out_status.active = (p->op == DBGAPI_SCREENSHOT_SERIES_OP_START);
+                strcpy(p->out_status.dir, "C:/tmp/series");
+            }
+            break;
+
         case DBGAPI_CMD_SET_CPU_FLAGS:
             if (data_ptr) {
                 const st_DBGAPI_CPU_FLAGS *p = (const st_DBGAPI_CPU_FLAGS *)data_ptr;

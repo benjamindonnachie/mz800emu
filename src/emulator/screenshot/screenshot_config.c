@@ -28,7 +28,7 @@ extern SdlApp *g_sdlapp;
 #define SCREENSHOT_DEFAULT_WINDOW_SCALE 2
 
 st_SCREENSHOT_SETTINGS g_screenshot_settings = {
-    SCREENSHOT_AREA_FULL, SCREENSHOT_SCALE_WINDOW, SCREENSHOT_DEFAULT_WINDOW_SCALE, ""
+    SCREENSHOT_AREA_FULL, SCREENSHOT_SCALE_WINDOW, SCREENSHOT_DEFAULT_WINDOW_SCALE, "", true
 };
 
 
@@ -92,6 +92,20 @@ static void savecfg_output_dir(void *e, void *data)
     cfgelement_set_text_value((st_CFGELEMENT *)e, g_screenshot_settings.output_dir);
 }
 
+/** @brief INI -> series_only_changed. @param e Prvek. @param data Nepoužito. */
+static void propagatecfg_series_only_changed(void *e, void *data)
+{
+    (void)data;
+    g_screenshot_settings.series_only_changed = cfgelement_get_bool_value((st_CFGELEMENT *)e) != 0;
+}
+
+/** @brief series_only_changed -> INI. @param e Prvek. @param data Nepoužito. */
+static void savecfg_series_only_changed(void *e, void *data)
+{
+    (void)data;
+    cfgelement_set_bool_value((st_CFGELEMENT *)e, g_screenshot_settings.series_only_changed ? 1 : 0);
+}
+
 
 void screenshot_config_init(void)
 {
@@ -109,6 +123,10 @@ void screenshot_config_init(void)
     elm = cfgmodule_register_new_element(cmod, "output_dir", CFGENTYPE_TEXT, "");
     cfgelement_set_propagate_cb(elm, propagatecfg_output_dir, NULL);
     cfgelement_set_save_cb(elm, savecfg_output_dir, NULL);
+
+    elm = cfgmodule_register_new_element(cmod, "series_only_changed", CFGENTYPE_BOOL, 1);
+    cfgelement_set_propagate_cb(elm, propagatecfg_series_only_changed, NULL);
+    cfgelement_set_save_cb(elm, savecfg_series_only_changed, NULL);
 
     /* Načíst sekci z INI a propagovat (vzor videorec_config_init). */
     cfgmodule_parse(cmod);

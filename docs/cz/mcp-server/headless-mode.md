@@ -135,6 +135,35 @@ emu_screenshot_save_to_file(path="C:/tmp/viewport.png", area="canvas",
 
 Neznámá hodnota nebo ořez mimo obraz je chyba, soubor se nezapíše.
 
+### Série snímků - každý změněný snímek jako PNG
+
+Pro hledání chyb v animacích uloží `emu_screenshot_series_start` PNG
+každého emulovaného snímku, který se liší od posledního uloženého
+(příkazy `screenshot_series_start`, `screenshot_series_stop`,
+`screenshot_series_status`).
+
+- Snímky se berou v emulovaném čase na konci každého snímku, takže se
+  žádný nevynechá ani při MAX SPEED. Když zápis nestíhá, emulace počká.
+  Série snímá jen za běhu emulace.
+- `area`, `scale` a `crop` fungují jako u jednoho screenshotu (výchozí
+  měřítko `native`). Počítají se jen změny uvnitř nich - s ořezem jde
+  sledovat jeden sprite a zbytek obrazovky ignorovat.
+- Soubory: `frame_NNNNNNN.png`, kde NNNNNNN je emulovaný snímek od startu
+  série (mezery = nezměněné snímky), a `index.csv` se sloupci
+  `frame,file,gdg_screen`.
+- `only_changed` (výchozí true), `frames` (stop po N emulovaných snímcích,
+  0 = do stop), `max_files` (pojistka, výchozí 10000), `dir` (výchozí:
+  nová složka ve výstupní složce screenshotů).
+
+```python
+emu_screenshot_series_start(area="canvas", frames=250)   # 5 s snímků PAL
+emu_run(frames=250)
+emu_screenshot_series_status()   # files, unchanged, dir, stop_reason
+```
+
+`emu_screenshot_series_stop(wait=True)` ukončí sérii dřív a počká, až se
+zapíšou všechny snímky.
+
 ### Známá omezení
 
 - **Race condition v GUI mode** - pokud klient požaduje screenshot

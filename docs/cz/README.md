@@ -254,8 +254,9 @@ vyplní pouze ty subsystémy, kde uživatel per-subsys option nepředal.
 
 Tools -> Screenshot -> Save Screenshot (`Alt + F`) uloží PNG obrazu
 zobrazeného v okně; oblast (s borderem nebo bez) a měřítko (nativní body nebo
-1x až 4x okna) se nastavují v Settings... Podrobnosti viz
-[`screenshots.md`](screenshots.md).
+1x až 4x okna) se nastavují v Settings... Record Changed Frames
+(`Alt + Shift + F`) ukládá každý změněný emulovaný snímek pro hledání chyb
+v animacích. Podrobnosti viz [`screenshots.md`](screenshots.md).
 
 ## MAX SPEED benchmark
 

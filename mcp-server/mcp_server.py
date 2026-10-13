@@ -7235,6 +7235,94 @@ async def emu_screenshot_save_to_file(path: str, format: str = "png",
     return json.dumps(_data_or_error(resp))
 
 
+@mcp.tool()
+async def emu_screenshot_series_start(dir: str = "", area: str = "full",
+                                      scale: str = "native",
+                                      crop: Optional[dict] = None,
+                                      only_changed: bool = True,
+                                      frames: int = 0,
+                                      max_files: int = 0) -> str:
+    """Start saving a PNG of every changed emulated frame - for finding animation bugs.
+
+    At the end of every emulated frame the emulator compares the picture
+    (within ``area``, ``scale`` and ``crop``) with the last saved one and
+    writes ``frame_NNNNNNN.png`` when it differs. NNNNNNN is the number of
+    the emulated frame since the start of the series, so gaps in the
+    numbering are unchanged frames; ``index.csv`` lists ``frame,file,
+    gdg_screen``. Frames are taken in emulated time - also at MAX SPEED no
+    frame is skipped; when writing cannot keep up, the emulation waits.
+    The series only captures while the emulation runs (combine with
+    ``emu_run(frames=N)`` for an exact stretch).
+
+    Args:
+        dir: series directory on the server host; empty = a new
+            ``<platform>_frames_<date>_<time>`` folder in the screenshot
+            output folder.
+        area: ``full`` (default, with border) or ``canvas`` (picture only).
+        scale: ``native`` (default) - one image pixel per dot of the
+            computer (320 or 640 wide); ``framebuffer``; ``"1"`` to ``"4"``
+            (aspect ratio of the emulator window). Same as
+            ``emu_screenshot_save_to_file``.
+        crop: optional ``{"x", "y", "width", "height"}`` in output pixels
+            (``framebuffer`` or ``native`` only). Only changes inside the
+            crop count - useful to follow one sprite.
+        only_changed: ``True`` (default) = save only frames that differ
+            from the last saved one; ``False`` = every frame.
+        frames: stop automatically after this many emulated frames
+            (0 = until ``emu_screenshot_series_stop``).
+        max_files: safety limit of written files (0 = 10000).
+
+    Returns:
+        Series status ``{"active", "writing", "frames_seen", "files",
+        "unchanged", "dir", "stop_reason", "last_error", "area", "scale",
+        "only_changed"}``, or an error (series already running, invalid
+        parameters, directory cannot be created).
+    """
+    data: dict[str, Any] = {"area": area, "scale": scale,
+                            "only_changed": only_changed,
+                            "frames": frames, "max_files": max_files}
+    if dir:
+        data["dir"] = dir
+    if crop is not None:
+        data["crop"] = crop
+    resp = await _send_request("screenshot_series_start", data)
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_screenshot_series_stop(wait: bool = True) -> str:
+    """Stop the frame series started by ``emu_screenshot_series_start``.
+
+    Args:
+        wait: ``True`` (default) = wait (at most 30 s) until all queued
+            frames are written; then ``writing`` is false and ``files`` is
+            final.
+
+    Returns:
+        Series status (see ``emu_screenshot_series_status``), or an error
+        when no series is running.
+    """
+    resp = await _send_request("screenshot_series_stop", {"wait": wait})
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_screenshot_series_status() -> str:
+    """Status of the running or the last frame series.
+
+    Returns:
+        ``{"active": bool (capturing), "writing": bool (files still being
+        written), "frames_seen": int (emulated frames observed), "files":
+        int (PNG written), "unchanged": int (frames skipped as unchanged),
+        "dir": str, "stop_reason": str ("Stopped", "Frame count reached",
+        "File limit reached", "Error" or "" while running), "last_error":
+        str}``.
+    """
+    resp = await _send_request("screenshot_series_status", {})
+    return json.dumps(_data_or_error(resp))
+
+
+
 
 @mcp.resource("emulator://video/text_dump")
 async def resource_video_text_dump() -> str:

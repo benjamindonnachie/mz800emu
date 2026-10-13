@@ -485,6 +485,13 @@ static en_MCP_DISPATCH_RESULT _handle_videorec_status(const st_JSONL_MESSAGE *re
                                                       char **out_response);
 static en_MCP_DISPATCH_RESULT _handle_videorec_timebase(const st_JSONL_MESSAGE *req,
                                                         char **out_response);
+/* screenshot-series fwd decls */
+static en_MCP_DISPATCH_RESULT _handle_screenshot_series_start(const st_JSONL_MESSAGE *req,
+                                                              char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_screenshot_series_stop(const st_JSONL_MESSAGE *req,
+                                                             char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_screenshot_series_status(const st_JSONL_MESSAGE *req,
+                                                               char **out_response);
 
 /* V1.A.7 - Profiler Tools fwd decls */
 static en_MCP_DISPATCH_RESULT _handle_profiler_start(const st_JSONL_MESSAGE *req,
@@ -1098,6 +1105,11 @@ static const st_MCP_CMD_MAP_ENTRY g_cmd_map[] = {
      * Přidáno na KONEC tabulky kvůli stabilitě pozičního indexu v hello
      * supported_commands. */
     { "media_run_mzf",           DBGAPI_CMD_MEDIA_RUN_MZF,            _handle_media_run_mzf           },
+    /* Série screenshotů (každý změněný emulovaný snímek jako PNG). Přidáno na
+     * KONEC tabulky kvůli stabilitě pozičního indexu v hello supported_commands. */
+    { "screenshot_series_start",  DBGAPI_CMD_SCREENSHOT_SERIES,       _handle_screenshot_series_start  },
+    { "screenshot_series_stop",   DBGAPI_CMD_SCREENSHOT_SERIES,       _handle_screenshot_series_stop   },
+    { "screenshot_series_status", DBGAPI_CMD_SCREENSHOT_SERIES,       _handle_screenshot_series_status },
     /* sentinel */
     { NULL,              DBGAPI_CMD_NONE,              NULL                  },
 };
@@ -13928,6 +13940,174 @@ static en_MCP_DISPATCH_RESULT _handle_eventlog_get_event(
     json_object_set_int_member(data, "pc", param.pc);
     json_object_set_int_member(data, "payload", (gint64)param.payload);
     return _ok_response(req_id, data, out_response);
+}
+
+
+/* ============================================================================
+ *  screenshot-series: série PNG každého (změněného) emulovaného snímku
+ * ============================================================================ */
+
+/**
+ * @brief Stav série jako JSON objekt (z out_status parametru dbgapi).
+ * @param st Stav.
+ * @return Nový JsonObject (vlastní volající).
+ */
+static JsonObject *_screenshot_series_status_json(const st_SCREENSHOT_SERIES_STATUS *st) {
+    JsonObject *o = json_object_new();
+    json_object_set_boolean_member(o, "active",  st->active);
+    json_object_set_boolean_member(o, "writing", st->writing);
+    json_object_set_int_member(o, "frames_seen", (gint64) st->frames_seen);
+    json_object_set_int_member(o, "files",       (gint64) st->files);
+    json_object_set_int_member(o, "unchanged",   (gint64) st->unchanged);
+    json_object_set_string_member(o, "dir",         st->dir);
+    json_object_set_string_member(o, "stop_reason", st->stop_reason);
+    json_object_set_string_member(o, "last_error",  st->last_error);
+    return o;
+}
+
+/**
+ * @brief Provede DBGAPI_CMD_SCREENSHOT_SERIES.
+ *
+ * @param p       Parametr (op vyplněn).
+ * @param err_out Výstup: anglický text chyby operace (ukazuje do p->out_error
+ *                nebo na statický text), NULL = operace proběhla.
+ * @return false = příkaz se nepodařilo předat emu vláknu (bez textu chyby).
+ */
+static bool _screenshot_series_submit(st_DBGAPI_SCREENSHOT_SERIES_PARAM *p, const char **err_out) {
+    p->out_result = DBGAPI_SCREENSHOT_SERIES_RESULT_FAILED;
+    p->out_error[0] = '\0';
+    bool ok = _submit_dbgapi(DBGAPI_CMD_SCREENSHOT_SERIES, p, NULL);
+    if (ok) {
+        *err_out = NULL;
+        return true;
+    }
+    /* Handler proběhl, ale operace selhala (out_error vyplněn) - jinak
+     * se příkaz vůbec nepředal. */
+    *err_out = p->out_error[0] ? p->out_error : NULL;
+    return *err_out != NULL;
+}
+
+/**
+ * @brief `screenshot_series_start` handler - spustí sérii screenshotů.
+ *
+ * Parametry (všechny volitelné):
+ *   - `dir`          (string) - adresář série; chybí = nový podadresář výstupní
+ *                    složky screenshotů (`<platforma>_frames_RRRRMMDD_HHMMSS`),
+ *   - `area`, `scale`, `crop` - jako screenshot_save_to_file, ale výchozí
+ *                    `scale` je "native",
+ *   - `only_changed` (bool, výchozí true) - jen snímky odlišné od posledního
+ *                    uloženého (posuzuje se výsledek v oblasti, měřítku a ořezu),
+ *   - `frames`       (int >= 0) - po tolika emulovaných snímcích stop (0 = do stop),
+ *   - `max_files`    (int >= 0) - pojistka počtu souborů (0 = 10000).
+ *
+ * Response: stav série (viz _screenshot_series_status_json) + area, scale,
+ * only_changed. První snímek se zachytí na nejbližším konci emulovaného
+ * snímku (série snímá jen za běhu emulace). Neplatné parametry =>
+ * INVALID_PARAMS, běžící série nebo nelze vytvořit adresář => EMU_ERROR.
+ */
+static en_MCP_DISPATCH_RESULT _handle_screenshot_series_start(const st_JSONL_MESSAGE *req,
+                                                              char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _videorec_data_obj(req);
+    st_DBGAPI_SCREENSHOT_SERIES_PARAM p;
+    memset(&p, 0, sizeof(p));
+    p.op = DBGAPI_SCREENSHOT_SERIES_OP_START;
+    screenshot_series_params_init(&p.params);
+
+    char opts_err[128];
+    if (!_screenshot_opts_from_json(obj, &p.params.opts, opts_err, sizeof(opts_err))) {
+        return _err_response(req_id, opts_err, MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    if (!obj || !json_object_has_member(obj, "scale")) {
+        p.params.opts.scale_mode = SCREENSHOT_SCALE_NATIVE;
+    }
+    int has_dir = _videorec_member(obj, "dir", G_TYPE_STRING);
+    int has_only = _videorec_member(obj, "only_changed", G_TYPE_BOOLEAN);
+    int has_frames = _videorec_member(obj, "frames", G_TYPE_INT64);
+    int has_max = _videorec_member(obj, "max_files", G_TYPE_INT64);
+    if (has_dir < 0 || has_only < 0 || has_frames < 0 || has_max < 0) {
+        return _err_response(req_id,
+                             "Invalid parameters: dir must be a string, only_changed a boolean, "
+                             "frames and max_files integers",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    gint64 frames = has_frames ? json_object_get_int_member(obj, "frames") : 0;
+    gint64 max_files = has_max ? json_object_get_int_member(obj, "max_files") : 0;
+    if (frames < 0 || max_files < 0 || max_files > G_MAXUINT) {
+        return _err_response(req_id, "Invalid parameters: frames and max_files must be >= 0",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    if (has_dir) g_strlcpy(p.params.dir, json_object_get_string_member(obj, "dir"), sizeof(p.params.dir));
+    if (has_only) p.params.only_changed = json_object_get_boolean_member(obj, "only_changed");
+    p.params.frames = (uint64_t) frames;
+    p.params.max_files = (unsigned) max_files;
+
+    const char *err = NULL;
+    if (!_screenshot_series_submit(&p, &err) || err) {
+        return _err_response(req_id, err ? err : "screenshot_series command failed",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    JsonObject *resp = _screenshot_series_status_json(&p.out_status);
+    json_object_set_string_member(resp, "area",  screenshot_area_to_string(p.params.opts.area));
+    json_object_set_string_member(resp, "scale", screenshot_scale_to_string(p.params.opts.scale_mode,
+                                                                            p.params.opts.window_scale));
+    json_object_set_boolean_member(resp, "only_changed", p.params.only_changed);
+    return _ok_response(req_id, resp, out_response);
+}
+
+/**
+ * @brief `screenshot_series_stop` handler - ukončí snímání série.
+ *
+ * Parametr `wait` (bool, výchozí true): počkat (max 30 s), až zapisovací
+ * vlákno dopíše frontu - pak `writing` = false a `files` je konečné.
+ * Response: stav série. Bez běžící série chyba "No frame series is running".
+ */
+static en_MCP_DISPATCH_RESULT _handle_screenshot_series_stop(const st_JSONL_MESSAGE *req,
+                                                             char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _videorec_data_obj(req);
+    int has_wait = _videorec_member(obj, "wait", G_TYPE_BOOLEAN);
+    if (has_wait < 0) {
+        return _err_response(req_id, "Invalid parameters: wait must be a boolean",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    bool wait = has_wait ? json_object_get_boolean_member(obj, "wait") : true;
+
+    st_DBGAPI_SCREENSHOT_SERIES_PARAM p;
+    memset(&p, 0, sizeof(p));
+    p.op = DBGAPI_SCREENSHOT_SERIES_OP_STOP;
+    const char *err = NULL;
+    if (!_screenshot_series_submit(&p, &err) || err) {
+        return _err_response(req_id, err ? err : "screenshot_series command failed",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    for (int i = 0; wait && p.out_status.writing && i < 3000; i++) {
+        g_usleep(10000);
+        memset(&p, 0, sizeof(p));
+        p.op = DBGAPI_SCREENSHOT_SERIES_OP_STATUS;
+        if (!_screenshot_series_submit(&p, &err)) break;
+    }
+    return _ok_response(req_id, _screenshot_series_status_json(&p.out_status), out_response);
+}
+
+/**
+ * @brief `screenshot_series_status` handler - stav běžící nebo poslední série.
+ *
+ * Bez parametrů. Response: stav série (active, writing, frames_seen, files,
+ * unchanged, dir, stop_reason, last_error).
+ */
+static en_MCP_DISPATCH_RESULT _handle_screenshot_series_status(const st_JSONL_MESSAGE *req,
+                                                               char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    st_DBGAPI_SCREENSHOT_SERIES_PARAM p;
+    memset(&p, 0, sizeof(p));
+    p.op = DBGAPI_SCREENSHOT_SERIES_OP_STATUS;
+    const char *err = NULL;
+    if (!_screenshot_series_submit(&p, &err)) {
+        return _err_response(req_id, "screenshot_series command failed",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    return _ok_response(req_id, _screenshot_series_status_json(&p.out_status), out_response);
 }
 
 

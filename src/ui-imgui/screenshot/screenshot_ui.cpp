@@ -24,6 +24,7 @@
 #include "baseui/baseui_filechooser.h"
 #include "emulator/screenshot/screenshot_capture.h"
 #include "emulator/screenshot/screenshot_config.h"
+#include "emulator/screenshot/screenshot_series.h"
 
 #include "i18n.h"
 
@@ -32,6 +33,8 @@ extern "C" void snapshot_notification_show_ex(const char *message, bool is_error
 
 /** @brief Zobrazovaný popisek zkratky uložení screenshotu. */
 #define SCREENSHOT_SHORTCUT_LABEL "Alt+F"
+/** @brief Zobrazovaný popisek zkratky série snímků. */
+#define SCREENSHOT_SERIES_SHORTCUT_LABEL "Alt+Shift+F"
 
 
 /*******************************************************************************
@@ -162,6 +165,15 @@ void imgui_screenshot_menu(void)
     if (ImGui::MenuItem(_L("Save Screenshot As..."))) {
         screenshot_ui_save_as();
     }
+    st_SCREENSHOT_SERIES_STATUS st;
+    screenshot_series_get_status(&st);
+    if (ImGui::MenuItem(_L("Record Changed Frames"), SCREENSHOT_SERIES_SHORTCUT_LABEL, st.active)) {
+        screenshot_ui_toggle_series();
+    }
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("%s", _("Saves a PNG of every emulated frame that differs from the previous one "
+                                  "(area and scale from Settings) until you stop it."));
+    }
     ImGui::Separator();
     if (ImGui::MenuItem(_L("Settings..."))) {
         g_gui->showScreenshotSetupWindow = true;
@@ -175,9 +187,86 @@ void imgui_screenshot_menu(void)
 void imgui_screenshot_shortcuts(void)
 {
     ImGuiIO &io = ImGui::GetIO();
-    if (io.KeyAlt && !io.KeyShift && !io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_F, false)) {
+    if (!io.KeyAlt || io.KeyCtrl || !ImGui::IsKeyPressed(ImGuiKey_F, false)) return;
+    if (io.KeyShift) {
+        screenshot_ui_toggle_series();
+    } else {
         screenshot_ui_save_quick();
     }
+}
+
+
+/*******************************************************************************
+ *
+ *                  Série snímků
+ *
+ ******************************************************************************/
+
+/** @brief UI spustilo sérii a ještě neohlásilo její dokončení. */
+static bool s_series_pending_report = false;
+
+void screenshot_ui_toggle_series(void)
+{
+    if (screenshot_series_stop()) return; /* běžela - dokončení ohlásí imgui_screenshot_series_poll() */
+
+    st_SCREENSHOT_SERIES_PARAMS p;
+    screenshot_series_params_init(&p);
+    screenshot_settings_to_opts(&g_screenshot_settings, &p.opts);
+    p.only_changed = g_screenshot_settings.series_only_changed;
+    char err[256] = "";
+    if (screenshot_series_start(&p, err, sizeof(err))) {
+        s_series_pending_report = true;
+    } else {
+        char *msg = g_strdup_printf(_("Cannot start the frame series: %s"), err);
+        snapshot_notification_show_ex(msg, true, _("Screenshot Error"));
+        g_free(msg);
+    }
+}
+
+void imgui_screenshot_series_poll(void)
+{
+    if (!s_series_pending_report) return;
+    st_SCREENSHOT_SERIES_STATUS st;
+    screenshot_series_get_status(&st);
+    if (st.active || st.writing) return;
+    s_series_pending_report = false;
+    if (st.last_error[0]) {
+        char *msg = g_strdup_printf(_("Frame series stopped after %u files: %s"), (unsigned)st.files, st.last_error);
+        snapshot_notification_show_ex(msg, true, _("Screenshot Error"));
+        g_free(msg);
+    } else {
+        char *msg = g_strdup_printf(_("Frame series saved: %u files of %u frames to %s"),
+                                    (unsigned)st.files, (unsigned)st.frames_seen, st.dir);
+        snapshot_notification_show_ex(msg, false, NULL);
+        g_free(msg);
+    }
+}
+
+void imgui_screenshot_series_overlay(void)
+{
+    st_SCREENSHOT_SERIES_STATUS st;
+    screenshot_series_get_status(&st);
+    if (!st.active) return;
+
+    ImVec2 img_min = ImGui::GetItemRectMin();
+    char text[128];
+    g_snprintf(text, sizeof(text), _("FRAMES %u / %u"), (unsigned)st.files, (unsigned)st.frames_seen);
+
+    ImDrawList *dl = ImGui::GetForegroundDrawList();
+    const float pad = 6.0f;
+    const float margin = 10.0f;
+    ImVec2 ts = ImGui::CalcTextSize(text);
+    float r = ts.y * 0.4f;
+    float w = pad + 2.0f * r + pad + ts.x + pad;
+    float h = ts.y + 2.0f * pad;
+    ImVec2 box_min(img_min.x + margin, img_min.y + margin);
+    ImVec2 box_max(img_min.x + margin + w, img_min.y + margin + h);
+    dl->AddRectFilled(box_min, box_max, IM_COL32(0, 0, 0, 160), 4.0f);
+    /* Symbol série: dva překrývající se čtverečky (snímky). */
+    ImVec2 c(box_min.x + pad + r, box_min.y + h * 0.5f);
+    dl->AddRect(ImVec2(c.x - r, c.y - r), ImVec2(c.x + r * 0.4f, c.y + r * 0.4f), IM_COL32(80, 200, 255, 255));
+    dl->AddRectFilled(ImVec2(c.x - r * 0.4f, c.y - r * 0.4f), ImVec2(c.x + r, c.y + r), IM_COL32(80, 200, 255, 255));
+    dl->AddText(ImVec2(c.x + r + pad, box_min.y + pad), IM_COL32(255, 255, 255, 255), text);
 }
 
 
@@ -297,7 +386,16 @@ void imgui_screenshot_setup_dialog(void)
         }
 
         ImGui::Spacing();
+        ImGui::Checkbox(_L("Frame series: only changed frames"), &s_settings.series_only_changed);
+        if (ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", _("Checked: Record Changed Frames saves only frames that differ from the last "
+                                      "saved one. Unchecked: every emulated frame."));
+        }
+
+        ImGui::Spacing();
         ImGui::TextDisabled(_("Save Screenshot (%s) saves the picture shown in the window."), SCREENSHOT_SHORTCUT_LABEL);
+        ImGui::TextDisabled(_("Record Changed Frames (%s) saves emulated frames into a new folder."),
+                            SCREENSHOT_SERIES_SHORTCUT_LABEL);
         ImGui::Separator();
         ImGui::Spacing();
 

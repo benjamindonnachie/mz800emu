@@ -34,6 +34,7 @@
 #include "version_check/version_check.h"
 #include "snapshot/snapshot.h"
 #include "videorec/videorec.h"
+#include "screenshot/screenshot_series.h"
 
 st_EMULATOR g_emulator;
 
@@ -51,6 +52,8 @@ void emulator_quit(int exit_value)
         version_check_exit();
         /* Video záznam: synchronní stop (flush, sidecar, finalizace AVI, join writeru). */
         videorec_exit();
+        /* Série screenshotů: stop a dopsání fronty (join writeru). */
+        screenshot_series_exit();
         snapshot_exit();
         cfgmain_exit();
 

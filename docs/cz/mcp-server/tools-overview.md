@@ -74,6 +74,9 @@ dokumentu [Resources overview](resources-overview.md).
 | `emu_videorec_status` | ne | Stav nahrávání videa (stav, snímky, segment, velikost, cesta, poslední událost) |
 | `emu_videorec_timebase` | ne | Časová základna nahrávání: emulační čas nebo podle reality |
 | `emu_screenshot_save_to_file` | ano (vytvoří / přepíše soubor) | PNG obrazovky do souboru: oblast (full / canvas), měřítko (framebuffer / nativní body / okno 1-4), ořez |
+| `emu_screenshot_series_start` | ano (vytváří soubory) | Série snímků: PNG každého změněného emulovaného snímku (oblast, měřítko, ořez, only_changed, frames, max_files) |
+| `emu_screenshot_series_stop` | ne | Ukončí sérii snímků, standardně počká na zápis všech snímků |
+| `emu_screenshot_series_status` | ne | Stav série snímků (sledované snímky, soubory, nezměněné, složka, důvod konce) |
 | `emu_profiler_start` | ne | Start CPU profileru (hot-path overhead) |
 | `emu_profiler_stop` | ne | Stop profileru (data zachována) |
 | `emu_profiler_reset` | ne | Vynuluje agregátor profileru |
@@ -1011,6 +1014,38 @@ Vrací `{available, path, format, width, height, byte_size, area, scale}`
 (+ `hires` u `native`), před prvním vykresleným snímkem `{available:
 false, reason}`. Neplatná `area`, `scale` nebo `crop` (i ořez mimo obraz)
 je chyba parametrů a soubor se nezapíše.
+
+### `emu_screenshot_series_start` (citlivý - vytváří soubory)
+
+Ukládá PNG každého emulovaného snímku, který se liší od posledního
+uloženého - pro hledání chyb v animacích. Argumenty (všechny volitelné):
+`dir` (složka série; prázdný = nová složka
+`<platforma>_frames_RRRRMMDD_HHMMSS` ve výstupní složce screenshotů),
+`area`, `scale` (výchozí `native`), `crop` - jako výše, počítají se jen
+změny uvnitř nich; `only_changed` (výchozí `true`; `false` = každý
+snímek), `frames` (stop po N emulovaných snímcích, 0 = do stop),
+`max_files` (pojistka, 0 = 10000).
+
+Snímky se berou v emulovaném čase na konci každého snímku - ani při MAX
+SPEED se žádný nevynechá; když zápis nestíhá, emulace počká. V pauze
+emulace se nic nesnímá. Soubory `frame_NNNNNNN.png` (NNNNNNN = emulovaný
+snímek od startu, mezery = nezměněné snímky) a `index.csv`
+(`frame,file,gdg_screen`). Vrací stav série a navíc `area`, `scale`,
+`only_changed`. Chyby: série už běží, neplatné parametry, složku nelze
+vytvořit.
+
+### `emu_screenshot_series_stop`
+
+Argument `wait` (bool, výchozí `true`): počkat (nejvýš 30 s), až se
+zapíšou všechny snímky ve frontě. Vrací stav série. Bez série:
+`No frame series is running`.
+
+### `emu_screenshot_series_status`
+
+Bez argumentů. Vrací `active` (snímá), `writing` (soubory se ještě
+zapisují), `frames_seen`, `files`, `unchanged`, `dir`, `stop_reason`
+(`Stopped`, `Frame count reached`, `File limit reached`, `Error`, za běhu
+prázdný) a `last_error`.
 
 ## Profiler tools
 

@@ -231,6 +231,8 @@ static void ShowFullScreenImageEmulatorWindow(GLuint texture)
     ImGui::Image(texture, ImVec2(viewport->Size.x, viewport->Size.y));
     /* REC indikátor v pravém horním rohu obrazu (jen UI, do nahrávky se nedostane) */
     imgui_videorec_overlay();
+    /* Indikátor série snímků v levém horním rohu obrazu (jen UI) */
+    imgui_screenshot_series_overlay();
     ImGui::PopStyleVar(2);
 
     // bool isPopupOpen = ImGui::IsPopupOpen("ContextMenu", ImGuiPopupFlags_AnyPopup);
@@ -399,6 +401,7 @@ void imgui_main_window(GLuint texture)
 
     /* Screenshot: dialog nastavení (Tools -> Screenshot -> Settings...) */
     imgui_screenshot_setup_dialog();
+    imgui_screenshot_series_poll();
 
     /* Upozornění na běh bez audio zařízení (jednou, před vykreslením notifikace) */
     imgui_audio_device_notice();

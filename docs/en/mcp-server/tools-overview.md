@@ -74,6 +74,9 @@ documented separately in [Resources overview](resources-overview.md).
 | `emu_videorec_status` | no | Video recording status (state, frames, segment, size, path, last event) |
 | `emu_videorec_timebase` | no | Recording timebase: emulated time or real time |
 | `emu_screenshot_save_to_file` | yes (creates / overwrites a file) | PNG of the screen to a file: area (full / canvas), scale (framebuffer / native dots / window 1-4), crop |
+| `emu_screenshot_series_start` | yes (creates files) | Frame series: a PNG of every changed emulated frame (area, scale, crop, only_changed, frames, max_files) |
+| `emu_screenshot_series_stop` | no | Stop the frame series, by default wait until all frames are written |
+| `emu_screenshot_series_status` | no | Frame series status (frames seen, files, unchanged, folder, stop reason) |
 | `emu_profiler_start` | no | Start CPU profiler (hot-path overhead) |
 | `emu_profiler_stop` | no | Stop profiler (data preserved) |
 | `emu_profiler_reset` | no | Clear profiler aggregator |
@@ -1037,6 +1040,37 @@ Returns `{available, path, format, width, height, byte_size, area, scale}`
 (+ `hires` with `native`), `{available: false, reason}` before the first
 rendered frame. An invalid `area`, `scale` or `crop` (also a crop outside
 the image) is a parameter error and no file is written.
+
+### `emu_screenshot_series_start` (sensitive - creates files)
+
+Saves a PNG of every emulated frame that differs from the last saved one -
+for finding animation bugs. Arguments (all optional): `dir` (series
+folder; empty = a new `<platform>_frames_YYYYMMDD_HHMMSS` folder in the
+screenshot output folder), `area`, `scale` (default `native`), `crop` -
+as above, only changes inside them count; `only_changed` (default `true`;
+`false` = every frame), `frames` (stop after N emulated frames, 0 = until
+stop), `max_files` (safety limit, 0 = 10000).
+
+Frames are taken in emulated time at the end of every frame - none is
+skipped even at MAX SPEED; when writing cannot keep up, the emulation
+waits. Nothing is captured while the emulation is paused. Files
+`frame_NNNNNNN.png` (NNNNNNN = emulated frame since the start, gaps =
+unchanged frames) and `index.csv` (`frame,file,gdg_screen`). Returns the
+series status plus `area`, `scale`, `only_changed`. Errors: a series is
+already running, invalid parameters, the folder cannot be created.
+
+### `emu_screenshot_series_stop`
+
+Argument `wait` (bool, default `true`): wait (at most 30 s) until all
+queued frames are written. Returns the series status. Without a series:
+`No frame series is running`.
+
+### `emu_screenshot_series_status`
+
+No arguments. Returns `active` (capturing), `writing` (files still being
+written), `frames_seen`, `files`, `unchanged`, `dir`, `stop_reason`
+(`Stopped`, `Frame count reached`, `File limit reached`, `Error`, empty
+while running) and `last_error`.
 
 ## Profiler tools
 

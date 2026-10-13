@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mz800emu 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-13 17:00+0200\n"
+"POT-Creation-Date: 2026-10-13 18:02+0200\n"
 "PO-Revision-Date: 2026-03-11 22:00+0100\n"
 "Last-Translator: Claude Code\n"
 "Language-Team: 日本語\n"
@@ -62,21 +62,21 @@ msgstr ""
 "アドレス = 0x%04x\n"
 "命令 = '%s'\n"
 
-#: src/emulator/emulator.c:392
+#: src/emulator/emulator.c:395
 #: src/ui-imgui/mcp_activity/mcp_activity_window.cpp:421
 #: src/ui-imgui/videorec/videorec_menu.cpp:140
 msgid "PAUSED"
 msgstr "一時停止"
 
-#: src/emulator/emulator.c:395
+#: src/emulator/emulator.c:398
 msgid "Max speed"
 msgstr "最高速度"
 
-#: src/emulator/emulator.c:398
+#: src/emulator/emulator.c:401
 msgid "Custom speed"
 msgstr "カスタム速度"
 
-#: src/emulator/emulator.c:400
+#: src/emulator/emulator.c:403
 msgid "Normal speed"
 msgstr "通常速度"
 
@@ -680,7 +680,7 @@ msgstr "各長さは0より大きく、%.0f µs以下である必要がありま
 #: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:109
 #: src/ui-imgui/joy/joy_setup_window.cpp:564
 #: src/ui-imgui/message/message_window.cpp:90
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:308
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:406
 #: src/ui-imgui/snapshot/snapshot_notification.cpp:95
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:338
 msgid "OK"
@@ -698,7 +698,7 @@ msgstr "OK"
 #: src/ui-imgui/memext/memext_save_dialog.cpp:207
 #: src/ui-imgui/ramdisk/pezik_settings_window.cpp:289
 #: src/ui-imgui/rom/rom_settings_window.cpp:323
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:313
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:411
 #: src/ui-imgui/snapshot/snapshot_save_dialog.cpp:139
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:176
 #: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:99
@@ -5061,9 +5061,9 @@ msgid ""
 "(Debugger -> Memory Heatmap). Without recording, CDL X/R/W and Heatmap "
 "layers stay invisible."
 msgstr ""
-"メモリヒートマップ / CDL 記録状態。メモリヒートマップウィンドウ (デバッガー "
-"-> メモリヒートマップ) で有効化。記録なしでは CDL X/R/W とヒートマップレイ"
-"ヤーは非表示。"
+"メモリヒートマップ / CDL 記録状態。メモリヒートマップウィンドウ (デバッガー -"
+"> メモリヒートマップ) で有効化。記録なしでは CDL X/R/W とヒートマップレイヤー"
+"は非表示。"
 
 #: src/ui-imgui/debugger/membrowser/membrowser_layers.cpp:356
 msgid "CDL Code (X)###mb_layer_cdl_x"
@@ -8625,11 +8625,11 @@ msgstr "シンボル###sym_main"
 
 #: src/ui-imgui/debugger/symbols/sym_window.cpp:1186
 msgid ""
-"No symbols loaded. Use [+ Add] above or [Load From...] to "
-"import .noi/.map/.sym/.lbl."
+"No symbols loaded. Use [+ Add] above or [Load From...] to import .noi/.map/."
+"sym/.lbl."
 msgstr ""
-"シンボル未読み込み。上の [+ 追加] または [Load From...] "
-"で .noi/.map/.sym/.lbl をインポートしてください。"
+"シンボル未読み込み。上の [+ 追加] または [Load From...] で .noi/.map/.sym/."
+"lbl をインポートしてください。"
 
 #: src/ui-imgui/debugger/symbols/sym_window.cpp:1200
 msgid "Own##sym_col_owner"
@@ -8725,8 +8725,8 @@ msgstr "保存##vars_save"
 msgid ""
 "Save to default per-arch .vars file (mz800.vars / mz1500.vars in cfg dir)."
 msgstr ""
-"アーキテクチャ別のデフォルト.varsファイルに保存 (cfgディレクトリ内の "
-"mz800.vars / mz1500.vars)。"
+"アーキテクチャ別のデフォルト.varsファイルに保存 (cfgディレクトリ内の mz800."
+"vars / mz1500.vars)。"
 
 #: src/ui-imgui/debugger/vars/vars_window.cpp:676
 msgid "Save As...##vars_saveas"
@@ -10262,129 +10262,182 @@ msgstr "ROMバイナリファイル"
 msgid "CMT Hack Patch ROM"
 msgstr "CMT Hack Patch ROM"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:57
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:60
 msgid "The emulator screen is not available"
 msgstr "エミュレーター画面を利用できません"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:92
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:95
 #, c-format
 msgid "Screenshot saved (%u x %u): %s"
 msgstr "スクリーンショットを保存しました (%u x %u): %s"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:96
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:99
 #, c-format
 msgid "Cannot save screenshot to '%s': %s"
 msgstr "スクリーンショットを '%s' に保存できません: %s"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:97
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:142
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:100
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:145
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:221
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:235
 msgid "Screenshot Error"
 msgstr "スクリーンショットのエラー"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:127
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:159
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:130
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:162
 msgid "Save Screenshot"
 msgstr "スクリーンショットを保存"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:141
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:144
 #: src/ui-imgui/videorec/videorec_menu.cpp:422
 #, c-format
 msgid "Cannot open folder: %s"
 msgstr "フォルダーを開けません: %s"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:158
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:161
 msgid "Screenshot"
 msgstr "スクリーンショット"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:162
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:165
 msgid "Save Screenshot As..."
 msgstr "スクリーンショットに名前を付けて保存..."
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:166
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:170
+msgid "Record Changed Frames"
+msgstr "変化したフレームを記録"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:174
+msgid ""
+"Saves a PNG of every emulated frame that differs from the previous one (area "
+"and scale from Settings) until you stop it."
+msgstr ""
+"停止するまで、前のフレームと異なるエミュレートされたフレームごとに PNG を保存"
+"します (範囲と倍率は設定から)。"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:178
 #: src/ui-imgui/videorec/videorec_menu.cpp:462
 #: src/ui-imgui/videorec/videorec_remote_window.cpp:317
 msgid "Settings..."
 msgstr "設定..."
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:169
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:181
 #: src/ui-imgui/videorec/videorec_menu.cpp:466
 #: src/ui-imgui/videorec/videorec_remote_window.cpp:315
 msgid "Open Output Folder"
 msgstr "出力フォルダーを開く"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:199
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:220
+#, c-format
+msgid "Cannot start the frame series: %s"
+msgstr "フレームシリーズを開始できません: %s"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:234
+#, c-format
+msgid "Frame series stopped after %u files: %s"
+msgstr "フレームシリーズは %u ファイルで停止しました: %s"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:238
+#, c-format
+msgid "Frame series saved: %u files of %u frames to %s"
+msgstr "フレームシリーズを保存しました: %u ファイル (%u フレーム中)、保存先 %s"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:253
+#, c-format
+msgid "FRAMES %u / %u"
+msgstr "フレーム %u / %u"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:288
 msgid "Native (computer dots, 320 or 640 wide)"
 msgstr "ネイティブ (コンピューターのドット、幅 320 または 640)"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:200
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:289
 msgid "1x"
 msgstr "1x"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:201
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:290
 msgid "2x (window at 100 %)"
 msgstr "2x (ウィンドウ 100 %)"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:202
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:291
 msgid "3x"
 msgstr "3x"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:203
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:292
 msgid "4x"
 msgstr "4x"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:218
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:307
 #, c-format
 msgid "Image size: %u x %u or %u x %u (640-dot modes)"
 msgstr "画像サイズ: %u x %u または %u x %u (640 ドットモード)"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:221
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:310
 #, c-format
 msgid "Image size: %u x %u"
 msgstr "画像サイズ: %u x %u"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:238
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:327
 msgid "Screenshot Settings"
 msgstr "スクリーンショットの設定"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:243
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:332
 msgid "Area"
 msgstr "範囲"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:244
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:333
 msgid "Whole frame with border"
 msgstr "ボーダーを含む全体"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:247
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:336
 msgid "Picture without border"
 msgstr "ボーダーなしの画面"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:253
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:342
 msgid "Scale"
 msgstr "倍率"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:277
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:366
 msgid "1x drops every second column in the 640-dot modes."
 msgstr "1x では 640 ドットモードで 1 列おきに省略されます。"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:282
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:371
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:260
 msgid "Output folder"
 msgstr "出力フォルダー"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:285
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:374
 msgid "(default: screenshots folder next to the emulator)"
 msgstr "(デフォルト: エミュレーターと同じ場所の screenshots フォルダー)"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:295
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:384
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:80
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:273
 msgid "Select Directory"
 msgstr "ディレクトリを選択"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:300
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:389
+msgid "Frame series: only changed frames"
+msgstr "フレームシリーズ: 変化したフレームのみ"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:391
+msgid ""
+"Checked: Record Changed Frames saves only frames that differ from the last "
+"saved one. Unchecked: every emulated frame."
+msgstr ""
+"オン: 変化したフレームを記録は、最後に保存したフレームと異なるフレームのみを"
+"保存します。オフ: エミュレートされたすべてのフレーム。"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:396
 #, c-format
 msgid "Save Screenshot (%s) saves the picture shown in the window."
 msgstr "スクリーンショットを保存 (%s) はウィンドウに表示中の画像を保存します。"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:397
+#, c-format
+msgid "Record Changed Frames (%s) saves emulated frames into a new folder."
+msgstr ""
+"変化したフレームを記録 (%s) は、エミュレートされたフレームを新しいフォルダー"
+"に保存します。"
 
 #: src/ui-imgui/snapshot/snapshot_load_dialog.cpp:157
 msgid "Snapshot Preview"
@@ -11313,8 +11366,8 @@ msgstr "'{SD}/unicard/' のUnicardランタイムファイルが再初期化さ�
 
 #: src/ui-imgui/topmenu/devices/menu_unicard.cpp:356
 msgid ""
-"Overwrites manager files in '{SD}/unicard/' (mgr.mzf, mgr800.mzf, "
-"mgr700.mzf, mgr1500.mzf) with the selected version.\n"
+"Overwrites manager files in '{SD}/unicard/' (mgr.mzf, mgr800.mzf, mgr700."
+"mzf, mgr1500.mzf) with the selected version.\n"
 "On MZ-800 prompts for mgr V2.4 vs V2.11b."
 msgstr ""
 "'{SD}/unicard/' のマネージャファイル (mgr.mzf, mgr800.mzf, mgr700.mzf, "
