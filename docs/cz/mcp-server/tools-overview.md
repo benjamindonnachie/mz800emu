@@ -87,6 +87,9 @@ dokumentu [Resources overview](resources-overview.md).
 | `emu_profiler_pc_reset` | ne | Smaže data profileru podle PC |
 | `emu_profiler_pc_get` | ne | Nejvytíženější adresy instrukcí s nejbližším symbolem (řazení, limit, rozsah adres) |
 | `emu_profiler_pc_export` | ne | Všechny vykonané adresy do CSV souboru |
+| `emu_audio_capture_start` | ano (vytváří soubory) | Zachycení zvuku do složky: změny úrovní kanálů, zápisy do PSG, reference.wav a sdl.wav (frames, výběr souborů) |
+| `emu_audio_capture_stop` | ne | Ukončí zachycení zvuku a dopíše soubory |
+| `emu_audio_capture_status` | ne | Stav zachycení zvuku (snímky, události, zápisy PSG, vzorky, bloky SDL, složka, důvod konce) |
 | `emu_media_load_mzf` | ne | CMT-hack instant load MZF (header + body) do RAM na LOAD_ADDR (path nebo bytes_b64) |
 | `emu_media_run_mzf` | **ANO** | Reset + spuštění MZF ve stavu jako po `--run-mzf` (výchozí); `bootstrap=false` = load + ROM disconnect + JP STRT bez resetu |
 | `emu_media_load_binary` | **ANO** | Raw bajty z file do Z80 paměti, **destruktivní** |
@@ -1211,6 +1214,77 @@ přepíše se; složka musí existovat) a `sort` (výchozí `addr`). CSV:
 UTF-8, konce řádků LF, desetinná tečka bez ohledu na locale; hlavička
 `pc,count,tstates,wait,tstates_pct`, `pc` jako 4 hex číslice. Přidá
 `path` a `rows`.
+
+## Zachycení zvuku
+
+Zachycení zvuku zapisuje do složky, co dělá zvukový hardware, v emulovaném
+čase - pro hledání chyb zvuku v programu i v emulátoru. Stejné zachycení je
+i v GUI (Tools -> Audio Capture, `Alt + Q`) a v příkazové řádce
+(`--audio-capture`), viz [`../audio-capture.md`](../audio-capture.md).
+
+| Soubor | Obsah |
+|---|---|
+| `events.csv` | `ticks,time_us,frame,channel,level` - každá změna výstupní úrovně (0-15) zvukového kanálu |
+| `psg_writes.csv` | `ticks,time_us,frame,psg,byte,channel,reg,value` - každý zápis do PSG s dekódováním |
+| `reference.wav` | zvuk vyrenderovaný přesně v emulovaném čase (renderer video záznamu) |
+| `sdl.wav` | zvuk ze zvukové výstupní cesty emulátoru - to, co slyší uživatel |
+| `capture.json` | platforma, `gdg_clk_hz`, `frames_per_sec`, názvy kanálů, počty, důvod konce (zapisuje se na konci) |
+
+- `ticks` jsou takty GDG od začátku zachycení (`gdg_clk_hz` v
+  capture.json), `time_us` totéž v mikrosekundách, `frame` zvukový snímek
+  (= snímek obrazu, 20 ms PAL / 16,7 ms NTSC) od začátku.
+- Kanály: `ctc0` (reproduktor řízený CTC0 a PIO, úroveň 0 nebo 15),
+  `psg0_0`..`psg0_3` a na MZ-1500 nebo MZ-800 s druhým PSG
+  `psg1_0`..`psg1_3`. Kanál 3 každého PSG je šumový. První řádky
+  events.csv (ticks 0) jsou úrovně na začátku.
+- psg_writes.csv: `psg` je cíl (1 = PSG0, 2 = PSG1, 3 = oba), `byte`
+  zapsaná hodnota hexadecimálně. Dekóduje se ze stavu PSG po zápisu (pro
+  oba PSG z PSG0): `reg` = `tone_lo` (latch bajt tónu: spodní 4 bity
+  děliče, dělič se mění až datovým bajtem), `tone` (celý 10bitový dělič),
+  `volume` (útlum 0-15, 15 = vypnuto) nebo `noise` (`(typ << 2) | rychlost`).
+- Oba WAV jsou 44100 Hz, 16 bit, stereo. sdl.wav je proti reference.wav
+  opožděný: bez zvukového zařízení (headless) přesně o jeden snímek, se
+  zařízením podle jeho bufferu. Se zařízením při MAX SPEED výstupní cesta
+  snímky vynechává - `sdl_blocks` je pak menší než `frames`.
+- Začátek: zachycení začne na konci nejbližšího zvukového snímku, se
+  `sdl_wav` až po dalších 6 snímcích, které rozjedou výstupní cestu (jinak
+  by její filtry začínaly ze studeného stavu). Úrovně, které se delší dobu
+  nezměnily, začnou v obou souborech ztlumené, jako ve výstupní cestě.
+- Konec: `emu_audio_capture_stop`, dosažení `frames`, pojistka jedné
+  hodiny, reset nebo načtení snapshotu (emulovaný čas skočí zpět), chyba
+  zápisu nebo ukončení emulátoru.
+- Zachytává se jen za běhu emulace - kombinovat s `emu_run(frames=N)`.
+
+Typické použití:
+
+```
+emu_audio_capture_start(dir="C:/tmp/snd", frames=250)   # 5 s PAL
+emu_run(frames=260)
+emu_audio_capture_status()      # stop_reason "Frame count reached"
+```
+
+### `emu_audio_capture_start`
+
+Argumenty (všechny volitelné): `dir` (složka, vytvoří se; prázdný = nová
+složka `<platforma>_audio_<datum>_<čas>` ve výstupní složce zachycení,
+výchozí `audio_captures` vedle emulátoru),
+`frames` (stop po tolika zvukových snímcích, 0 = do stop), `events`,
+`psg_writes`, `reference_wav`, `sdl_wav` (bool, výchozí true - které
+soubory zapisovat). Vrací stav s `pending: true`, nebo chybu (už běží,
+nic nevybráno, složku nejde vytvořit).
+
+### `emu_audio_capture_stop`
+
+Ukončí zachycení a dopíše soubory. Vrací konečný stav; chyba "No audio
+capture is running", když žádné neběží.
+
+### `emu_audio_capture_status`
+
+`{"pending", "active", "frames", "events", "psg_writes",
+"reference_samples", "sdl_blocks", "sdl_samples", "dir", "stop_reason",
+"last_error"}`. `stop_reason`: `Stopped`, `Frame count reached`,
+`Safety limit reached`, `Emulation timeline restarted (reset or snapshot
+load)`, `Error`, `Emulator exit`, za běhu prázdný.
 
 ## Media tools
 

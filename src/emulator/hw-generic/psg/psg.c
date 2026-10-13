@@ -31,6 +31,7 @@
 #include "hw-generic/gdg/gdg.h"
 #include "hw-generic/gdg/gdgclk.h"
 #include "audio.h"
+#include "audio_capture.h"
 #include "mzarch/mzarch.h"
 
 #include <glib.h>
@@ -340,6 +341,11 @@ void psg_write_byte(unsigned channel, uint8_t value)
         {
             psg_write_log_record(total_ticks, PSG_CH_LEFT, value);
         }
+        /* Zachycení zvuku (psg_writes.csv) - po zápisu, dekóduje se stav PSG. */
+        if (audio_capture_wanted())
+        {
+            audio_capture_on_psg_write(total_ticks, PSG_CH_LEFT, value);
+        }
         return;
     }
 
@@ -361,6 +367,11 @@ void psg_write_byte(unsigned channel, uint8_t value)
     if (g_psg_write_log.enabled)
     {
         psg_write_log_record(total_ticks, channel, value);
+    }
+    /* Zachycení zvuku (psg_writes.csv) - po zápisu, dekóduje se stav PSG. */
+    if (audio_capture_wanted())
+    {
+        audio_capture_on_psg_write(total_ticks, channel, value);
     }
 }
 

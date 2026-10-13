@@ -32,6 +32,7 @@
 #include "audio.h"
 #include "videorec/videorec.h"
 #include "screenshot/screenshot_series.h"
+#include "audio_capture.h"
 
 #if CFG_HWEXT_HAVE_FDC
 #include "hw-generic/fdc/fdc.h"
@@ -1335,6 +1336,29 @@ void mzarch_main(void)
         if (!videorec_request_start(&rec))
         {
             fprintf(stderr, "CLI --record: %s\n", videorec_get_last_error());
+        };
+    }
+
+    /* CLI volby --audio-capture, --audio-capture-frames: zachycení zvuku
+     * hned po bootu (a po --run-mzf). Začne na konci zvukového snímku, se
+     * sdl.wav po rozjezdu výstupní cesty (audio_capture.h). */
+    if (sdlapp_option_present("--audio-capture"))
+    {
+        st_AUDIO_CAPTURE_PARAMS cap;
+        audio_capture_params_from_settings(&cap);
+        gchar *cap_dir = mzarch_cli_option_value_utf8("--audio-capture");
+        g_strlcpy(cap.dir, cap_dir ? cap_dir : "", sizeof(cap.dir));
+        g_free(cap_dir);
+        const char *cap_frames = sdlapp_option_value("--audio-capture-frames");
+        if (cap_frames)
+        {
+            cap.frames = g_ascii_strtoull(cap_frames, NULL, 10);
+        };
+        cap.quit_after_stop = sdlapp_option_present("--headless");
+        char cap_err[AUDIO_CAPTURE_TEXT_MAX];
+        if (!audio_capture_start(&cap, cap_err, sizeof(cap_err)))
+        {
+            fprintf(stderr, "CLI --audio-capture: %s\n", cap_err);
         };
     }
 

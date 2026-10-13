@@ -100,6 +100,12 @@ static const st_SDLAPP_OPTION_DEF g_known_options[] = {
       "Start video recording (lossless AVI + .cuts.json sidecar) right after boot." },
     { "--record-frames",    SDLAPP_OPTION_VALUE, SDLAPP_OPTVAL_UINT,        NULL,        "<count>",
       "Stop video recording after <count> frames; in --headless mode then quit the emulator." },
+    { "--audio-capture",    SDLAPP_OPTION_VALUE, SDLAPP_OPTVAL_STRING,      NULL,        "<dir>",
+      "Start an audio capture into <dir> right after boot: channel level changes (events.csv), "
+      "PSG writes (psg_writes.csv), the exact sound (reference.wav) and the sound of the audio "
+      "output (sdl.wav); which files are written is set in Tools -> Audio Capture -> Settings." },
+    { "--audio-capture-frames", SDLAPP_OPTION_VALUE, SDLAPP_OPTVAL_UINT,    NULL,        "<count>",
+      "Stop the audio capture after <count> audio frames; in --headless mode then quit the emulator." },
     { "--cdl-mode",         SDLAPP_OPTION_VALUE, SDLAPP_OPTVAL_ENUM,        MODE_VALUES, "<off|window|always>",
       "Set the CDL (Memory Heatmap) recording mode." },
     { "--cdl-dir",          SDLAPP_OPTION_VALUE, SDLAPP_OPTVAL_STRING,      NULL,        "<dirpath>",

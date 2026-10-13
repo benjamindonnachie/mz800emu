@@ -35,6 +35,7 @@
 #include "snapshot/snapshot.h"
 #include "videorec/videorec.h"
 #include "screenshot/screenshot_series.h"
+#include "audio_capture.h"
 
 st_EMULATOR g_emulator;
 
@@ -54,6 +55,8 @@ void emulator_quit(int exit_value)
         videorec_exit();
         /* Série screenshotů: stop a dopsání fronty (join writeru). */
         screenshot_series_exit();
+        /* Zachycení zvuku: dopsání souborů a capture.json. */
+        audio_capture_exit();
         snapshot_exit();
         cfgmain_exit();
 

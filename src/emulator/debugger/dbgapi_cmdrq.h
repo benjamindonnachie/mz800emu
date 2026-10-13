@@ -35,6 +35,7 @@
 #include "screenshot/screenshot.h"
 #include "screenshot/screenshot_series.h"
 #include "debugger/profiler_pc.h"
+#include "audio_capture.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -699,6 +700,13 @@ typedef enum en_DBGAPI_CMD
      * proto čtení i export jdou přes frontu. Přidáno na KONEC enumu kvůli
      * stabilitě číselných hodnot. */
     DBGAPI_CMD_PROFILER_PC,          /* Profiler podle PC - data_ptr: st_DBGAPI_PROFILER_PC_PARAM* */
+
+    /* audio-capture - zachycení zvuku do složky (audio_capture.h)
+     *
+     * Jeden příkaz s operací (vzor DBGAPI_CMD_SCREENSHOT_SERIES): start, stop
+     * a stav. Stav zachycení patří emu vláknu, proto vše přes frontu.
+     * Přidáno na KONEC enumu kvůli stabilitě číselných hodnot. */
+    DBGAPI_CMD_AUDIO_CAPTURE,        /* Zachycení zvuku (start/stop/stav) - data_ptr: st_DBGAPI_AUDIO_CAPTURE_PARAM* */
 
 } en_DBGAPI_CMD;
 
@@ -2877,6 +2885,33 @@ typedef struct st_DBGAPI_PROFILER_PC_PARAM
     st_PROFILER_PC_SUMMARY out_summary; /**< OUT: souhrn po operaci. */
     char     out_error[ 256 ];     /**< OUT: anglický text chyby, "" = OK. */
 } st_DBGAPI_PROFILER_PC_PARAM;
+
+
+/**
+ * @brief Operace příkazu DBGAPI_CMD_AUDIO_CAPTURE (MCP `audio_capture_*`).
+ */
+typedef enum en_DBGAPI_AUDIO_CAPTURE_OP
+{
+    DBGAPI_AUDIO_CAPTURE_OP_START = 0, /**< audio_capture_start() s `params`. */
+    DBGAPI_AUDIO_CAPTURE_OP_STOP,      /**< audio_capture_stop(). */
+    DBGAPI_AUDIO_CAPTURE_OP_STATUS,    /**< Jen stav. */
+} en_DBGAPI_AUDIO_CAPTURE_OP;
+
+/**
+ * @brief Parametr pro DBGAPI_CMD_AUDIO_CAPTURE.
+ *
+ * `params` vyplní volající jen pro START. Handler vždy vyplní `out_error`
+ * a `out_status` (stav po operaci).
+ *
+ * @invariant rq->success == false <=> out_error != "".
+ */
+typedef struct st_DBGAPI_AUDIO_CAPTURE_PARAM
+{
+    en_DBGAPI_AUDIO_CAPTURE_OP op;            /**< IN: operace. */
+    st_AUDIO_CAPTURE_PARAMS params;           /**< IN (START): parametry zachycení. */
+    char out_error[ AUDIO_CAPTURE_TEXT_MAX ]; /**< OUT: anglický text chyby ("" při úspěchu). */
+    st_AUDIO_CAPTURE_STATUS out_status;       /**< OUT: stav po operaci. */
+} st_DBGAPI_AUDIO_CAPTURE_PARAM;
 
 
 /**

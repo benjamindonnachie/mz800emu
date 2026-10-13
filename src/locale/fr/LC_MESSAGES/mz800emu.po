@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mz800emu 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-13 20:15+0200\n"
+"POT-Creation-Date: 2026-10-13 21:57+0200\n"
 "PO-Revision-Date: 2026-03-11 22:00+0100\n"
 "Last-Translator: Claude Code\n"
 "Language-Team: Français\n"
@@ -37,7 +37,7 @@ msgstr "Ouvrir un répertoire"
 msgid "Untitled File Chooser"
 msgstr "Sélecteur de fichiers"
 
-#: src/emulator/audio.c:132
+#: src/emulator/audio.c:133
 msgid "Audio volume settings:"
 msgstr "Paramètres de volume :"
 
@@ -62,21 +62,21 @@ msgstr ""
 "Adresse = 0x%04x\n"
 "Instruction = '%s'\n"
 
-#: src/emulator/emulator.c:395
+#: src/emulator/emulator.c:398
 #: src/ui-imgui/mcp_activity/mcp_activity_window.cpp:421
 #: src/ui-imgui/videorec/videorec_menu.cpp:140
 msgid "PAUSED"
 msgstr "EN PAUSE"
 
-#: src/emulator/emulator.c:398
+#: src/emulator/emulator.c:401
 msgid "Max speed"
 msgstr "Vitesse maximale"
 
-#: src/emulator/emulator.c:401
+#: src/emulator/emulator.c:404
 msgid "Custom speed"
 msgstr "Vitesse personnalisée"
 
-#: src/emulator/emulator.c:403
+#: src/emulator/emulator.c:406
 msgid "Normal speed"
 msgstr "Vitesse normale"
 
@@ -386,6 +386,167 @@ msgstr "%.1f dB"
 msgid "%.0f dB"
 msgstr "%.0f dB"
 
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:52
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:144
+#: src/ui-imgui/videorec/videorec_menu.cpp:422
+#, c-format
+msgid "Cannot open folder: %s"
+msgstr "Impossible d'ouvrir le dossier : %s"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:53
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:72
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:119
+msgid "Audio Capture Error"
+msgstr "Erreur de capture audio"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:71
+#, c-format
+msgid "Cannot start the audio capture: %s"
+msgstr "Impossible de démarrer la capture audio : %s"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:80
+msgid "Audio Capture"
+msgstr "Capture audio"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:83
+msgid "Record Audio Capture"
+msgstr "Capturer l'audio"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:87
+msgid ""
+"Records what the sound hardware does into a new folder until you stop it:\n"
+"changes of the channel levels, PSG writes, the exact sound (reference.wav)\n"
+"and the sound you hear (sdl.wav). For finding sound bugs."
+msgstr ""
+"Enregistre dans un nouveau dossier ce que fait le matériel sonore jusqu'à "
+"l'arrêt :\n"
+"changements de niveau des canaux, écritures PSG, le son exact "
+"(reference.wav)\n"
+"et le son que vous entendez (sdl.wav). Pour trouver les défauts de son."
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:92
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:178
+#: src/ui-imgui/videorec/videorec_menu.cpp:462
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:317
+msgid "Settings..."
+msgstr "Paramètres..."
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:95
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:181
+#: src/ui-imgui/videorec/videorec_menu.cpp:466
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:315
+msgid "Open Output Folder"
+msgstr "Ouvrir le dossier de sortie"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:118
+#, c-format
+msgid "Audio capture stopped after %.1f s: %s"
+msgstr "Capture audio arrêtée après %.1f s : %s"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:123
+#, c-format
+msgid "Audio capture ended (%s): %.1f s saved to %s"
+msgstr "Capture audio terminée (%s) : %.1f s enregistrées dans %s"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:128
+#, c-format
+msgid "Audio capture saved: %.1f s to %s"
+msgstr "Capture audio enregistrée : %.1f s dans %s"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:143
+#, c-format
+msgid "AUDIO %.1f s"
+msgstr "AUDIO %.1f s"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:145
+msgid "AUDIO starting"
+msgstr "AUDIO démarrage"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:190
+msgid "Audio Capture Settings"
+msgstr "Paramètres de la capture audio"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:193
+msgid "Files to write"
+msgstr "Fichiers à écrire"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:194
+msgid "events.csv - changes of the channel levels"
+msgstr "events.csv - changements de niveau des canaux"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:195
+msgid "psg_writes.csv - PSG writes, decoded"
+msgstr "psg_writes.csv - écritures PSG, décodées"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:196
+msgid "reference.wav - exact sound in emulated time"
+msgstr "reference.wav - son exact en temps émulé"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:197
+msgid "sdl.wav - sound of the audio output (what you hear)"
+msgstr "sdl.wav - son de la sortie audio (ce que vous entendez)"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:201
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:371
+#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:260
+msgid "Output folder"
+msgstr "Dossier de sortie"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:204
+msgid "(default: audio_captures folder next to the emulator)"
+msgstr "(par défaut : dossier audio_captures à côté de l'émulateur)"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:214
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:384
+#: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:80
+#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:273
+msgid "Select Directory"
+msgstr "Sélectionner le répertoire"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:217
+msgid "Each capture creates a new folder in the output folder."
+msgstr "Chaque capture crée un nouveau dossier dans le dossier de sortie."
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:218
+#, c-format
+msgid "Record Audio Capture (%s) starts and stops the capture."
+msgstr "Capturer l'audio (%s) démarre et arrête la capture."
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:227
+#: src/ui-imgui/cmt/ImGuiCmt.cpp:175
+#: src/ui-imgui/debugger/sections/dbg_cpu_panel.cpp:2419
+#: src/ui-imgui/dsk/dsk_create_window.cpp:104
+#: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:109
+#: src/ui-imgui/joy/joy_setup_window.cpp:564
+#: src/ui-imgui/message/message_window.cpp:90
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:406
+#: src/ui-imgui/snapshot/snapshot_notification.cpp:95
+#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:338
+msgid "OK"
+msgstr "OK"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:233
+#: src/ui-imgui/cmt/ImGuiCmt.cpp:187
+#: src/ui-imgui/debugger/membrowser/membrowser_annot_dialog.cpp:148
+#: src/ui-imgui/debugger/membrowser/membrowser_fill_dialog.cpp:264
+#: src/ui-imgui/debugger/sections/dbg_focus_to.cpp:264
+#: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:104
+#: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:111
+#: src/ui-imgui/joy/joy_setup_window.cpp:571
+#: src/ui-imgui/memext/memext_load_dialog.cpp:185
+#: src/ui-imgui/memext/memext_map_window.cpp:291
+#: src/ui-imgui/memext/memext_save_dialog.cpp:207
+#: src/ui-imgui/ramdisk/pezik_settings_window.cpp:289
+#: src/ui-imgui/rom/rom_settings_window.cpp:323
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:411
+#: src/ui-imgui/snapshot/snapshot_save_dialog.cpp:139
+#: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:176
+#: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:99
+#: src/ui-imgui/topmenu/devices/menu_qdisk.cpp:93
+#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:343
+msgid "Cancel"
+msgstr "Annuler"
+
 #: src/ui-imgui/autotype/autotype_window.cpp:51
 msgid "Invalid character at position"
 msgstr "Caractère invalide à la position"
@@ -678,39 +839,6 @@ msgstr "Vitesse équivalente : ~%.2f:1 (%.0f Bd)"
 #, c-format
 msgid "Each length must be greater than 0 and at most %.0f µs."
 msgstr "Chaque durée doit être supérieure à 0 et au plus %.0f µs."
-
-#: src/ui-imgui/cmt/ImGuiCmt.cpp:175
-#: src/ui-imgui/debugger/sections/dbg_cpu_panel.cpp:2419
-#: src/ui-imgui/dsk/dsk_create_window.cpp:104
-#: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:109
-#: src/ui-imgui/joy/joy_setup_window.cpp:564
-#: src/ui-imgui/message/message_window.cpp:90
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:406
-#: src/ui-imgui/snapshot/snapshot_notification.cpp:95
-#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:338
-msgid "OK"
-msgstr "OK"
-
-#: src/ui-imgui/cmt/ImGuiCmt.cpp:187
-#: src/ui-imgui/debugger/membrowser/membrowser_annot_dialog.cpp:148
-#: src/ui-imgui/debugger/membrowser/membrowser_fill_dialog.cpp:264
-#: src/ui-imgui/debugger/sections/dbg_focus_to.cpp:264
-#: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:104
-#: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:111
-#: src/ui-imgui/joy/joy_setup_window.cpp:571
-#: src/ui-imgui/memext/memext_load_dialog.cpp:185
-#: src/ui-imgui/memext/memext_map_window.cpp:291
-#: src/ui-imgui/memext/memext_save_dialog.cpp:207
-#: src/ui-imgui/ramdisk/pezik_settings_window.cpp:289
-#: src/ui-imgui/rom/rom_settings_window.cpp:323
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:411
-#: src/ui-imgui/snapshot/snapshot_save_dialog.cpp:139
-#: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:176
-#: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:99
-#: src/ui-imgui/topmenu/devices/menu_qdisk.cpp:93
-#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:343
-msgid "Cancel"
-msgstr "Annuler"
 
 #: src/ui-imgui/debugger/bookmarks/bm_window.cpp:267
 msgid "- Cancel##bm_add_toggle"
@@ -8080,7 +8208,9 @@ msgstr ""
 
 #: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:326
 msgid "Unlike Functions it also sees code that is jumped to, not called."
-msgstr "Contrairement à Fonctions, il voit aussi le code atteint par un saut, pas seulement par un appel."
+msgstr ""
+"Contrairement à Fonctions, il voit aussi le code atteint par un saut, pas "
+"seulement par un appel."
 
 #: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:327
 msgid "Block instructions (LDIR, ...) count every repetition."
@@ -8099,12 +8229,14 @@ msgid ""
 "Only the first 1000 rows of the chosen sort column are shown;\n"
 "Export CSV writes all addresses."
 msgstr ""
-"Seules les 1000 premières lignes de la colonne de tri choisie sont affichées ;\n"
+"Seules les 1000 premières lignes de la colonne de tri choisie sont "
+"affichées ;\n"
 "Export CSV écrit toutes les adresses."
 
 #: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:342
 msgid "Collecting - the table fills while the emulation runs."
-msgstr "Collecte en cours - le tableau se remplit pendant que l'émulation tourne."
+msgstr ""
+"Collecte en cours - le tableau se remplit pendant que l'émulation tourne."
 
 #: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:343
 msgid "No data. Press Start and let the emulation run."
@@ -9817,7 +9949,7 @@ msgstr "Rescanner les périphériques"
 msgid "Joystick"
 msgstr "Joystick"
 
-#: src/ui-imgui/main_window.cpp:104
+#: src/ui-imgui/main_window.cpp:105
 msgid "No audio device - running without sound"
 msgstr "Aucun périphérique audio - fonctionnement sans son"
 
@@ -10608,12 +10740,6 @@ msgstr "Erreur de capture d'écran"
 msgid "Save Screenshot"
 msgstr "Enregistrer une capture d'écran"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:144
-#: src/ui-imgui/videorec/videorec_menu.cpp:422
-#, c-format
-msgid "Cannot open folder: %s"
-msgstr "Impossible d'ouvrir le dossier : %s"
-
 #: src/ui-imgui/screenshot/screenshot_ui.cpp:161
 msgid "Screenshot"
 msgstr "Capture d'écran"
@@ -10633,18 +10759,6 @@ msgid ""
 msgstr ""
 "Enregistre un PNG de chaque image émulée qui diffère de la précédente (zone "
 "et échelle des paramètres) jusqu'à ce que vous l'arrêtiez."
-
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:178
-#: src/ui-imgui/videorec/videorec_menu.cpp:462
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:317
-msgid "Settings..."
-msgstr "Paramètres..."
-
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:181
-#: src/ui-imgui/videorec/videorec_menu.cpp:466
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:315
-msgid "Open Output Folder"
-msgstr "Ouvrir le dossier de sortie"
 
 #: src/ui-imgui/screenshot/screenshot_ui.cpp:220
 #, c-format
@@ -10720,20 +10834,9 @@ msgstr "Échelle"
 msgid "1x drops every second column in the 640-dot modes."
 msgstr "1x omet une colonne sur deux dans les modes 640 points."
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:371
-#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:260
-msgid "Output folder"
-msgstr "Dossier de sortie"
-
 #: src/ui-imgui/screenshot/screenshot_ui.cpp:374
 msgid "(default: screenshots folder next to the emulator)"
 msgstr "(par défaut : dossier screenshots à côté de l'émulateur)"
-
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:384
-#: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:80
-#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:273
-msgid "Select Directory"
-msgstr "Sélectionner le répertoire"
 
 #: src/ui-imgui/screenshot/screenshot_ui.cpp:389
 msgid "Frame series: only changed frames"
@@ -11124,7 +11227,7 @@ msgid "Unicard alternate FDC ports 0x58 - 0x5F"
 msgstr "Ports FDC alternatifs Unicard 0x58 - 0x5F"
 
 #: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:440
-#: src/ui-imgui/topmenu/menu_tools.cpp:31
+#: src/ui-imgui/topmenu/menu_tools.cpp:32
 msgid "Tools"
 msgstr "Outils"
 
@@ -12132,23 +12235,23 @@ msgstr "Diminuer - pas de 100 %"
 msgid "Custom Speed Options"
 msgstr "Options de vitesse personnalisée"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:33
+#: src/ui-imgui/topmenu/menu_tools.cpp:34
 msgid "DSK Images..."
 msgstr "Images DSK..."
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:38
+#: src/ui-imgui/topmenu/menu_tools.cpp:39
 msgid "Version Check"
 msgstr "Vérification de version"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:40
+#: src/ui-imgui/topmenu/menu_tools.cpp:41
 msgid "Make Online Version Check"
 msgstr "Vérifier la version en ligne"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:45
+#: src/ui-imgui/topmenu/menu_tools.cpp:46
 msgid "Version Check Setup"
 msgstr "Configuration de la vérification de version"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:68
+#: src/ui-imgui/topmenu/menu_tools.cpp:72
 msgid "MCP Activity##menu_mcp_activity"
 msgstr "MCP Activity##menu_mcp_activity"
 
@@ -12696,6 +12799,17 @@ msgstr "Clavier virtuel MZ-1500"
 #: src/ui-imgui/vkbd_window.cpp:228
 msgid "MZ-800 Virtual Keyboard"
 msgstr "Clavier virtuel MZ-800"
+
+#~ msgid "Open Last Capture Folder"
+#~ msgstr "Ouvrir le dossier de la dernière capture"
+
+#~ msgid ""
+#~ "Each capture creates a new folder in the screenshot output folder\n"
+#~ "(Tools -> Screenshot -> Settings...)."
+#~ msgstr ""
+#~ "Chaque capture crée un nouveau dossier dans le dossier de sortie des "
+#~ "captures d'écran\n"
+#~ "(Outils -> Capture d'écran -> Paramètres...)."
 
 #~ msgid ""
 #~ "Adds a marker (chapter) on speed change, snapshot load, reset and pause "

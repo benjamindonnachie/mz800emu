@@ -113,6 +113,8 @@ jsou odmítnuty s chybou - pro vygenerovaný výpis použijte `--help`.
 | `--mode-switch` | `<700\|800>` | Jen MZ-800: poloha zadního přepínače režimu (SW1) - `700` = MZ-700 mód, `800` = MZ-800 mód. Přepínač čte ROM při spouštění programu. Přepíše hodnotu `[MZ800] mode_switch` z `.ini` (stejně jako menu Rear DIP Switch). Neplatná hodnota = chyba a konec. |
 | `--record` | `<soubor.avi>` | Zahájit nahrávání videa hned po startu. Viz [`video-recording.md`](video-recording.md). |
 | `--record-frames` | `<počet>` | Ukončit nahrávání videa po zadaném počtu snímků; v režimu `--headless` pak emulátor skončí. |
+| `--audio-capture` | `<složka>` | Spustit zachycení zvuku do složky hned po startu (úrovně kanálů, zápisy do PSG, reference.wav, sdl.wav; soubory se vybírají v Tools -> Audio Capture -> Settings...). Viz [`audio-capture.md`](audio-capture.md). |
+| `--audio-capture-frames` | `<počet>` | Ukončit zachycení zvuku po zadaném počtu snímků; v režimu `--headless` pak emulátor skončí. |
 
 ### Layout CDL exportu
 
@@ -257,6 +259,14 @@ zobrazeného v okně; oblast (s borderem nebo bez) a měřítko (nativní body n
 1x až 4x okna) se nastavují v Settings... Record Changed Frames
 (`Alt + Shift + F`) ukládá každý změněný emulovaný snímek pro hledání chyb
 v animacích. Podrobnosti viz [`screenshots.md`](screenshots.md).
+
+## Zachycení zvuku
+
+Tools -> Audio Capture -> Record Audio Capture (`Alt + Q`) zaznamená do nové
+složky, co dělá zvukový hardware: změny úrovní kanálů, zápisy do PSG, přesný
+zvuk a zvuk, který slyšíte (dva WAV k porovnání) - pro hledání chyb zvuku.
+Také z příkazové řádky (`--audio-capture`) a přes MCP. Podrobnosti viz
+[`audio-capture.md`](audio-capture.md).
 
 ## MAX SPEED benchmark
 

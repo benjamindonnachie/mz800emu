@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mz800emu 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-13 20:15+0200\n"
+"POT-Creation-Date: 2026-10-13 21:57+0200\n"
 "PO-Revision-Date: 2026-03-11 22:00+0100\n"
 "Last-Translator: Claude Code\n"
 "Language-Team: Українська\n"
@@ -37,7 +37,7 @@ msgstr "Відкрити каталог"
 msgid "Untitled File Chooser"
 msgstr "Вибір файлу"
 
-#: src/emulator/audio.c:132
+#: src/emulator/audio.c:133
 msgid "Audio volume settings:"
 msgstr "Налаштування гучності аудіо:"
 
@@ -62,21 +62,21 @@ msgstr ""
 "Адреса = 0x%04x\n"
 "Інструкція = '%s'\n"
 
-#: src/emulator/emulator.c:395
+#: src/emulator/emulator.c:398
 #: src/ui-imgui/mcp_activity/mcp_activity_window.cpp:421
 #: src/ui-imgui/videorec/videorec_menu.cpp:140
 msgid "PAUSED"
 msgstr "ПРИЗУПИНЕНО"
 
-#: src/emulator/emulator.c:398
+#: src/emulator/emulator.c:401
 msgid "Max speed"
 msgstr "Максимальна швидкість"
 
-#: src/emulator/emulator.c:401
+#: src/emulator/emulator.c:404
 msgid "Custom speed"
 msgstr "Власна швидкість"
 
-#: src/emulator/emulator.c:403
+#: src/emulator/emulator.c:406
 msgid "Normal speed"
 msgstr "Нормальна швидкість"
 
@@ -385,6 +385,166 @@ msgstr "%.1f dB"
 msgid "%.0f dB"
 msgstr "%.0f dB"
 
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:52
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:144
+#: src/ui-imgui/videorec/videorec_menu.cpp:422
+#, c-format
+msgid "Cannot open folder: %s"
+msgstr "Не вдалося відкрити теку: %s"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:53
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:72
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:119
+msgid "Audio Capture Error"
+msgstr "Помилка захоплення звуку"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:71
+#, c-format
+msgid "Cannot start the audio capture: %s"
+msgstr "Не вдається запустити захоплення звуку: %s"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:80
+msgid "Audio Capture"
+msgstr "Захоплення звуку"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:83
+msgid "Record Audio Capture"
+msgstr "Захопити звук"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:87
+msgid ""
+"Records what the sound hardware does into a new folder until you stop it:\n"
+"changes of the channel levels, PSG writes, the exact sound (reference.wav)\n"
+"and the sound you hear (sdl.wav). For finding sound bugs."
+msgstr ""
+"Записує в нову папку, що робить звукове обладнання, доки ви його не "
+"зупините:\n"
+"зміни рівнів каналів, записи в PSG, точний звук (reference.wav)\n"
+"і звук, який ви чуєте (sdl.wav). Для пошуку помилок звуку."
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:92
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:178
+#: src/ui-imgui/videorec/videorec_menu.cpp:462
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:317
+msgid "Settings..."
+msgstr "Налаштування..."
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:95
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:181
+#: src/ui-imgui/videorec/videorec_menu.cpp:466
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:315
+msgid "Open Output Folder"
+msgstr "Відкрити теку виводу"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:118
+#, c-format
+msgid "Audio capture stopped after %.1f s: %s"
+msgstr "Захоплення звуку зупинено через %.1f с: %s"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:123
+#, c-format
+msgid "Audio capture ended (%s): %.1f s saved to %s"
+msgstr "Захоплення звуку завершено (%s): %.1f с збережено в %s"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:128
+#, c-format
+msgid "Audio capture saved: %.1f s to %s"
+msgstr "Захоплення звуку збережено: %.1f с у %s"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:143
+#, c-format
+msgid "AUDIO %.1f s"
+msgstr "ЗВУК %.1f с"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:145
+msgid "AUDIO starting"
+msgstr "ЗВУК запуск"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:190
+msgid "Audio Capture Settings"
+msgstr "Налаштування захоплення звуку"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:193
+msgid "Files to write"
+msgstr "Файли для запису"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:194
+msgid "events.csv - changes of the channel levels"
+msgstr "events.csv - зміни рівнів каналів"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:195
+msgid "psg_writes.csv - PSG writes, decoded"
+msgstr "psg_writes.csv - записи в PSG, декодовані"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:196
+msgid "reference.wav - exact sound in emulated time"
+msgstr "reference.wav - точний звук в емульованому часі"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:197
+msgid "sdl.wav - sound of the audio output (what you hear)"
+msgstr "sdl.wav - звук звукового виходу (що ви чуєте)"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:201
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:371
+#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:260
+msgid "Output folder"
+msgstr "Тека виводу"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:204
+msgid "(default: audio_captures folder next to the emulator)"
+msgstr "(типово: тека audio_captures поруч з емулятором)"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:214
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:384
+#: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:80
+#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:273
+msgid "Select Directory"
+msgstr "Вибрати каталог"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:217
+msgid "Each capture creates a new folder in the output folder."
+msgstr "Кожне захоплення створює нову теку у вихідній теці."
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:218
+#, c-format
+msgid "Record Audio Capture (%s) starts and stops the capture."
+msgstr "Захопити звук (%s) запускає і зупиняє захоплення."
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:227
+#: src/ui-imgui/cmt/ImGuiCmt.cpp:175
+#: src/ui-imgui/debugger/sections/dbg_cpu_panel.cpp:2419
+#: src/ui-imgui/dsk/dsk_create_window.cpp:104
+#: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:109
+#: src/ui-imgui/joy/joy_setup_window.cpp:564
+#: src/ui-imgui/message/message_window.cpp:90
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:406
+#: src/ui-imgui/snapshot/snapshot_notification.cpp:95
+#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:338
+msgid "OK"
+msgstr "OK"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:233
+#: src/ui-imgui/cmt/ImGuiCmt.cpp:187
+#: src/ui-imgui/debugger/membrowser/membrowser_annot_dialog.cpp:148
+#: src/ui-imgui/debugger/membrowser/membrowser_fill_dialog.cpp:264
+#: src/ui-imgui/debugger/sections/dbg_focus_to.cpp:264
+#: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:104
+#: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:111
+#: src/ui-imgui/joy/joy_setup_window.cpp:571
+#: src/ui-imgui/memext/memext_load_dialog.cpp:185
+#: src/ui-imgui/memext/memext_map_window.cpp:291
+#: src/ui-imgui/memext/memext_save_dialog.cpp:207
+#: src/ui-imgui/ramdisk/pezik_settings_window.cpp:289
+#: src/ui-imgui/rom/rom_settings_window.cpp:323
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:411
+#: src/ui-imgui/snapshot/snapshot_save_dialog.cpp:139
+#: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:176
+#: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:99
+#: src/ui-imgui/topmenu/devices/menu_qdisk.cpp:93
+#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:343
+msgid "Cancel"
+msgstr "Скасувати"
+
 #: src/ui-imgui/autotype/autotype_window.cpp:51
 msgid "Invalid character at position"
 msgstr "Недійсний символ на позиції"
@@ -675,39 +835,6 @@ msgstr "Відповідна швидкість: ~%.2f:1 (%.0f Bd)"
 #, c-format
 msgid "Each length must be greater than 0 and at most %.0f µs."
 msgstr "Кожна тривалість має бути більшою за 0 і не більшою за %.0f µs."
-
-#: src/ui-imgui/cmt/ImGuiCmt.cpp:175
-#: src/ui-imgui/debugger/sections/dbg_cpu_panel.cpp:2419
-#: src/ui-imgui/dsk/dsk_create_window.cpp:104
-#: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:109
-#: src/ui-imgui/joy/joy_setup_window.cpp:564
-#: src/ui-imgui/message/message_window.cpp:90
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:406
-#: src/ui-imgui/snapshot/snapshot_notification.cpp:95
-#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:338
-msgid "OK"
-msgstr "OK"
-
-#: src/ui-imgui/cmt/ImGuiCmt.cpp:187
-#: src/ui-imgui/debugger/membrowser/membrowser_annot_dialog.cpp:148
-#: src/ui-imgui/debugger/membrowser/membrowser_fill_dialog.cpp:264
-#: src/ui-imgui/debugger/sections/dbg_focus_to.cpp:264
-#: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:104
-#: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:111
-#: src/ui-imgui/joy/joy_setup_window.cpp:571
-#: src/ui-imgui/memext/memext_load_dialog.cpp:185
-#: src/ui-imgui/memext/memext_map_window.cpp:291
-#: src/ui-imgui/memext/memext_save_dialog.cpp:207
-#: src/ui-imgui/ramdisk/pezik_settings_window.cpp:289
-#: src/ui-imgui/rom/rom_settings_window.cpp:323
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:411
-#: src/ui-imgui/snapshot/snapshot_save_dialog.cpp:139
-#: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:176
-#: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:99
-#: src/ui-imgui/topmenu/devices/menu_qdisk.cpp:93
-#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:343
-msgid "Cancel"
-msgstr "Скасувати"
 
 #: src/ui-imgui/debugger/bookmarks/bm_window.cpp:267
 msgid "- Cancel##bm_add_toggle"
@@ -8022,7 +8149,9 @@ msgstr ""
 
 #: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:326
 msgid "Unlike Functions it also sees code that is jumped to, not called."
-msgstr "На відміну від Функцій бачить також код, на який виконується перехід, а не лише виклик."
+msgstr ""
+"На відміну від Функцій бачить також код, на який виконується перехід, а не "
+"лише виклик."
 
 #: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:327
 msgid "Block instructions (LDIR, ...) count every repetition."
@@ -9748,7 +9877,7 @@ msgstr "Znovu переглянути пристрій"
 msgid "Joystick"
 msgstr "Джойстик"
 
-#: src/ui-imgui/main_window.cpp:104
+#: src/ui-imgui/main_window.cpp:105
 msgid "No audio device - running without sound"
 msgstr "Немає аудіопристрою - робота без звуку"
 
@@ -10534,12 +10663,6 @@ msgstr "Помилка знімка екрана"
 msgid "Save Screenshot"
 msgstr "Зберегти знімок екрана"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:144
-#: src/ui-imgui/videorec/videorec_menu.cpp:422
-#, c-format
-msgid "Cannot open folder: %s"
-msgstr "Не вдалося відкрити теку: %s"
-
 #: src/ui-imgui/screenshot/screenshot_ui.cpp:161
 msgid "Screenshot"
 msgstr "Знімок екрана"
@@ -10559,18 +10682,6 @@ msgid ""
 msgstr ""
 "Зберігає PNG кожного емульованого кадру, що відрізняється від попереднього "
 "(область і масштаб із налаштувань), доки ви не зупините запис."
-
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:178
-#: src/ui-imgui/videorec/videorec_menu.cpp:462
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:317
-msgid "Settings..."
-msgstr "Налаштування..."
-
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:181
-#: src/ui-imgui/videorec/videorec_menu.cpp:466
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:315
-msgid "Open Output Folder"
-msgstr "Відкрити теку виводу"
 
 #: src/ui-imgui/screenshot/screenshot_ui.cpp:220
 #, c-format
@@ -10646,20 +10757,9 @@ msgstr "Масштаб"
 msgid "1x drops every second column in the 640-dot modes."
 msgstr "1x у режимах 640 точок пропускає кожен другий стовпець."
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:371
-#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:260
-msgid "Output folder"
-msgstr "Тека виводу"
-
 #: src/ui-imgui/screenshot/screenshot_ui.cpp:374
 msgid "(default: screenshots folder next to the emulator)"
 msgstr "(типово: тека screenshots поруч з емулятором)"
-
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:384
-#: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:80
-#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:273
-msgid "Select Directory"
-msgstr "Вибрати каталог"
 
 #: src/ui-imgui/screenshot/screenshot_ui.cpp:389
 msgid "Frame series: only changed frames"
@@ -11044,7 +11144,7 @@ msgid "Unicard alternate FDC ports 0x58 - 0x5F"
 msgstr "Альтернативні порти FDC Unicard 0x58 - 0x5F"
 
 #: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:440
-#: src/ui-imgui/topmenu/menu_tools.cpp:31
+#: src/ui-imgui/topmenu/menu_tools.cpp:32
 msgid "Tools"
 msgstr "Інструменти"
 
@@ -12048,23 +12148,23 @@ msgstr "Зменшити - крок 100 %"
 msgid "Custom Speed Options"
 msgstr "Параметри власної швидкості"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:33
+#: src/ui-imgui/topmenu/menu_tools.cpp:34
 msgid "DSK Images..."
 msgstr "DSK образи..."
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:38
+#: src/ui-imgui/topmenu/menu_tools.cpp:39
 msgid "Version Check"
 msgstr "Перевірка версії"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:40
+#: src/ui-imgui/topmenu/menu_tools.cpp:41
 msgid "Make Online Version Check"
 msgstr "Перевірити версію онлайн"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:45
+#: src/ui-imgui/topmenu/menu_tools.cpp:46
 msgid "Version Check Setup"
 msgstr "Налаштування перевірки версії"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:68
+#: src/ui-imgui/topmenu/menu_tools.cpp:72
 msgid "MCP Activity##menu_mcp_activity"
 msgstr "MCP Activity##menu_mcp_activity"
 
@@ -12606,6 +12706,16 @@ msgstr "Віртуальна клавіатура MZ-1500"
 #: src/ui-imgui/vkbd_window.cpp:228
 msgid "MZ-800 Virtual Keyboard"
 msgstr "Віртуальна клавіатура MZ-800"
+
+#~ msgid "Open Last Capture Folder"
+#~ msgstr "Відкрити папку останнього захоплення"
+
+#~ msgid ""
+#~ "Each capture creates a new folder in the screenshot output folder\n"
+#~ "(Tools -> Screenshot -> Settings...)."
+#~ msgstr ""
+#~ "Кожне захоплення створює нову папку у вихідній папці знімків екрана\n"
+#~ "(Інструменти -> Знімок екрана -> Налаштування...)."
 
 #~ msgid ""
 #~ "Adds a marker (chapter) on speed change, snapshot load, reset and pause "

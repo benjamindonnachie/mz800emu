@@ -41,6 +41,7 @@
 #include "emulator.h"
 #include "iface/iface_audio.h"
 #include "videorec/videorec.h"
+#include "audio_capture.h"
 
 st_AUDIO g_audio;
 
@@ -300,10 +301,16 @@ static inline void audio_changed(st_AUDIO_LOG *log, en_AUDIO_SOURCE audio_source
     sample->count_ticks = 0;
     src->last_value = value;
 
-    /* Video záznam: jen živé změny (log == g_audio.log). Události přesouvané
-     * v audiolog_finish_20ms_frame() do nového logu už tapnuté byly. */
-    if (log == g_audio.log && videorec_wants_emu_audio())
-        videorec_audio_tap((unsigned)src_id, (uint8_t)value, total_event_ticks);
+    /* Video záznam a zachycení zvuku: jen živé změny (log == g_audio.log).
+     * Události přesouvané v audiolog_finish_20ms_frame() do nového logu už
+     * tapnuté byly. */
+    if (log == g_audio.log)
+    {
+        if (videorec_wants_emu_audio())
+            videorec_audio_tap((unsigned)src_id, (uint8_t)value, total_event_ticks);
+        if (audio_capture_wanted())
+            audio_capture_on_change((unsigned)src_id, (uint8_t)value, total_event_ticks);
+    };
 }
 
 void audio_ctc0_changed(bool ctc0_state, uint64_t total_event_ticks)
@@ -372,6 +379,9 @@ void audiolog_finish_20ms_frame(uint64_t total_event_ticks)
      * (CTC0 živě až do total_event_ticks, PSG po krocích do last_psg_timestamp). */
     if (videorec_wants_emu_audio())
         videorec_audio_horizon(g_audio.log->last_psg_timestamp);
+    /* Zachycení zvuku: začátek naplánovaného, render reference.wav, konec. */
+    if (audio_capture_wanted())
+        audio_capture_on_frame(g_audio.log->last_psg_timestamp);
 
     // zaevidujeme konec frame
     st_AUDIO_LOG *log = g_audio.log;

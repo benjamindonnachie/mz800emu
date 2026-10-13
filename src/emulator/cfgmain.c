@@ -41,6 +41,7 @@
 #include "snapshot/snapshot_config.h"
 #include "videorec/videorec_config.h"
 #include "screenshot/screenshot_config.h"
+#include "audio_capture.h"
 #include "i18n_lang.h"
 #include "baseui/baseui_fchooser_lastdir.h"
 #ifdef MZ800EMU_CFG_MCP_TCP_ENABLED
@@ -190,6 +191,9 @@ void cfgmain_init(void)
 
     /* Registrace nastavení screenshotu z GUI (sekce [SCREENSHOT]) */
     screenshot_config_init();
+
+    /* Registrace výběru souborů zachycení zvuku z GUI a CLI (sekce [AUDIO_CAPTURE]) */
+    audio_capture_config_init();
 
     /* Registrace paměti adresářů dialogu pro výběr souboru (sekce [FILECHOOSER]) */
     baseui_fchooser_lastdir_config_init();

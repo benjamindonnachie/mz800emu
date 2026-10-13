@@ -65,6 +65,9 @@ typedef struct st_DISPATCH_STUB_STATE {
     st_DBGAPI_PROFILER_PC_PARAM pc_last;            /**< Kopie posledního DBGAPI_CMD_PROFILER_PC (vstup; rows/path neplatné po návratu). */
     int                  pc_calls;                  /**< Počet DBGAPI_CMD_PROFILER_PC. */
     char                 pc_last_path[ 256 ];       /**< Kopie `path` posledního DBGAPI_CMD_PROFILER_PC ("" = NULL). */
+    st_DBGAPI_AUDIO_CAPTURE_PARAM ac_last;          /**< Kopie posledního DBGAPI_CMD_AUDIO_CAPTURE (vstup). */
+    int                  ac_calls;                  /**< Počet DBGAPI_CMD_AUDIO_CAPTURE. */
+    bool                 ac_fake_fail;              /**< true = stub vrátí chybu "An audio capture is already running". */
     void                *last_result;  /**< result_ptr poslední call. */
     int                  call_count;   /**< Počet volání mocku. */
     bool                 fail_next;    /**< Pokud true, příští call vrátí false. */

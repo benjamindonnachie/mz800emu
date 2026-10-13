@@ -503,6 +503,13 @@ static en_MCP_DISPATCH_RESULT _handle_profiler_pc_get(const st_JSONL_MESSAGE *re
                                                       char **out_response);
 static en_MCP_DISPATCH_RESULT _handle_profiler_pc_export(const st_JSONL_MESSAGE *req,
                                                          char **out_response);
+/* audio-capture fwd decls */
+static en_MCP_DISPATCH_RESULT _handle_audio_capture_start(const st_JSONL_MESSAGE *req,
+                                                          char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_audio_capture_stop(const st_JSONL_MESSAGE *req,
+                                                         char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_audio_capture_status(const st_JSONL_MESSAGE *req,
+                                                           char **out_response);
 
 /* V1.A.7 - Profiler Tools fwd decls */
 static en_MCP_DISPATCH_RESULT _handle_profiler_start(const st_JSONL_MESSAGE *req,
@@ -1129,6 +1136,12 @@ static const st_MCP_CMD_MAP_ENTRY g_cmd_map[] = {
     { "profiler_pc_reset",        DBGAPI_CMD_PROFILER_PC,             _handle_profiler_pc_reset        },
     { "profiler_pc_get",          DBGAPI_CMD_PROFILER_PC,             _handle_profiler_pc_get          },
     { "profiler_pc_export",       DBGAPI_CMD_PROFILER_PC,             _handle_profiler_pc_export       },
+    /* Zachycení zvuku do složky (události kanálů, zápisy PSG, reference.wav,
+     * sdl.wav). Přidáno na KONEC tabulky kvůli stabilitě pozičního indexu
+     * v hello supported_commands. */
+    { "audio_capture_start",      DBGAPI_CMD_AUDIO_CAPTURE,           _handle_audio_capture_start      },
+    { "audio_capture_stop",       DBGAPI_CMD_AUDIO_CAPTURE,           _handle_audio_capture_stop       },
+    { "audio_capture_status",     DBGAPI_CMD_AUDIO_CAPTURE,           _handle_audio_capture_status     },
     /* sentinel */
     { NULL,              DBGAPI_CMD_NONE,              NULL                  },
 };
@@ -14351,5 +14364,145 @@ static en_MCP_DISPATCH_RESULT _handle_profiler_pc_export(const st_JSONL_MESSAGE 
     json_object_set_int_member(resp, "rows", (gint64) p.out_written);
     return _ok_response(req_id, resp, out_response);
 }
+
+/* ============================================================================
+ *  audio-capture: zachycení zvuku do složky (events, PSG zápisy, 2x WAV)
+ * ============================================================================ */
+
+/**
+ * @brief Stav zachycení zvuku jako JSON objekt.
+ * @param st Stav.
+ * @return Nový JsonObject (vlastní volající).
+ */
+static JsonObject *_audio_capture_status_json(const st_AUDIO_CAPTURE_STATUS *st) {
+    JsonObject *o = json_object_new();
+    json_object_set_boolean_member(o, "pending", st->pending);
+    json_object_set_boolean_member(o, "active",  st->active);
+    json_object_set_int_member(o, "frames",            (gint64) st->frames);
+    json_object_set_int_member(o, "events",            (gint64) st->events);
+    json_object_set_int_member(o, "psg_writes",        (gint64) st->psg_writes);
+    json_object_set_int_member(o, "reference_samples", (gint64) st->reference_samples);
+    json_object_set_int_member(o, "sdl_blocks",        (gint64) st->sdl_blocks);
+    json_object_set_int_member(o, "sdl_samples",       (gint64) st->sdl_samples);
+    json_object_set_string_member(o, "dir",         st->dir);
+    json_object_set_string_member(o, "stop_reason", st->stop_reason);
+    json_object_set_string_member(o, "last_error",  st->last_error);
+    return o;
+}
+
+/**
+ * @brief Provede DBGAPI_CMD_AUDIO_CAPTURE.
+ *
+ * @param p       Parametr (op vyplněn).
+ * @param err_out Výstup: anglický text chyby operace (ukazuje do p->out_error),
+ *                NULL = operace proběhla.
+ * @return false = příkaz se nepodařilo předat emu vláknu (bez textu chyby).
+ */
+static bool _audio_capture_submit(st_DBGAPI_AUDIO_CAPTURE_PARAM *p, const char **err_out) {
+    p->out_error[0] = '\0';
+    bool ok = _submit_dbgapi(DBGAPI_CMD_AUDIO_CAPTURE, p, NULL);
+    if (ok) {
+        *err_out = NULL;
+        return true;
+    }
+    *err_out = p->out_error[0] ? p->out_error : NULL;
+    return *err_out != NULL;
+}
+
+/**
+ * @brief `audio_capture_start` handler - naplánuje zachycení zvuku.
+ *
+ * Parametry (všechny volitelné):
+ *   - `dir` (string) - složka; chybí = nová podsložka výstupní složky
+ *     zachycení (`<platforma>_audio_RRRRMMDD_HHMMSS`, viz
+ *     audio_capture_resolve_output_dir()),
+ *   - `frames` (int >= 0) - po tolika zvukových snímcích stop (0 = do stop),
+ *   - `events`, `psg_writes`, `reference_wav`, `sdl_wav` (bool, výchozí
+ *     true) - které soubory zapisovat.
+ *
+ * Response: stav zachycení (pending = true; začne na konci nejbližšího
+ * zvukového snímku). Neplatné parametry => INVALID_PARAMS, běžící
+ * zachycení, žádný soubor nebo nejde vytvořit složka => EMU_ERROR.
+ */
+static en_MCP_DISPATCH_RESULT _handle_audio_capture_start(const st_JSONL_MESSAGE *req,
+                                                          char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _videorec_data_obj(req);
+    st_DBGAPI_AUDIO_CAPTURE_PARAM p;
+    memset(&p, 0, sizeof(p));
+    p.op = DBGAPI_AUDIO_CAPTURE_OP_START;
+    audio_capture_params_init(&p.params);
+
+    static const char *const flags[4] = { "events", "psg_writes", "reference_wav", "sdl_wav" };
+    bool *flag_ptr[4] = { &p.params.events, &p.params.psg_writes, &p.params.reference_wav, &p.params.sdl_wav };
+    int has_dir = _videorec_member(obj, "dir", G_TYPE_STRING);
+    int has_frames = _videorec_member(obj, "frames", G_TYPE_INT64);
+    bool bad = (has_dir < 0 || has_frames < 0);
+    for (int i = 0; i < 4 && !bad; i++) {
+        int h = _videorec_member(obj, flags[i], G_TYPE_BOOLEAN);
+        if (h < 0) bad = true;
+        else if (h) *flag_ptr[i] = json_object_get_boolean_member(obj, flags[i]);
+    }
+    if (bad) {
+        return _err_response(req_id,
+                             "Invalid parameters: dir must be a string, frames an integer, "
+                             "events, psg_writes, reference_wav and sdl_wav booleans",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    gint64 frames = has_frames ? json_object_get_int_member(obj, "frames") : 0;
+    if (frames < 0) {
+        return _err_response(req_id, "Invalid parameters: frames must be >= 0",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    if (has_dir) g_strlcpy(p.params.dir, json_object_get_string_member(obj, "dir"), sizeof(p.params.dir));
+    p.params.frames = (uint64_t) frames;
+
+    const char *err = NULL;
+    if (!_audio_capture_submit(&p, &err) || err) {
+        return _err_response(req_id, err ? err : "audio_capture command failed",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    return _ok_response(req_id, _audio_capture_status_json(&p.out_status), out_response);
+}
+
+/**
+ * @brief `audio_capture_stop` handler - ukončí zachycení a dopíše soubory.
+ *
+ * Bez parametrů. Response: stav (konečné počty, stop_reason "Stopped").
+ * Bez běžícího zachycení chyba "No audio capture is running".
+ */
+static en_MCP_DISPATCH_RESULT _handle_audio_capture_stop(const st_JSONL_MESSAGE *req,
+                                                         char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    st_DBGAPI_AUDIO_CAPTURE_PARAM p;
+    memset(&p, 0, sizeof(p));
+    p.op = DBGAPI_AUDIO_CAPTURE_OP_STOP;
+    const char *err = NULL;
+    if (!_audio_capture_submit(&p, &err) || err) {
+        return _err_response(req_id, err ? err : "audio_capture command failed",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    return _ok_response(req_id, _audio_capture_status_json(&p.out_status), out_response);
+}
+
+/**
+ * @brief `audio_capture_status` handler - stav běžícího nebo posledního zachycení.
+ *
+ * Bez parametrů. Response: viz _audio_capture_status_json().
+ */
+static en_MCP_DISPATCH_RESULT _handle_audio_capture_status(const st_JSONL_MESSAGE *req,
+                                                           char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    st_DBGAPI_AUDIO_CAPTURE_PARAM p;
+    memset(&p, 0, sizeof(p));
+    p.op = DBGAPI_AUDIO_CAPTURE_OP_STATUS;
+    const char *err = NULL;
+    if (!_audio_capture_submit(&p, &err)) {
+        return _err_response(req_id, "audio_capture command failed",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    return _ok_response(req_id, _audio_capture_status_json(&p.out_status), out_response);
+}
+
 
 #endif /* MZ800EMU_CFG_MCP_SERVER_ENABLED */

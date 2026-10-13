@@ -82,6 +82,15 @@ na jméno souboru. Podrobnosti viz [`screenshots.md`](screenshots.md).
 | `Alt + F`                  | Uložit PNG screenshot obrazu zobrazeného v okně do výstupní složky          |
 | `Alt + Shift + F`          | Spustit / ukončit sérii snímků: PNG každého změněného emulovaného snímku   |
 
+## Zachycení zvuku
+
+Všechny platformy. Soubory k zápisu se vybírají v Tools -> Audio Capture ->
+Settings... Podrobnosti viz [`audio-capture.md`](audio-capture.md).
+
+| Klávesa                    | Akce                                                                        |
+|----------------------------|-----------------------------------------------------------------------------|
+| `Alt + Q`                  | Spustit / ukončit zachycení zvuku do nové složky                            |
+
 ## Debugger
 
 Dostupné pouze v buildech s `MZ800EMU_CFG_DEBUGGER_ENABLED`.

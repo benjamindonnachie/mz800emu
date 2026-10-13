@@ -87,6 +87,9 @@ documented separately in [Resources overview](resources-overview.md).
 | `emu_profiler_pc_reset` | no | Clear the per-PC profiler data |
 | `emu_profiler_pc_get` | no | Busiest instruction addresses with the nearest symbol (sort, limit, address range) |
 | `emu_profiler_pc_export` | no | All executed addresses to a CSV file |
+| `emu_audio_capture_start` | yes (creates files) | Audio capture into a folder: channel level changes, PSG writes, reference.wav and sdl.wav (frames, file selection) |
+| `emu_audio_capture_stop` | no | Stop the audio capture and finish its files |
+| `emu_audio_capture_status` | no | Audio capture status (frames, events, PSG writes, samples, SDL blocks, folder, stop reason) |
 | `emu_media_load_mzf` | no | CMT-hack instant load of MZF (header + body) into RAM at LOAD_ADDR (path or bytes_b64) |
 | `emu_media_run_mzf` | **YES** | Reset + start MZF in the `--run-mzf` state (default); `bootstrap=false` = load + ROM disconnect + JP STRT without reset |
 | `emu_media_load_binary` | **YES** | Raw bytes from file to Z80 memory, **destructive** |
@@ -1240,6 +1243,82 @@ overwritten; the folder must exist) and `sort` (default `addr`). CSV:
 UTF-8, LF line endings, decimal point regardless of the locale; header
 `pc,count,tstates,wait,tstates_pct`, `pc` as 4 hex digits. Adds `path`
 and `rows`.
+
+## Audio capture tools
+
+The audio capture writes what the sound hardware does into a folder, in
+emulated time - for finding sound bugs of a program or of the emulator.
+The same capture is available in the GUI (Tools -> Audio Capture, `Alt + Q`)
+and on the command line (`--audio-capture`), see
+[`../audio-capture.md`](../audio-capture.md).
+
+| File | Content |
+|---|---|
+| `events.csv` | `ticks,time_us,frame,channel,level` - every change of the output level (0-15) of a sound channel |
+| `psg_writes.csv` | `ticks,time_us,frame,psg,byte,channel,reg,value` - every write to the PSG, decoded |
+| `reference.wav` | the sound rendered exactly in emulated time (the renderer of the video recording) |
+| `sdl.wav` | the sound produced by the emulator's audio output path - what the user hears |
+| `capture.json` | platform, `gdg_clk_hz`, `frames_per_sec`, channel names, counts, stop reason (written at the end) |
+
+- `ticks` are GDG clock ticks since the start of the capture
+  (`gdg_clk_hz` in capture.json), `time_us` the same in microseconds,
+  `frame` the audio frame (= video frame, 20 ms PAL / 16.7 ms NTSC)
+  since the start.
+- Channels: `ctc0` (the speaker driven by CTC0 and the PIO, level 0 or
+  15), `psg0_0`..`psg0_3` and, on the MZ-1500 or an MZ-800 with the
+  second PSG, `psg1_0`..`psg1_3`. Channel 3 of a PSG is the noise
+  channel. The first rows of events.csv (ticks 0) are the levels at the
+  start.
+- psg_writes.csv: `psg` is the target (1 = PSG0, 2 = PSG1, 3 = both),
+  `byte` the written value in hex. Decoding from the PSG state after the
+  write (for both PSGs from PSG0): `reg` = `tone_lo` (latch byte of a
+  tone: the low 4 bits of the divider, the divider changes only with the
+  data byte), `tone` (the complete 10-bit divider), `volume`
+  (attenuation 0-15, 15 = off) or `noise` (`(type << 2) | rate`).
+- Both WAV files are 44100 Hz, 16 bit, stereo. sdl.wav comes later than
+  reference.wav: without an audio device (headless) by exactly one frame,
+  with a device by its buffering. With a device at MAX SPEED the output
+  path skips frames - `sdl_blocks` is then lower than `frames`.
+- Start: the capture begins at the end of the next audio frame, with
+  `sdl_wav` after 6 more frames that warm up the output path (its filters
+  would otherwise start cold). Levels that did not change for a while
+  start damped in both files, as in the output path.
+- End: `emu_audio_capture_stop`, `frames` reached, a safety limit of one
+  hour, a reset or a snapshot load (the emulated time jumps back), a write
+  error, or the end of the emulator.
+- It captures only while the emulation runs - combine with
+  `emu_run(frames=N)`.
+
+Typical use:
+
+```
+emu_audio_capture_start(dir="C:/tmp/snd", frames=250)   # 5 s PAL
+emu_run(frames=260)
+emu_audio_capture_status()      # stop_reason "Frame count reached"
+```
+
+### `emu_audio_capture_start`
+
+Arguments (all optional): `dir` (folder, created; empty = a new
+`<platform>_audio_<date>_<time>` folder in the audio capture output folder,
+default `audio_captures` next to the emulator),
+`frames` (stop after this many audio frames, 0 = until stop), `events`,
+`psg_writes`, `reference_wav`, `sdl_wav` (bool, default true - which
+files to write). Returns the status with `pending: true`, or an error
+(already running, nothing selected, folder cannot be created).
+
+### `emu_audio_capture_stop`
+
+Stop and finish the files. Returns the final status; error "No audio
+capture is running" when there is none.
+
+### `emu_audio_capture_status`
+
+`{"pending", "active", "frames", "events", "psg_writes",
+"reference_samples", "sdl_blocks", "sdl_samples", "dir", "stop_reason",
+"last_error"}`. `stop_reason`: `Stopped`, `Frame count reached`,
+`Safety limit reached`, `Emulation timeline restarted (reset or snapshot
+load)`, `Error`, `Emulator exit`, empty while running.
 
 ## Media tools
 

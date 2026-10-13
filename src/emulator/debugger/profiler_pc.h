@@ -41,8 +41,6 @@
 #ifndef PROFILER_PC_H
 #define PROFILER_PC_H
 
-#include "mzarch/mzarch_config.h"
-
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>

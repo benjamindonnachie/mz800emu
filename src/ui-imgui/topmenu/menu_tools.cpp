@@ -14,6 +14,7 @@
 #include "version_check/version_check.h"
 #include "ui-imgui/videorec/videorec_menu.h"
 #include "ui-imgui/screenshot/screenshot_ui.h"
+#include "ui-imgui/audiocap/audio_capture_ui.h"
 
 #include "emulator/mzarch/mzarch_config.h"
 #ifdef MZ800EMU_CFG_MCP_TCP_ENABLED
@@ -55,6 +56,9 @@ void imgui_menu_tools(void)
 
         // Screenshot (uložit, uložit jako, nastavení)
         imgui_screenshot_menu();
+
+        // Zachycení zvuku (start/stop, nastavení souborů, složka)
+        imgui_audio_capture_menu();
 
 #ifdef MZ800EMU_CFG_MCP_TCP_ENABLED
         // V0.A.5: MCP TCP Server start/stop + status

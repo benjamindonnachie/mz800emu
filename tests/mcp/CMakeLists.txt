@@ -278,6 +278,25 @@ if(Python3_FOUND)
                    "(Python ${Python3_VERSION})")
 
     # -----------------------------------------------------------
+    # Test 7b2: CLI volby --audio-capture, --audio-capture-frames (headless)
+    # -----------------------------------------------------------
+    # Spustí mz800emu --headless se zachycením zvuku na 60 snímků; ověří,
+    # že emulátor sám skončí, soubory a capture.json (frames, sdl_blocks)
+    # a výběr souborů z INI [AUDIO_CAPTURE]. MCP TCP port volný od systému.
+    add_test(
+        NAME    mcp_cli_audio_capture
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_cli_audio_capture.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_cli_audio_capture PROPERTIES
+        LABELS  "e2e;mcp;cli"
+        TIMEOUT 120
+    )
+    message(STATUS "  tests/mcp: registered mcp_cli_audio_capture "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
     # Test 7c: stav stroje po CLI --run-mzf (headless + MCP TCP)
     # -----------------------------------------------------------
     # Pro mz700emu-pal, mz700emu-ntsc, mz800emu a mz1500emu (chybí-li jen

@@ -113,6 +113,8 @@ are rejected with an error - use `--help` for a generated listing.
 | `--mode-switch` | `<700\|800>` | MZ-800 only: position of the rear mode switch (SW1) - `700` = MZ-700 mode, `800` = MZ-800 mode. The ROM reads the switch when it starts a program. Overrides the `[MZ800] mode_switch` value from the `.ini` (same as the Rear DIP Switch menu). Invalid value = error and exit. |
 | `--record` | `<file.avi>` | Start video recording right after startup. See [`video-recording.md`](video-recording.md). |
 | `--record-frames` | `<count>` | Stop video recording after the given number of frames; with `--headless` the emulator then exits. |
+| `--audio-capture` | `<folder>` | Start an audio capture into the folder right after startup (channel levels, PSG writes, reference.wav, sdl.wav; the files are selected in Tools -> Audio Capture -> Settings...). See [`audio-capture.md`](audio-capture.md). |
+| `--audio-capture-frames` | `<count>` | Stop the audio capture after the given number of frames; with `--headless` the emulator then exits. |
 
 ### CDL export layout
 
@@ -245,6 +247,14 @@ shown in the window; area (with or without the border) and scale (native dots
 or 1x to 4x of the window) are set in Settings... Record Changed Frames
 (`Alt + Shift + F`) saves every changed emulated frame, for finding animation
 bugs. For details see [`screenshots.md`](screenshots.md).
+
+## Audio capture
+
+Tools -> Audio Capture -> Record Audio Capture (`Alt + Q`) records into a new
+folder what the sound hardware does: changes of the channel levels, PSG
+writes, the exact sound and the sound you hear (two WAV files to compare) -
+for finding sound bugs. Also from the command line (`--audio-capture`) and
+over MCP. For details see [`audio-capture.md`](audio-capture.md).
 
 ## MAX SPEED benchmark
 

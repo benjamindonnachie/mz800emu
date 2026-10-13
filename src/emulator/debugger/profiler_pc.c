@@ -8,6 +8,7 @@
  * @par Licence: GPLv3
  */
 
+#include "mzarch/mzarch_config.h"
 #include "profiler_pc.h"
 
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED

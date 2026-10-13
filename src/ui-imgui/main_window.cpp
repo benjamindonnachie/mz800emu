@@ -48,6 +48,7 @@
 #include "message/message_window.h"
 #include "ui-imgui/videorec/videorec_menu.h"
 #include "ui-imgui/screenshot/screenshot_ui.h"
+#include "ui-imgui/audiocap/audio_capture_ui.h"
 #include "iface/iface_audio.h"
 
 #ifdef MZ800EMU_CFG_MCP_SERVER_ENABLED
@@ -233,6 +234,8 @@ static void ShowFullScreenImageEmulatorWindow(GLuint texture)
     imgui_videorec_overlay();
     /* Indikátor série snímků v levém horním rohu obrazu (jen UI) */
     imgui_screenshot_series_overlay();
+    /* Indikátor zachycení zvuku (pod indikátorem série, jen UI) */
+    imgui_audio_capture_overlay();
     ImGui::PopStyleVar(2);
 
     // bool isPopupOpen = ImGui::IsPopupOpen("ContextMenu", ImGuiPopupFlags_AnyPopup);
@@ -402,6 +405,10 @@ void imgui_main_window(GLuint texture)
     /* Screenshot: dialog nastavení (Tools -> Screenshot -> Settings...) */
     imgui_screenshot_setup_dialog();
     imgui_screenshot_series_poll();
+
+    /* Zachycení zvuku: dialog nastavení a notifikace konce (Tools -> Audio Capture) */
+    imgui_audio_capture_setup_dialog();
+    imgui_audio_capture_poll();
 
     /* Upozornění na běh bez audio zařízení (jednou, před vykreslením notifikace) */
     imgui_audio_device_notice();

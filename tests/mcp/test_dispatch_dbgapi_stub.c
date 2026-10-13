@@ -366,6 +366,24 @@ bool dbgapi_ui_submit_cmd_sync_with_origin(st_DBGAPI_CMDRQ_QUEUE *queue,
 
     /* Cmd-specific fake fill */
     switch (cmd) {
+        case DBGAPI_CMD_AUDIO_CAPTURE:
+            /* Zachycení zvuku: zapamatuje vstup, vrátí stav (pending po START). */
+            if (data_ptr) {
+                st_DBGAPI_AUDIO_CAPTURE_PARAM *p = (st_DBGAPI_AUDIO_CAPTURE_PARAM *)data_ptr;
+                g_stub_state.ac_calls++;
+                g_stub_state.ac_last = *p;
+                memset(&p->out_status, 0, sizeof(p->out_status));
+                if (g_stub_state.ac_fake_fail) {
+                    strcpy(p->out_error, "An audio capture is already running");
+                    return false;
+                }
+                p->out_error[0] = '\0';
+                p->out_status.pending = (p->op == DBGAPI_AUDIO_CAPTURE_OP_START);
+                p->out_status.frames = 7;
+                strcpy(p->out_status.dir, "C:/tmp/audio");
+            }
+            break;
+
         case DBGAPI_CMD_PROFILER_PC:
             /* Profiler podle PC: zapamatuje vstup, u GET vrátí 3 adresy
              * (zapsané do kapacity rows_max), u EXPORT 3 řádky. */

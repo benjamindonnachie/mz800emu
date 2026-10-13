@@ -93,8 +93,11 @@
  *
  * pc-stats doplnil profiler_pc_start, _stop, _reset, _get a _export
  * (profiler podle PC, na KONEC cmd_map[]) = 172 + 5 = 177.
+ *
+ * audio-capture doplnil audio_capture_start, _stop a _status (zachycení
+ * zvuku do složky, na KONEC cmd_map[]) = 177 + 3 = 180.
  */
-#define MCP_EXPECTED_CMD_COUNT 177
+#define MCP_EXPECTED_CMD_COUNT 180
 
 
 /* ====================================================================== */
@@ -7030,6 +7033,60 @@ void test_get_state_includes_last_user_action_when_present(void) {
 /* Main runner                                                             */
 /* ====================================================================== */
 
+
+/**
+ * @brief audio_capture_start: výchozí parametry (všechny soubory, bez limitu)
+ *        a předání dir, frames a voleb souborů; stop a status.
+ */
+void test_audio_capture_start_params(void) {
+    dispatch_stub_reset();
+    char *resp = NULL;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("audio_capture_start", "{}", &resp));
+    const st_DBGAPI_AUDIO_CAPTURE_PARAM *p = &g_stub_state.ac_last;
+    TEST_ASSERT_EQUAL_INT(DBGAPI_AUDIO_CAPTURE_OP_START, p->op);
+    TEST_ASSERT_EQUAL_STRING("", p->params.dir);
+    TEST_ASSERT_EQUAL_UINT64(0, p->params.frames);
+    TEST_ASSERT_TRUE(p->params.events && p->params.psg_writes && p->params.reference_wav && p->params.sdl_wav);
+    TEST_ASSERT_NOT_NULL(strstr(resp, "\"pending\":true"));
+    TEST_ASSERT_NOT_NULL(strstr(resp, "\"sdl_blocks\""));
+    free(resp);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("audio_capture_start",
+        "{\"dir\":\"C:/tmp/a\",\"frames\":250,\"sdl_wav\":false,\"psg_writes\":false}", NULL));
+    TEST_ASSERT_EQUAL_STRING("C:/tmp/a", p->params.dir);
+    TEST_ASSERT_EQUAL_UINT64(250, p->params.frames);
+    TEST_ASSERT_FALSE(p->params.sdl_wav);
+    TEST_ASSERT_FALSE(p->params.psg_writes);
+    TEST_ASSERT_TRUE(p->params.events);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("audio_capture_stop", "{}", NULL));
+    TEST_ASSERT_EQUAL_INT(DBGAPI_AUDIO_CAPTURE_OP_STOP, p->op);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("audio_capture_status", "{}", &resp));
+    TEST_ASSERT_EQUAL_INT(DBGAPI_AUDIO_CAPTURE_OP_STATUS, p->op);
+    TEST_ASSERT_NOT_NULL(strstr(resp, "\"frames\":7"));
+    free(resp);
+}
+
+
+/**
+ * @brief audio_capture_*: neplatné parametry => INVALID_PARAMS bez předání,
+ *        chyba jádra => EMU_ERROR s textem.
+ */
+void test_audio_capture_errors(void) {
+    dispatch_stub_reset();
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("audio_capture_start", "{\"frames\":-1}", NULL));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("audio_capture_start", "{\"frames\":\"x\"}", NULL));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("audio_capture_start", "{\"sdl_wav\":1}", NULL));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("audio_capture_start", "{\"dir\":5}", NULL));
+    TEST_ASSERT_EQUAL_INT(0, g_stub_state.ac_calls);
+
+    g_stub_state.ac_fake_fail = true;
+    char *resp = NULL;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_EMU_ERROR, _ss_request("audio_capture_start", "{}", &resp));
+    TEST_ASSERT_NOT_NULL(strstr(resp, "already running"));
+    free(resp);
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -7327,6 +7384,8 @@ int main(void) {
     RUN_TEST(test_profiler_pc_lifecycle);
     RUN_TEST(test_profiler_pc_get_params);
     RUN_TEST(test_profiler_pc_errors_export);
+    RUN_TEST(test_audio_capture_start_params);
+    RUN_TEST(test_audio_capture_errors);
     RUN_TEST(test_get_video_text_dump_available);
     RUN_TEST(test_get_video_text_dump_unavailable);
 

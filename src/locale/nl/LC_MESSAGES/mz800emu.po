@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mz800emu 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-13 20:15+0200\n"
+"POT-Creation-Date: 2026-10-13 21:57+0200\n"
 "PO-Revision-Date: 2026-03-11 22:00+0100\n"
 "Last-Translator: Claude Code\n"
 "Language-Team: Nederlands\n"
@@ -37,7 +37,7 @@ msgstr "Map openen"
 msgid "Untitled File Chooser"
 msgstr "Bestandskiezer"
 
-#: src/emulator/audio.c:132
+#: src/emulator/audio.c:133
 msgid "Audio volume settings:"
 msgstr "Audio volume-instellingen:"
 
@@ -62,21 +62,21 @@ msgstr ""
 "Adres = 0x%04x\n"
 "Instructie = '%s'\n"
 
-#: src/emulator/emulator.c:395
+#: src/emulator/emulator.c:398
 #: src/ui-imgui/mcp_activity/mcp_activity_window.cpp:421
 #: src/ui-imgui/videorec/videorec_menu.cpp:140
 msgid "PAUSED"
 msgstr "GEPAUZEERD"
 
-#: src/emulator/emulator.c:398
+#: src/emulator/emulator.c:401
 msgid "Max speed"
 msgstr "Maximale snelheid"
 
-#: src/emulator/emulator.c:401
+#: src/emulator/emulator.c:404
 msgid "Custom speed"
 msgstr "Aangepaste snelheid"
 
-#: src/emulator/emulator.c:403
+#: src/emulator/emulator.c:406
 msgid "Normal speed"
 msgstr "Normale snelheid"
 
@@ -388,6 +388,166 @@ msgstr "%.1f dB"
 msgid "%.0f dB"
 msgstr "%.0f dB"
 
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:52
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:144
+#: src/ui-imgui/videorec/videorec_menu.cpp:422
+#, c-format
+msgid "Cannot open folder: %s"
+msgstr "Kan map niet openen: %s"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:53
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:72
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:119
+msgid "Audio Capture Error"
+msgstr "Fout bij audio-opname"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:71
+#, c-format
+msgid "Cannot start the audio capture: %s"
+msgstr "Kan de audio-opname niet starten: %s"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:80
+msgid "Audio Capture"
+msgstr "Audio-opname"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:83
+msgid "Record Audio Capture"
+msgstr "Audio opnemen"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:87
+msgid ""
+"Records what the sound hardware does into a new folder until you stop it:\n"
+"changes of the channel levels, PSG writes, the exact sound (reference.wav)\n"
+"and the sound you hear (sdl.wav). For finding sound bugs."
+msgstr ""
+"Legt in een nieuwe map vast wat de geluidshardware doet, tot u stopt:\n"
+"niveauwijzigingen van de kanalen, PSG-schrijfacties, het exacte geluid "
+"(reference.wav)\n"
+"en het geluid dat u hoort (sdl.wav). Voor het vinden van geluidsfouten."
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:92
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:178
+#: src/ui-imgui/videorec/videorec_menu.cpp:462
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:317
+msgid "Settings..."
+msgstr "Instellingen..."
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:95
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:181
+#: src/ui-imgui/videorec/videorec_menu.cpp:466
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:315
+msgid "Open Output Folder"
+msgstr "Uitvoermap openen"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:118
+#, c-format
+msgid "Audio capture stopped after %.1f s: %s"
+msgstr "Audio-opname gestopt na %.1f s: %s"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:123
+#, c-format
+msgid "Audio capture ended (%s): %.1f s saved to %s"
+msgstr "Audio-opname beëindigd (%s): %.1f s opgeslagen in %s"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:128
+#, c-format
+msgid "Audio capture saved: %.1f s to %s"
+msgstr "Audio-opname opgeslagen: %.1f s in %s"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:143
+#, c-format
+msgid "AUDIO %.1f s"
+msgstr "AUDIO %.1f s"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:145
+msgid "AUDIO starting"
+msgstr "AUDIO start"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:190
+msgid "Audio Capture Settings"
+msgstr "Instellingen audio-opname"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:193
+msgid "Files to write"
+msgstr "Te schrijven bestanden"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:194
+msgid "events.csv - changes of the channel levels"
+msgstr "events.csv - niveauwijzigingen van de kanalen"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:195
+msgid "psg_writes.csv - PSG writes, decoded"
+msgstr "psg_writes.csv - PSG-schrijfacties, gedecodeerd"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:196
+msgid "reference.wav - exact sound in emulated time"
+msgstr "reference.wav - exact geluid in geëmuleerde tijd"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:197
+msgid "sdl.wav - sound of the audio output (what you hear)"
+msgstr "sdl.wav - geluid van de audio-uitvoer (wat u hoort)"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:201
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:371
+#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:260
+msgid "Output folder"
+msgstr "Uitvoermap"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:204
+msgid "(default: audio_captures folder next to the emulator)"
+msgstr "(standaard: map audio_captures naast de emulator)"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:214
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:384
+#: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:80
+#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:273
+msgid "Select Directory"
+msgstr "Map selecteren"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:217
+msgid "Each capture creates a new folder in the output folder."
+msgstr "Elke opname maakt een nieuwe map in de uitvoermap."
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:218
+#, c-format
+msgid "Record Audio Capture (%s) starts and stops the capture."
+msgstr "Audio opnemen (%s) start en stopt de opname."
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:227
+#: src/ui-imgui/cmt/ImGuiCmt.cpp:175
+#: src/ui-imgui/debugger/sections/dbg_cpu_panel.cpp:2419
+#: src/ui-imgui/dsk/dsk_create_window.cpp:104
+#: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:109
+#: src/ui-imgui/joy/joy_setup_window.cpp:564
+#: src/ui-imgui/message/message_window.cpp:90
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:406
+#: src/ui-imgui/snapshot/snapshot_notification.cpp:95
+#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:338
+msgid "OK"
+msgstr "OK"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:233
+#: src/ui-imgui/cmt/ImGuiCmt.cpp:187
+#: src/ui-imgui/debugger/membrowser/membrowser_annot_dialog.cpp:148
+#: src/ui-imgui/debugger/membrowser/membrowser_fill_dialog.cpp:264
+#: src/ui-imgui/debugger/sections/dbg_focus_to.cpp:264
+#: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:104
+#: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:111
+#: src/ui-imgui/joy/joy_setup_window.cpp:571
+#: src/ui-imgui/memext/memext_load_dialog.cpp:185
+#: src/ui-imgui/memext/memext_map_window.cpp:291
+#: src/ui-imgui/memext/memext_save_dialog.cpp:207
+#: src/ui-imgui/ramdisk/pezik_settings_window.cpp:289
+#: src/ui-imgui/rom/rom_settings_window.cpp:323
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:411
+#: src/ui-imgui/snapshot/snapshot_save_dialog.cpp:139
+#: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:176
+#: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:99
+#: src/ui-imgui/topmenu/devices/menu_qdisk.cpp:93
+#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:343
+msgid "Cancel"
+msgstr "Annuleren"
+
 #: src/ui-imgui/autotype/autotype_window.cpp:51
 msgid "Invalid character at position"
 msgstr "Ongeldig teken op positie"
@@ -678,39 +838,6 @@ msgstr "Overeenkomende snelheid: ~%.2f:1 (%.0f Bd)"
 #, c-format
 msgid "Each length must be greater than 0 and at most %.0f µs."
 msgstr "Elke lengte moet groter zijn dan 0 en hoogstens %.0f µs."
-
-#: src/ui-imgui/cmt/ImGuiCmt.cpp:175
-#: src/ui-imgui/debugger/sections/dbg_cpu_panel.cpp:2419
-#: src/ui-imgui/dsk/dsk_create_window.cpp:104
-#: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:109
-#: src/ui-imgui/joy/joy_setup_window.cpp:564
-#: src/ui-imgui/message/message_window.cpp:90
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:406
-#: src/ui-imgui/snapshot/snapshot_notification.cpp:95
-#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:338
-msgid "OK"
-msgstr "OK"
-
-#: src/ui-imgui/cmt/ImGuiCmt.cpp:187
-#: src/ui-imgui/debugger/membrowser/membrowser_annot_dialog.cpp:148
-#: src/ui-imgui/debugger/membrowser/membrowser_fill_dialog.cpp:264
-#: src/ui-imgui/debugger/sections/dbg_focus_to.cpp:264
-#: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:104
-#: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:111
-#: src/ui-imgui/joy/joy_setup_window.cpp:571
-#: src/ui-imgui/memext/memext_load_dialog.cpp:185
-#: src/ui-imgui/memext/memext_map_window.cpp:291
-#: src/ui-imgui/memext/memext_save_dialog.cpp:207
-#: src/ui-imgui/ramdisk/pezik_settings_window.cpp:289
-#: src/ui-imgui/rom/rom_settings_window.cpp:323
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:411
-#: src/ui-imgui/snapshot/snapshot_save_dialog.cpp:139
-#: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:176
-#: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:99
-#: src/ui-imgui/topmenu/devices/menu_qdisk.cpp:93
-#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:343
-msgid "Cancel"
-msgstr "Annuleren"
 
 #: src/ui-imgui/debugger/bookmarks/bm_window.cpp:267
 msgid "- Cancel##bm_add_toggle"
@@ -8005,7 +8132,9 @@ msgstr ""
 
 #: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:326
 msgid "Unlike Functions it also sees code that is jumped to, not called."
-msgstr "Anders dan Functies ziet hij ook code waarnaar gesprongen wordt, niet alleen aangeroepen code."
+msgstr ""
+"Anders dan Functies ziet hij ook code waarnaar gesprongen wordt, niet alleen "
+"aangeroepen code."
 
 #: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:327
 msgid "Block instructions (LDIR, ...) count every repetition."
@@ -8073,7 +8202,8 @@ msgstr "Gemiddelde T-states per uitvoering = T-states / Aantal."
 
 #: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:375
 msgid "Wait states inserted by the hardware (VRAM access, PSG write)."
-msgstr "Door de hardware ingevoegde wachttoestanden (VRAM-toegang, PSG-schrijven)."
+msgstr ""
+"Door de hardware ingevoegde wachttoestanden (VRAM-toegang, PSG-schrijven)."
 
 #: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:472
 #, c-format
@@ -9730,7 +9860,7 @@ msgstr "Apparaten opnieuw scannen"
 msgid "Joystick"
 msgstr "Joystick"
 
-#: src/ui-imgui/main_window.cpp:104
+#: src/ui-imgui/main_window.cpp:105
 msgid "No audio device - running without sound"
 msgstr "Geen audioapparaat - draait zonder geluid"
 
@@ -10515,12 +10645,6 @@ msgstr "Fout bij schermafbeelding"
 msgid "Save Screenshot"
 msgstr "Schermafbeelding opslaan"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:144
-#: src/ui-imgui/videorec/videorec_menu.cpp:422
-#, c-format
-msgid "Cannot open folder: %s"
-msgstr "Kan map niet openen: %s"
-
 #: src/ui-imgui/screenshot/screenshot_ui.cpp:161
 msgid "Screenshot"
 msgstr "Schermafbeelding"
@@ -10540,18 +10664,6 @@ msgid ""
 msgstr ""
 "Slaat een PNG op van elk geëmuleerd frame dat verschilt van het vorige "
 "(gebied en schaal uit de instellingen) totdat u het stopt."
-
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:178
-#: src/ui-imgui/videorec/videorec_menu.cpp:462
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:317
-msgid "Settings..."
-msgstr "Instellingen..."
-
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:181
-#: src/ui-imgui/videorec/videorec_menu.cpp:466
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:315
-msgid "Open Output Folder"
-msgstr "Uitvoermap openen"
 
 #: src/ui-imgui/screenshot/screenshot_ui.cpp:220
 #, c-format
@@ -10627,20 +10739,9 @@ msgstr "Schaal"
 msgid "1x drops every second column in the 640-dot modes."
 msgstr "1x laat in de 640-puntsmodi elke tweede kolom weg."
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:371
-#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:260
-msgid "Output folder"
-msgstr "Uitvoermap"
-
 #: src/ui-imgui/screenshot/screenshot_ui.cpp:374
 msgid "(default: screenshots folder next to the emulator)"
 msgstr "(standaard: map screenshots naast de emulator)"
-
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:384
-#: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:80
-#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:273
-msgid "Select Directory"
-msgstr "Map selecteren"
 
 #: src/ui-imgui/screenshot/screenshot_ui.cpp:389
 msgid "Frame series: only changed frames"
@@ -11028,7 +11129,7 @@ msgid "Unicard alternate FDC ports 0x58 - 0x5F"
 msgstr "Alternatieve Unicard-FDC-poorten 0x58 - 0x5F"
 
 #: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:440
-#: src/ui-imgui/topmenu/menu_tools.cpp:31
+#: src/ui-imgui/topmenu/menu_tools.cpp:32
 msgid "Tools"
 msgstr "Extra"
 
@@ -12034,23 +12135,23 @@ msgstr "Verlagen - stap 100 %"
 msgid "Custom Speed Options"
 msgstr "Opties aangepaste snelheid"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:33
+#: src/ui-imgui/topmenu/menu_tools.cpp:34
 msgid "DSK Images..."
 msgstr "DSK-images..."
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:38
+#: src/ui-imgui/topmenu/menu_tools.cpp:39
 msgid "Version Check"
 msgstr "Versiecontrole"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:40
+#: src/ui-imgui/topmenu/menu_tools.cpp:41
 msgid "Make Online Version Check"
 msgstr "Online versiecontrole uitvoeren"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:45
+#: src/ui-imgui/topmenu/menu_tools.cpp:46
 msgid "Version Check Setup"
 msgstr "Instelling versiecontrole"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:68
+#: src/ui-imgui/topmenu/menu_tools.cpp:72
 msgid "MCP Activity##menu_mcp_activity"
 msgstr "MCP Activity##menu_mcp_activity"
 
@@ -12597,6 +12698,17 @@ msgstr "MZ-1500 Virtueel toetsenbord"
 #: src/ui-imgui/vkbd_window.cpp:228
 msgid "MZ-800 Virtual Keyboard"
 msgstr "MZ-800 Virtueel toetsenbord"
+
+#~ msgid "Open Last Capture Folder"
+#~ msgstr "Map van de laatste opname openen"
+
+#~ msgid ""
+#~ "Each capture creates a new folder in the screenshot output folder\n"
+#~ "(Tools -> Screenshot -> Settings...)."
+#~ msgstr ""
+#~ "Elke opname maakt een nieuwe map in de uitvoermap van de "
+#~ "schermafbeeldingen\n"
+#~ "(Extra -> Schermafbeelding -> Instellingen...)."
 
 #~ msgid ""
 #~ "Adds a marker (chapter) on speed change, snapshot load, reset and pause "

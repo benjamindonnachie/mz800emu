@@ -55,6 +55,7 @@ static const char *const s_category_names[BASEUI_FCHOOSER_CAT_COUNT] = {
     "dbg_lists",
     "dbg_export",
     "screenshot",
+    "audio_capture",
 };
 
 G_STATIC_ASSERT(G_N_ELEMENTS(s_category_names) == BASEUI_FCHOOSER_CAT_COUNT);

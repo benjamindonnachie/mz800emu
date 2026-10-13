@@ -49,6 +49,7 @@
 #include "callstack.h"
 #include "profiler.h"
 #include "profiler_pc.h"
+#include "audio_capture.h"
 #include "watch.h"
 #include "watch_emu_cache.h"  /* V1.D.2.C: dispatch-side mirror lookup */
 #include "bp_vars.h"
@@ -946,6 +947,7 @@ const char *dbgapi_cmd_to_str(en_DBGAPI_CMD cmd)
         case DBGAPI_CMD_HID_SCRIPT_CANCEL:         return "hid_script_cancel";
         case DBGAPI_CMD_SCREENSHOT_SERIES:         return "screenshot_series";
         case DBGAPI_CMD_PROFILER_PC:               return "profiler_pc";
+        case DBGAPI_CMD_AUDIO_CAPTURE:             return "audio_capture";
         /* V1.D.1 - Core + CPU extras Resources */
         case DBGAPI_CMD_GET_CPU_IM2_VECTOR:        return "get_cpu_im2_vector";
         case DBGAPI_CMD_GET_CPU_INTERRUPT_BUS:     return "get_cpu_interrupt_bus";
@@ -5530,6 +5532,37 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
             };
             screenshot_series_get_status ( &p->out_status );
             rq->success = ( p->out_result == DBGAPI_SCREENSHOT_SERIES_RESULT_OK );
+            break;
+        }
+
+        case DBGAPI_CMD_AUDIO_CAPTURE:
+        {
+            /* Zachycení zvuku (audio_capture.h): start, stop, stav.
+             * Stav se vrací vždy, i při chybě operace. */
+            st_DBGAPI_AUDIO_CAPTURE_PARAM *p = (st_DBGAPI_AUDIO_CAPTURE_PARAM *) rq->data_ptr;
+            if ( !p )
+            {
+                rq->success = false;
+                break;
+            };
+            p->out_error[ 0 ] = 0;
+            switch ( p->op )
+            {
+                case DBGAPI_AUDIO_CAPTURE_OP_START:
+                    (void) audio_capture_start ( &p->params, p->out_error, sizeof ( p->out_error ) );
+                    break;
+                case DBGAPI_AUDIO_CAPTURE_OP_STOP:
+                    if ( !audio_capture_stop ( ) )
+                    {
+                        g_strlcpy ( p->out_error, "No audio capture is running", sizeof ( p->out_error ) );
+                    };
+                    break;
+                case DBGAPI_AUDIO_CAPTURE_OP_STATUS:
+                default:
+                    break;
+            };
+            audio_capture_get_status ( &p->out_status );
+            rq->success = ( p->out_error[ 0 ] == 0 );
             break;
         }
 
