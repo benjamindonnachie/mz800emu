@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mz800emu 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-08 21:08+0200\n"
+"POT-Creation-Date: 2026-10-13 17:00+0200\n"
 "PO-Revision-Date: 2026-03-11 22:00+0100\n"
 "Last-Translator: Claude Code\n"
 "Language-Team: Українська\n"
@@ -62,21 +62,21 @@ msgstr ""
 "Адреса = 0x%04x\n"
 "Інструкція = '%s'\n"
 
-#: src/emulator/emulator.c:387
+#: src/emulator/emulator.c:392
 #: src/ui-imgui/mcp_activity/mcp_activity_window.cpp:421
 #: src/ui-imgui/videorec/videorec_menu.cpp:140
 msgid "PAUSED"
 msgstr "ПРИЗУПИНЕНО"
 
-#: src/emulator/emulator.c:390
+#: src/emulator/emulator.c:395
 msgid "Max speed"
 msgstr "Максимальна швидкість"
 
-#: src/emulator/emulator.c:393
+#: src/emulator/emulator.c:398
 msgid "Custom speed"
 msgstr "Власна швидкість"
 
-#: src/emulator/emulator.c:395
+#: src/emulator/emulator.c:400
 msgid "Normal speed"
 msgstr "Нормальна швидкість"
 
@@ -100,7 +100,7 @@ msgstr "Файли стрічок"
 msgid "Select CMT file to open"
 msgstr "Виберіть CMT файл для відкриття"
 
-#: src/emulator/hw-generic/cmt/cmthack.c:187
+#: src/emulator/hw-generic/cmt/cmthack.c:206
 msgid "Select a MZF File"
 msgstr "Виберіть MZF файл"
 
@@ -638,7 +638,9 @@ msgstr "Власні імпульси стрічки"
 
 #: src/ui-imgui/cmt/ImGuiCmt.cpp:121
 msgid "Pulse lengths in microseconds (order of the UniCMT CMTSPEED header):"
-msgstr "Тривалість імпульсів у мікросекундах (порядок як у заголовку CMTSPEED UniCMT):"
+msgstr ""
+"Тривалість імпульсів у мікросекундах (порядок як у заголовку CMTSPEED "
+"UniCMT):"
 
 #: src/ui-imgui/cmt/ImGuiCmt.cpp:125
 msgid "Long pulse high (bit 1)"
@@ -680,6 +682,7 @@ msgstr "Кожна тривалість має бути більшою за 0 і
 #: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:109
 #: src/ui-imgui/joy/joy_setup_window.cpp:564
 #: src/ui-imgui/message/message_window.cpp:90
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:308
 #: src/ui-imgui/snapshot/snapshot_notification.cpp:95
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:338
 msgid "OK"
@@ -697,6 +700,7 @@ msgstr "OK"
 #: src/ui-imgui/memext/memext_save_dialog.cpp:207
 #: src/ui-imgui/ramdisk/pezik_settings_window.cpp:289
 #: src/ui-imgui/rom/rom_settings_window.cpp:323
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:313
 #: src/ui-imgui/snapshot/snapshot_save_dialog.cpp:139
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:176
 #: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:99
@@ -9596,7 +9600,7 @@ msgstr "Znovu переглянути пристрій"
 msgid "Joystick"
 msgstr "Джойстик"
 
-#: src/ui-imgui/main_window.cpp:102
+#: src/ui-imgui/main_window.cpp:104
 msgid "No audio device - running without sound"
 msgstr "Немає аудіопристрою - робота без звуку"
 
@@ -10356,6 +10360,130 @@ msgstr "Бінарний файлy ROM"
 msgid "CMT Hack Patch ROM"
 msgstr "ROM CMT Hack патчу"
 
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:57
+msgid "The emulator screen is not available"
+msgstr "Екран емулятора недоступний"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:92
+#, c-format
+msgid "Screenshot saved (%u x %u): %s"
+msgstr "Знімок екрана збережено (%u x %u): %s"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:96
+#, c-format
+msgid "Cannot save screenshot to '%s': %s"
+msgstr "Не вдалося зберегти знімок екрана до '%s': %s"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:97
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:142
+msgid "Screenshot Error"
+msgstr "Помилка знімка екрана"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:127
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:159
+msgid "Save Screenshot"
+msgstr "Зберегти знімок екрана"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:141
+#: src/ui-imgui/videorec/videorec_menu.cpp:422
+#, c-format
+msgid "Cannot open folder: %s"
+msgstr "Не вдалося відкрити теку: %s"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:158
+msgid "Screenshot"
+msgstr "Знімок екрана"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:162
+msgid "Save Screenshot As..."
+msgstr "Зберегти знімок екрана як..."
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:166
+#: src/ui-imgui/videorec/videorec_menu.cpp:462
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:317
+msgid "Settings..."
+msgstr "Налаштування..."
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:169
+#: src/ui-imgui/videorec/videorec_menu.cpp:466
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:315
+msgid "Open Output Folder"
+msgstr "Відкрити теку виводу"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:199
+msgid "Native (computer dots, 320 or 640 wide)"
+msgstr "Рідний (точки комп'ютера, ширина 320 або 640)"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:200
+msgid "1x"
+msgstr "1x"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:201
+msgid "2x (window at 100 %)"
+msgstr "2x (вікно на 100 %)"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:202
+msgid "3x"
+msgstr "3x"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:203
+msgid "4x"
+msgstr "4x"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:218
+#, c-format
+msgid "Image size: %u x %u or %u x %u (640-dot modes)"
+msgstr "Розмір зображення: %u x %u або %u x %u (режими 640 точок)"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:221
+#, c-format
+msgid "Image size: %u x %u"
+msgstr "Розмір зображення: %u x %u"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:238
+msgid "Screenshot Settings"
+msgstr "Налаштування знімка екрана"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:243
+msgid "Area"
+msgstr "Область"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:244
+msgid "Whole frame with border"
+msgstr "Увесь кадр з рамкою"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:247
+msgid "Picture without border"
+msgstr "Зображення без рамки"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:253
+msgid "Scale"
+msgstr "Масштаб"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:277
+msgid "1x drops every second column in the 640-dot modes."
+msgstr "1x у режимах 640 точок пропускає кожен другий стовпець."
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:282
+#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:260
+msgid "Output folder"
+msgstr "Тека виводу"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:285
+msgid "(default: screenshots folder next to the emulator)"
+msgstr "(типово: тека screenshots поруч з емулятором)"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:295
+#: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:80
+#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:273
+msgid "Select Directory"
+msgstr "Вибрати каталог"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:300
+#, c-format
+msgid "Save Screenshot (%s) saves the picture shown in the window."
+msgstr "Зберегти знімок екрана (%s) зберігає зображення, показане у вікні."
+
 #: src/ui-imgui/snapshot/snapshot_load_dialog.cpp:157
 msgid "Snapshot Preview"
 msgstr "Попередній перегляд знімка"
@@ -10453,11 +10581,6 @@ msgstr "Налаштування знімків"
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:64
 msgid "Default Directory"
 msgstr "Стандартний каталог"
-
-#: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:80
-#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:273
-msgid "Select Directory"
-msgstr "Вибрати каталог"
 
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:86
 msgid "Default Save Options"
@@ -10722,7 +10845,7 @@ msgid "Unicard alternate FDC ports 0x58 - 0x5F"
 msgstr "Альтернативні порти FDC Unicard 0x58 - 0x5F"
 
 #: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:440
-#: src/ui-imgui/topmenu/menu_tools.cpp:30
+#: src/ui-imgui/topmenu/menu_tools.cpp:31
 msgid "Tools"
 msgstr "Інструменти"
 
@@ -11726,23 +11849,23 @@ msgstr "Зменшити - крок 100 %"
 msgid "Custom Speed Options"
 msgstr "Параметри власної швидкості"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:32
+#: src/ui-imgui/topmenu/menu_tools.cpp:33
 msgid "DSK Images..."
 msgstr "DSK образи..."
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:37
+#: src/ui-imgui/topmenu/menu_tools.cpp:38
 msgid "Version Check"
 msgstr "Перевірка версії"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:39
+#: src/ui-imgui/topmenu/menu_tools.cpp:40
 msgid "Make Online Version Check"
 msgstr "Перевірити версію онлайн"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:44
+#: src/ui-imgui/topmenu/menu_tools.cpp:45
 msgid "Version Check Setup"
 msgstr "Налаштування перевірки версії"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:64
+#: src/ui-imgui/topmenu/menu_tools.cpp:68
 msgid "MCP Activity##menu_mcp_activity"
 msgstr "MCP Activity##menu_mcp_activity"
 
@@ -11995,11 +12118,6 @@ msgstr "Запис почнеться після відновлення емул
 msgid "Recording time base: %s"
 msgstr "Часова база запису: %s"
 
-#: src/ui-imgui/videorec/videorec_menu.cpp:422
-#, c-format
-msgid "Cannot open folder: %s"
-msgstr "Не вдалося відкрити теку: %s"
-
 #: src/ui-imgui/videorec/videorec_menu.cpp:432
 msgid "Video Recording"
 msgstr "Запис відео"
@@ -12021,16 +12139,6 @@ msgid ""
 msgstr ""
 "Позначено: запис іде за реальним часом (що було на екрані й у динаміках). Не "
 "позначено: емульований час (один емульований кадр = один кадр відео)."
-
-#: src/ui-imgui/videorec/videorec_menu.cpp:462
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:317
-msgid "Settings..."
-msgstr "Налаштування..."
-
-#: src/ui-imgui/videorec/videorec_menu.cpp:466
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:315
-msgid "Open Output Folder"
-msgstr "Відкрити теку виводу"
 
 #: src/ui-imgui/videorec/videorec_menu.cpp:470
 msgid "Remote Control..."
@@ -12258,10 +12366,6 @@ msgstr ""
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:255
 msgid "Video Recording Settings"
 msgstr "Налаштування запису відео"
-
-#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:260
-msgid "Output folder"
-msgstr "Тека виводу"
 
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:263
 msgid "(default: videos folder next to the emulator)"

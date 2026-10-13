@@ -17,6 +17,7 @@
 
 #include "mzarch/mzarch_config.h"
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
+#include "debugger/debugger.h"
 #include "ui-imgui/debugger/sections/dbg_extra_disasm.h"
 #include "ui-imgui/debugger/sections/dbg_focus_to.h"
 #include "ui-imgui/debugger/sections/dbg_inline_asm.h"
@@ -46,6 +47,7 @@
 #include "version_check/version_check.h"
 #include "message/message_window.h"
 #include "ui-imgui/videorec/videorec_menu.h"
+#include "ui-imgui/screenshot/screenshot_ui.h"
 #include "iface/iface_audio.h"
 
 #ifdef MZ800EMU_CFG_MCP_SERVER_ENABLED
@@ -395,6 +397,9 @@ void imgui_main_window(GLuint texture)
     imgui_videorec_remote_window();
     imgui_videorec_poll_events();
 
+    /* Screenshot: dialog nastavení (Tools -> Screenshot -> Settings...) */
+    imgui_screenshot_setup_dialog();
+
     /* Upozornění na běh bez audio zařízení (jednou, před vykreslením notifikace) */
     imgui_audio_device_notice();
 
@@ -449,6 +454,12 @@ void imgui_main_window(GLuint texture)
 
     /* Debugger */
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
+    /* Okna debuggeru čtou stav jádra (g_breakpoints, watch, ...), který
+     * vytvoří debugger_init() v emu vlákně. Do jejího dokončení se
+     * nevykreslují - otevřená okna (např. obnovená z INI) se ukážou o pár
+     * snímků později. Show příznaky zůstávají beze změny. */
+    if (debugger_is_initialized())
+    {
     if (g_gui->showDebuggerWindow)
         imgui_debugger_window(&g_gui->showDebuggerWindow);
 
@@ -601,6 +612,7 @@ void imgui_main_window(GLuint texture)
     if (g_gui->showMemoryHeatmapWindow)
         mhmap_window_render(&g_gui->showMemoryHeatmapWindow);
 #endif
+    } /* debugger_is_initialized() */
 #endif
 
     imgui_file_chooser_window();

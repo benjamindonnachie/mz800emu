@@ -257,6 +257,7 @@ void dispatch_stub_reset(void) {
     g_stub_state.periph_gdg_fake_has_pal_group  = 1;
     g_stub_state.periph_gdg_fake_has_cksw       = 1;
     g_stub_state.periph_gdg_fake_regDMD         = 0;
+    g_stub_state.periph_gdg_fake_has_vramctrl   = 1;
     g_stub_state.periph_wd1793_fake_available   = 1;
     g_stub_state.periph_wd1793_fake_status      = 0;
     g_stub_state.periph_wd1793_fake_drive0_present = 0;
@@ -277,6 +278,8 @@ void dispatch_stub_reset(void) {
     g_stub_state.frame_screenshot_raw_calls     = 0;
     g_stub_state.fb_available                   = 1;
     g_stub_state.frame_screenshot_png_calls     = 0;
+    memset(&g_stub_state.frame_screenshot_png_last_opts, 0, sizeof(g_stub_state.frame_screenshot_png_last_opts));
+    g_stub_state.frame_screenshot_png_fake_bad_opts = 0;
     g_stub_state.video_text_dump_calls          = 0;
     g_stub_state.text_dump_available            = 1;
 
@@ -360,6 +363,14 @@ bool dbgapi_ui_submit_cmd_sync_with_origin(st_DBGAPI_CMDRQ_QUEUE *queue,
 
     /* Cmd-specific fake fill */
     switch (cmd) {
+        case DBGAPI_CMD_SET_CPU_FLAGS:
+            if (data_ptr) {
+                const st_DBGAPI_CPU_FLAGS *p = (const st_DBGAPI_CPU_FLAGS *)data_ptr;
+                g_stub_state.cpu_flags_last_mask = p->update_mask;
+                g_stub_state.cpu_flags_last_r    = p->r_reg;
+            }
+            break;
+
         case DBGAPI_CMD_IS_RUNNING:
             if (result_ptr) {
                 *(bool *)result_ptr = g_stub_state.is_running;
@@ -1806,6 +1817,22 @@ bool dbgapi_ui_submit_cmd_sync_with_origin(st_DBGAPI_CMDRQ_QUEUE *queue,
                 for (unsigned i = 0; i < pn; i++) {
                     p->palette[i] = (uint8_t)(i * 16);
                 }
+                if (g_stub_state.periph_gdg_fake_has_vramctrl) {
+                    /* MZ-800: WF REPLACE planes I+III, RF search planes II, VBANK B,
+                     * HW scroll zapnutý (hodnoty v jednotkách portu). */
+                    p->has_vramctrl = 1;
+                    p->wf_mode      = 4;
+                    p->wf_plane     = 0x05;
+                    p->rf_plane     = 0x02;
+                    p->rf_search    = 1;
+                    p->wfrf_vbank   = 1;
+                    p->has_hwscroll = 1;
+                    p->hs_enabled   = 1;
+                    p->hs_sof       = 0x123;
+                    p->hs_ssa       = 5;
+                    p->hs_sea       = 0x7D;
+                    p->hs_sw        = 0x78;
+                }
             }
             break;
 
@@ -2055,9 +2082,14 @@ bool dbgapi_ui_submit_cmd_sync_with_origin(st_DBGAPI_CMDRQ_QUEUE *queue,
                 st_DBGAPI_FRAME_SCREENSHOT_PNG_PARAM *p =
                     (st_DBGAPI_FRAME_SCREENSHOT_PNG_PARAM *)data_ptr;
                 g_stub_state.frame_screenshot_png_calls++;
+                g_stub_state.frame_screenshot_png_last_opts = p->opts;
                 memset(p, 0, sizeof(*p));
                 p->available = 0;
                 strcpy(p->reason, "PNG encoder dependency not available");
+                if (g_stub_state.frame_screenshot_png_fake_bad_opts) {
+                    p->bad_opts = 1;
+                    strcpy(p->reason, "Crop rectangle must lie within the 320x200 image");
+                }
             }
             break;
 

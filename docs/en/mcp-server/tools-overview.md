@@ -73,6 +73,7 @@ documented separately in [Resources overview](resources-overview.md).
 | `emu_videorec_marker` | no | Marker (chapter) at the current recording position |
 | `emu_videorec_status` | no | Video recording status (state, frames, segment, size, path, last event) |
 | `emu_videorec_timebase` | no | Recording timebase: emulated time or real time |
+| `emu_screenshot_save_to_file` | yes (creates / overwrites a file) | PNG of the screen to a file: area (full / canvas), scale (framebuffer / native dots / window 1-4), crop |
 | `emu_profiler_start` | no | Start CPU profiler (hot-path overhead) |
 | `emu_profiler_stop` | no | Stop profiler (data preserved) |
 | `emu_profiler_reset` | no | Clear profiler aggregator |
@@ -84,6 +85,22 @@ documented separately in [Resources overview](resources-overview.md).
 | `emu_media_insert` | **YES** | Insert image into slot (auto-eject when already mounted) |
 | `emu_media_eject` | no | Eject image from slot |
 | `emu_media_state` | no | Snapshot of all 11 slots (cmt/fdc0_fd0..3/fdc1_fd0..3/qd/ide8) |
+| `emu_cmt_open` | **YES** | Open a tape file (.mzf, .mzt, .wav, ...) into the real tape drive, optionally play |
+| `emu_cmt_eject` | **YES** | Eject the tape from the real tape drive |
+| `emu_cmt_play` | **YES** | Start tape playback (transport PLAY) |
+| `emu_cmt_play_paused` | **YES** | Start tape playback paused (waits until resumed) |
+| `emu_cmt_pause` | **YES** | Pause / resume the tape transport |
+| `emu_cmt_stop` | **YES** | Stop the tape transport (PLAY or RECORD -> STOP) |
+| `emu_cmt_record` | **YES** | Record the tape output to a WAV file |
+| `emu_cmt_hack_set` | **YES** | Enable / disable cmthack (instant tape load ROM patch) |
+| `emu_cmt_set_cpu_boost` | **YES** | Enable / disable CPU boost while the tape runs |
+| `emu_cmt_set_mzfsize_check` | **YES** | Enable / disable the MZF size check on tape load |
+| `emu_cmt_set_polarity` | **YES** | Tape signal polarity (rear DIP switch) |
+| `emu_cmt_set_speed` | **YES** | Default playback speed of the virtual cassette (ratio or custom pulses) |
+| `emu_cmt_tape_seek` | **YES** | Seek a multi-block tape to a block |
+| `emu_cmt_tape_set_block_speed` | **YES** | Playback speed of a single tape block |
+| `emu_set_speed` | no | Emulation speed: 100 %, custom percent or MAX SPEED |
+| `emu_speed_step` | no | Change the custom emulation speed by a relative percentage |
 | `emu_settings_set` | **YES** | Live INI write (whitelist); **mutates global state** |
 | `emu_settings_get` | no | Read INI key + type (open read, no whitelist) |
 | `emu_platform_set` | **YES** | Platform switch attempt - returns error (compile-time MZARCH) |
@@ -130,6 +147,9 @@ documented separately in [Resources overview](resources-overview.md).
 | `emu_eventlog_get_event` | no | Read event[idx] - pxclk/screen/category/pc/payload |
 | `emu_regions_list` | no | Enumerate physical memory regions (ROM, VRAM, CG-ROM, MemExt banks, ...) bypassing Z80 banking |
 | `emu_region_read` | no | Raw no-side-effect read from a specific region (= equivalent of the GUI Memory browser for headless debug) |
+| `emu_region_write` | **YES** | Raw write into a physical memory region (bypass Z80 banking), max 65536 bytes |
+| `emu_file_load_to_region` | **YES** | Load a file (or a part of it) into a memory region, max 65536 bytes |
+| `emu_file_save_from_region` | yes (creates / overwrites a file) | Save a part of a memory region to a file, max 65536 bytes |
 
 ## Sensitive operations
 
@@ -285,8 +305,9 @@ Overwrites a single 16-bit Z80 register. Arguments:
 - `reg` (string) - register name, case-insensitive. Accepts `AF`,
   `BC`, `DE`, `HL`, `AF_` / `AF2`, `BC_` / `BC2`, `DE_` / `DE2`,
   `HL_` / `HL2`, `IX`, `IY`, `SP`, `PC`, `WZ`, `IR`.
-- `value` (int, 0..65535) - new value. For `IR` only the lower byte
-  (R) is written; I keeps its previous value.
+- `value` (int, 0..65535) - new value. `IR` writes the complete I:R
+  pair: I is the high byte, R the low byte including bit 7 (like
+  LD I,A plus LD R,A).
 
 **Destructive operation.** Writing to `PC` changes the execution
 path; writing to `SP` invalidates the current call stack. Save a
@@ -988,6 +1009,34 @@ Without an audio device (`--headless`, `--mcp-pipe`, or when the windowed
 emulator cannot open an audio device) the sound is rendered by the same
 path without being played. Returns the status plus
 `timebase_requested`; an invalid value is a parameter error.
+
+## Screenshot tools
+
+PNG pictures of the emulator screen written straight to a file on the
+server host (no large base64 payload in the reply). The workflow with
+recipes is in the MCP document `emulator://docs/screenshot_workflow`; the
+parameters are also described in [headless-mode.md](headless-mode.md).
+
+### `emu_screenshot_save_to_file` (sensitive - creates / overwrites a file)
+
+Arguments:
+
+- `path` (string, required) - PNG file to write.
+- `format` (string, default `png`) - only `png` is supported.
+- `area` (string, default `full`) - `full` = whole frame with the border,
+  `canvas` = the picture only.
+- `scale` (string, default `framebuffer`) - `framebuffer` = framebuffer
+  pixels 1:1 (MZ-800 full frame 928x288); `native` = one image pixel per
+  dot of the computer (MZ-800 picture 320x200, or 640x200 in the 640-dot
+  modes); `"1"` to `"4"` = the aspect ratio of the emulator window, `"2"`
+  = window at 100 % (MZ-800 full frame 928x576).
+- `crop` (object, optional) - `{"x", "y", "width", "height"}` in output
+  pixels, only with `framebuffer` or `native`.
+
+Returns `{available, path, format, width, height, byte_size, area, scale}`
+(+ `hires` with `native`), `{available: false, reason}` before the first
+rendered frame. An invalid `area`, `scale` or `crop` (also a crop outside
+the image) is a parameter error and no file is written.
 
 ## Profiler tools
 
@@ -1876,6 +1925,56 @@ Returns:
 Main use case: AI client in headless mode (= no GUI access) inspects
 emu physical memory - ROM monitor content, VRAM bitmap planes,
 MemExt banks.
+
+### `emu_region_write` (sensitive)
+
+Raw write into a physical memory region (= bypass Z80 banking), the
+counterpart of `emu_region_read`.
+
+Args:
+- `region_id` (= from the last `regions_list` call)
+- `offset` (= byte offset within the region, 0..size-1)
+- `data_b64` (= base64 bytes, 1..65536 bytes after decoding; clamped at
+  the end of the region)
+
+Returns `{"region_id", "offset", "length", "written"}` - `length` is the
+number of bytes actually written (after clamping), `written` = at least
+one byte was written.
+
+Read-only regions (`memext_flash`, `prohibited_shadow`), a disconnected
+region or an invalid `region_id` / `offset` return a parameter error
+`region write failed: read-only, disconnected, or invalid
+region_id/offset`. ROM regions are writable as a debug fixture: the patch
+lasts until the ROM is reloaded (e.g. after a reset); the ROM file on disk
+does not change. The `logical` region (Z80 view) writes through the
+current banking with the usual side effects (e.g. a VRAM write goes
+through the GDG write format) - for editing VRAM use the physical plane
+regions. A VRAM change shows on the next frame; a paused GUI needs a
+refresh.
+
+### `emu_file_load_to_region` (sensitive)
+
+Loads a file into a memory region without base64 on the client side
+(Python composite: file read + `emu_region_write`).
+
+Args: `path`, `region_id`, `dest_offset` (default 0), `src_offset`
+(skip N bytes of the file, default 0), `length` (bytes to copy, default
+-1 = to the end of the file).
+
+More than 65536 bytes is an error (`length N > 65536; split into multiple
+calls`) - copy a large file in parts. On success returns the reply of
+`emu_region_write` plus `src_file` and `src_offset`.
+
+### `emu_file_save_from_region`
+
+Saves a part of a memory region to a file (Python composite:
+`emu_region_read` + file write) - ROM dumps, ramdisk backups, raw VRAM.
+
+Args: `path` (overwritten), `region_id`, `src_offset` (default 0),
+`length` (default 4096, max 65536).
+
+Returns `{"region_id", "src_offset", "length", "dest_file"}`; `length` is
+the number of bytes actually saved (clamped at the end of the region).
 
 ## Speed control tools
 

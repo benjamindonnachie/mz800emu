@@ -250,6 +250,13 @@ hodnotu na všechny 4 subsystémy najednou. Per-subsystém option
 vyplní pouze ty subsystémy, kde uživatel per-subsys option nepředal.
 
 
+## Screenshoty
+
+Tools -> Screenshot -> Save Screenshot (`Alt + F`) uloží PNG obrazu
+zobrazeného v okně; oblast (s borderem nebo bez) a měřítko (nativní body nebo
+1x až 4x okna) se nastavují v Settings... Podrobnosti viz
+[`screenshots.md`](screenshots.md).
+
 ## MAX SPEED benchmark
 
 Měření efektivity emulace v režimu MAX SPEED - kolik "času skutečného MZ-800"

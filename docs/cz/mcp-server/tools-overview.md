@@ -73,6 +73,7 @@ dokumentu [Resources overview](resources-overview.md).
 | `emu_videorec_marker` | ne | Marker (kapitola) na aktuální pozici nahrávky |
 | `emu_videorec_status` | ne | Stav nahrávání videa (stav, snímky, segment, velikost, cesta, poslední událost) |
 | `emu_videorec_timebase` | ne | Časová základna nahrávání: emulační čas nebo podle reality |
+| `emu_screenshot_save_to_file` | ano (vytvoří / přepíše soubor) | PNG obrazovky do souboru: oblast (full / canvas), měřítko (framebuffer / nativní body / okno 1-4), ořez |
 | `emu_profiler_start` | ne | Start CPU profileru (hot-path overhead) |
 | `emu_profiler_stop` | ne | Stop profileru (data zachována) |
 | `emu_profiler_reset` | ne | Vynuluje agregátor profileru |
@@ -84,6 +85,22 @@ dokumentu [Resources overview](resources-overview.md).
 | `emu_media_insert` | **ANO** | Vloží image do slotu (auto-eject pokud již vloženo) |
 | `emu_media_eject` | ne | Vyjme image ze slotu |
 | `emu_media_state` | ne | Snapshot stavu všech 11 slotů (cmt/fdc0_fd0..3/fdc1_fd0..3/qd/ide8) |
+| `emu_cmt_open` | **ANO** | Otevře soubor pásky (.mzf, .mzt, .wav, ...) do skutečného kazetofonu, volitelně přehraje |
+| `emu_cmt_eject` | **ANO** | Vysune pásku ze skutečného kazetofonu |
+| `emu_cmt_play` | **ANO** | Spustí přehrávání pásky (transport PLAY) |
+| `emu_cmt_play_paused` | **ANO** | Spustí přehrávání pásky v pauze (čeká na pokračování) |
+| `emu_cmt_pause` | **ANO** | Pozastaví / obnoví transport pásky |
+| `emu_cmt_stop` | **ANO** | Zastaví transport pásky (PLAY nebo RECORD -> STOP) |
+| `emu_cmt_record` | **ANO** | Nahrává výstup pásky do WAV souboru |
+| `emu_cmt_hack_set` | **ANO** | Zapne / vypne cmthack (patch ROM pro okamžité nahrání z pásky) |
+| `emu_cmt_set_cpu_boost` | **ANO** | Zapne / vypne zrychlení CPU během běhu pásky |
+| `emu_cmt_set_mzfsize_check` | **ANO** | Zapne / vypne kontrolu velikosti MZF při nahrávání |
+| `emu_cmt_set_polarity` | **ANO** | Polarita signálu pásky (zadní DIP přepínač) |
+| `emu_cmt_set_speed` | **ANO** | Výchozí rychlost přehrávání virtuálního kazetofonu (poměr nebo vlastní pulzy) |
+| `emu_cmt_tape_seek` | **ANO** | Posune víceblokovou pásku na zvolený blok |
+| `emu_cmt_tape_set_block_speed` | **ANO** | Rychlost přehrávání jednoho bloku pásky |
+| `emu_set_speed` | ne | Rychlost emulace: 100 %, vlastní procenta nebo MAX SPEED |
+| `emu_speed_step` | ne | Změní vlastní rychlost emulace o relativní počet procent |
 | `emu_settings_set` | **ANO** | Live INI write (whitelist), **mutuje globální stav** |
 | `emu_settings_get` | ne | Read INI klíče + typ (open read, žádný whitelist) |
 | `emu_platform_set` | **ANO** | Pokus o platform switch - vrací error (compile-time MZARCH) |
@@ -130,6 +147,9 @@ dokumentu [Resources overview](resources-overview.md).
 | `emu_eventlog_get_event` | ne | Načte event[idx] - pxclk/screen/category/pc/payload |
 | `emu_regions_list` | ne | Enumerate fyzických paměťových regionů (ROM, VRAM, CG-ROM, MemExt banks, ...) bypass Z80 banking |
 | `emu_region_read` | ne | Raw no-side-effect read z konkrétního regionu (= ekvivalent GUI Memory browseru pro headless debug) |
+| `emu_region_write` | **ANO** | Raw zápis do fyzického regionu paměti (mimo banking Z80), max 65536 bajtů |
+| `emu_file_load_to_region` | **ANO** | Nahraje soubor (nebo jeho část) do regionu paměti, max 65536 bajtů |
+| `emu_file_save_from_region` | ano (vytvoří / přepíše soubor) | Uloží část regionu paměti do souboru, max 65536 bajtů |
 
 ## Sensitive operace
 
@@ -281,8 +301,8 @@ Přepíše 16-bitovou hodnotu jednoho Z80 registru. Argumenty:
 - `reg` (string) - jméno registru, case-insensitive. Akceptuje
   `AF`, `BC`, `DE`, `HL`, `AF_` / `AF2`, `BC_` / `BC2`, `DE_` /
   `DE2`, `HL_` / `HL2`, `IX`, `IY`, `SP`, `PC`, `WZ`, `IR`.
-- `value` (int, 0..65535) - nová hodnota. Pro `IR` se zapisuje jen
-  dolní bajt (R), I se zachová.
+- `value` (int, 0..65535) - nová hodnota. `IR` zapíše celý pár I:R:
+  I je horní bajt, R dolní bajt včetně bitu 7 (jako LD I,A a LD R,A).
 
 **Destruktivní operace.** Zápis do `PC` mění tok provádění, zápis
 do `SP` invaliduje aktuální call stack. Před experimenty doporučeno
@@ -963,6 +983,34 @@ pauza podle `realtime_pause`). Bez zvukového zařízení (`--headless`,
 `--mcp-pipe`, nebo když se v okně nepodaří otevřít zvukové zařízení) se
 zvuk vyrobí stejnou cestou, jen se nepřehraje. Vrací
 stav a navíc `timebase_requested`; neplatná hodnota je chyba parametrů.
+
+## Nástroje screenshotu
+
+PNG obrázky obrazovky emulátoru zapsané přímo do souboru na počítači se
+serverem (v odpovědi není velký base64 obsah). Postup s recepty je
+v MCP dokumentu `emulator://docs/screenshot_workflow`; parametry popisuje
+i [headless-mode.md](headless-mode.md).
+
+### `emu_screenshot_save_to_file` (citlivý - vytvoří / přepíše soubor)
+
+Argumenty:
+
+- `path` (string, povinný) - PNG soubor k zápisu.
+- `format` (string, výchozí `png`) - podporované je jen `png`.
+- `area` (string, výchozí `full`) - `full` = celý obraz s borderem,
+  `canvas` = jen obraz bez borderu.
+- `scale` (string, výchozí `framebuffer`) - `framebuffer` = pixely
+  framebufferu 1:1 (MZ-800 celý obraz 928x288); `native` = jeden pixel
+  obrázku na bod počítače (MZ-800 obraz 320x200, v režimech 640 bodů
+  640x200); `"1"` až `"4"` = poměr stran okna emulátoru, `"2"` = okno na
+  100 % (MZ-800 celý obraz 928x576).
+- `crop` (objekt, volitelný) - `{"x", "y", "width", "height"}` ve
+  výstupních pixelech, jen s `framebuffer` nebo `native`.
+
+Vrací `{available, path, format, width, height, byte_size, area, scale}`
+(+ `hires` u `native`), před prvním vykresleným snímkem `{available:
+false, reason}`. Neplatná `area`, `scale` nebo `crop` (i ořez mimo obraz)
+je chyba parametrů a soubor se nezapíše.
 
 ## Profiler tools
 
@@ -1837,6 +1885,55 @@ Hlavní use case: AI klient v headless mode (= bez GUI access)
 inspectuje fyzické paměti emu - ROM monitor content, VRAM bitmap
 planes, MemExt banks. Reply 0007 v mzdos requests-to-emu-team
 obsahuje příklady použití.
+
+### `emu_region_write` (citlivý)
+
+Raw zápis do fyzického regionu paměti (= mimo banking Z80), protějšek
+`emu_region_read`.
+
+Args:
+- `region_id` (= z posledního volání `regions_list`)
+- `offset` (= byte offset v rámci regionu, 0..size-1)
+- `data_b64` (= base64 bajty, 1..65536 bajtů po dekódování; na konci
+  regionu se zkrátí)
+
+Vrací `{"region_id", "offset", "length", "written"}` - `length` je počet
+skutečně zapsaných bajtů (po zkrácení), `written` = zapsal se aspoň
+jeden bajt.
+
+Regiony jen pro čtení (`memext_flash`, `prohibited_shadow`), odpojený
+region nebo neplatný `region_id` / `offset` vrátí chybu parametrů
+`region write failed: read-only, disconnected, or invalid
+region_id/offset`. ROM regiony jsou zapisovatelné jako ladicí pomůcka:
+úprava platí do nového nahrání ROM (např. po resetu), soubor ROM na disku
+se nemění. Region `logical` (pohled Z80) zapisuje přes aktuální banking
+s běžnými vedlejšími efekty (např. zápis do VRAM jde přes zápisový formát
+GDG) - pro úpravu VRAM použijte fyzické regiony rovin. Změna VRAM se
+ukáže v dalším snímku; GUI v pauze potřebuje překreslit.
+
+### `emu_file_load_to_region` (citlivý)
+
+Nahraje soubor do regionu paměti bez base64 na straně klienta (Python
+složenina: čtení souboru + `emu_region_write`).
+
+Args: `path`, `region_id`, `dest_offset` (výchozí 0), `src_offset`
+(přeskočí N bajtů souboru, výchozí 0), `length` (počet bajtů, výchozí
+-1 = do konce souboru).
+
+Víc než 65536 bajtů je chyba (`length N > 65536; split into multiple
+calls`) - velký soubor kopírujte po částech. Při úspěchu vrací odpověď
+`emu_region_write` a navíc `src_file` a `src_offset`.
+
+### `emu_file_save_from_region`
+
+Uloží část regionu paměti do souboru (Python složenina: `emu_region_read`
++ zápis souboru) - výpisy ROM, zálohy ramdisku, raw VRAM.
+
+Args: `path` (přepíše se), `region_id`, `src_offset` (výchozí 0),
+`length` (výchozí 4096, max 65536).
+
+Vrací `{"region_id", "src_offset", "length", "dest_file"}`; `length` je
+počet skutečně uložených bajtů (na konci regionu se zkrátí).
 
 ## Speed control tools
 

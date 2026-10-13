@@ -419,6 +419,11 @@ static SDL_Window *getSDL_Window_by_name(const char *name)
  *
  *******************************************************************************/
 
+extern "C" SDL_Surface *iface_sdl3_video_get_screen_surface(void)
+{
+    return g_sdlapp_myimgui_video ? g_sdlapp_myimgui_video->surface : NULL;
+}
+
 void iface_sdl3_video_window_resize_event_handler(SdlAppWindow *win, SDL_Event *event)
 {
 

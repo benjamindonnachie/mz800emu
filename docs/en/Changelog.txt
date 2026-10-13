@@ -1,3 +1,15 @@
+	- New feature: screenshots (Tools -> Screenshot) on all platforms. Save Screenshot (Alt+F) saves a PNG of the picture shown in the window into the output folder (default: screenshots next to the emulator) with a name made of the platform and time, Save Screenshot As... asks for the file name. In Settings... you choose the area (whole frame with border, or the picture without the border), the scale (native computer dots - 320x200 or 640x200 picture - or 1x to 4x with the aspect ratio of the window, 2x = window at 100 %) and the output folder; the settings are saved in the configuration. See screenshots.md.
+
+	- MCP - emu_screenshot_save_to_file has new optional parameters area (full frame or the picture without the border), scale (framebuffer pixels as before, native dots of the computer - 320x200 or 640x200 picture - or 1 to 4 times with the aspect ratio of the emulator window) and crop (a cut-out of the native image). See mcp-server/headless-mode.md.
+
+	- CHANGE: MCP - emu_set_register with IR now writes the complete I:R pair (previously only bits 0-6 of R, I unchanged) and emu_set_cpu_flags writes all 8 bits of R including bit 7, the same as the LD R,A instruction. A saved CPU state can thus be restored exactly. Editing R in the CPU window of the debugger still keeps bit 7.
+
+	- MCP - emulator://periph/gdg on the MZ-800 also returns the VRAM access registers (vramctrl: write format WF with the write mode and planes, read format RF with search mode and planes, VBANK) and the hardware scroll registers (hwscroll: SOF, SSA, SEA, SW in the units written to the ports, and whether the scroll is active).
+
+	- BUGFIX: Debugger - the I/O ports window showed the hardware scroll registers SOF, SW, SSA and SEA of the MZ-800 shifted (e.g. 28h after writing A5h to SOF). It now shows the values the program wrote.
+
+	- BUGFIX: MZ-800 hardware scroll - a change of a scroll register (SOF, SW, SSA, SEA) in the middle of a picture line was applied also to the part of the line the beam had already drawn. The drawn part now keeps the previous scroll position.
+
 	- BUGFIX: CTC 8253 and speaker - the time of a write to the CTC (including the CTC0 gate) and of a speaker change was taken as if the already executed part of the instruction had passed twice, e.g. 14 CPU cycles after the start of LD (HL),A, which takes 7. CTC0 thus started counting a few CLK0 periods late and speaker edges were timestamped late by the same amount. The measured load behaviour of the CTC on a real MZ-800 is unchanged.
 
 	- BUGFIX: Debugger - every save of JSON metadata leaked the whole JSON tree: trace recordings (each chunk rewrites its metadata), breakpoints, bookmarks, watches, breakpoint variables and the Memory Heatmap. The memory use of a long trace recording kept growing with its length.

@@ -71,6 +71,16 @@ All platforms. For details see [`video-recording.md`](video-recording.md).
 | `Alt + Shift + L`          | Show / hide the recording remote control window                             |
 | `Alt + U`                  | Switch the recording time base: emulated time / real time (also while recording) |
 
+## Screenshot
+
+All platforms. Area, scale and output folder are set in Tools -> Screenshot ->
+Settings...; Tools -> Screenshot -> Save Screenshot As... asks for a file name. For details see
+[`screenshots.md`](screenshots.md).
+
+| Key                        | Action                                                                      |
+|----------------------------|-----------------------------------------------------------------------------|
+| `Alt + F`                  | Save a PNG screenshot of the picture shown in the window to the output folder |
+
 ## Debugger
 
 Available only in builds with `MZ800EMU_CFG_DEBUGGER_ENABLED`.

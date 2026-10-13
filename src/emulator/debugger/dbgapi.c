@@ -56,6 +56,7 @@
 #include "mhmap.h"
 #include "freeze/freeze.h"
 #include "png_encode.h"
+#include "screenshot/screenshot_capture.h"
 #include "trace/eventlog.h"
 #include "trace/eventlog_trigger.h"
 #include "io_history.h"
@@ -92,6 +93,8 @@
 #if MZARCH == 800
 #include "mzarch/mz800/mz800_main.h"
 #include "mzarch/mz800/mz800_iorq.h"
+#include "mzarch/mz800/gdg/mz800_vramctrl.h"
+#include "mzarch/mz800/gdg/mz800_hwscroll.h"
 #elif MZARCH == 1500
 #include "mzarch/mz1500/mz1500_main.h"
 #include "mzarch/mz1500/mz1500_iorq.h"
@@ -1677,9 +1680,10 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
 
         case DBGAPI_CMD_SET_REG:
             /* Zápis 16bitové hodnoty do Z80 registru. data_ptr:
-             * st_DBGAPI_REG_PARAM* (= reg_id + value). Pro IR registr
-             * je speciální handling (jen dolní bajt = R), shodný s
-             * debugger_change_z80_register(). Forward přes přímý
+             * st_DBGAPI_REG_PARAM* (= reg_id + value). IR zapíše celý pár
+             * I:R včetně bitu 7 R (jako LD I,A + LD R,A), aby šel přes MCP
+             * věrně obnovit stav CPU; okno CPU edituje I a R zvlášť přes
+             * SET_CPU_FLAGS (UM_I, UM_R). Forward přes přímý
              * z80_set_reg() bez pause check (= debugger_change funkce
              * dělá pause check pro UI vlákno; dbgapi je už v emu vlákně).
              *
@@ -1692,12 +1696,8 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
                 {
                     if ((z80_reg_t)p->reg_id == Z80_REG_IR)
                     {
-                        /* Specialni handling: nastavit jen dolni bajt R,
-                         * I (vysoky bajt) zachovat - shodne s
-                         * debugger_change_z80_register(). */
-                        g_mzarch_main.cpu->r =
-                            (uint8_t)(p->value & 0x7F) |
-                            (g_mzarch_main.cpu->r & 0x80);
+                        /* Celý pár I:R (I = horní bajt, R = dolní bajt). */
+                        z80_set_reg ( g_mzarch_main.cpu, Z80_REG_IR, p->value );
                     }
                     else
                     {
@@ -2236,12 +2236,17 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
                 {
                     cpu->i = p->i_reg;
                 };
-                if (p->update_mask & DBGAPI_CPU_FLAGS_UM_R)
+                if (p->update_mask & DBGAPI_CPU_FLAGS_UM_R_FULL)
                 {
-                    /* R registr ma vrchni bit (bit 7) nemenne reservovany
-                     * po RETI/N (zachovava ho i LD A,R). Zapisujeme jen
-                     * dolnich 7 bitu + zachovavame bit 7 z cpu->r,
-                     * shodne s logikou v DBGAPI_CMD_SET_REG pro Z80_REG_IR. */
+                    /* Celý bajt jako LD R,A - jediná instrukce, která mění
+                     * bit 7 R (báze cpu/z80/09-r-register.md). Umožní věrně
+                     * obnovit stav CPU přes MCP. */
+                    cpu->r = p->r_reg;
+                }
+                else if (p->update_mask & DBGAPI_CPU_FLAGS_UM_R)
+                {
+                    /* Editace refresh čítače v okně CPU: dolních 7 bitů,
+                     * bit 7 R (mění ho jen LD R,A, M1 cykly ne) zachovat. */
                     cpu->r = (uint8_t)(p->r_reg & 0x7F)
                            | (cpu->r & 0x80);
                 };
@@ -6169,6 +6174,20 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
             p->palette[ 3 ] = (uint8_t)( g_gdg.regPAL3 & 0xFFu );
             /* entries 4..15 zůstávají 0 (placeholder; klient si dopočítá
              * podle regPAL0..3 + regPALGRP - viz hw/09-video-mz800-modes.md). */
+            /* Řadič VRAM (WF/RF) a HW scroll - jen MZ-800. Scroll v jednotkách
+             * portu (hwscroll_get_*), ne interní bajtové adresy plane. */
+            p->has_vramctrl = 1;
+            p->wf_mode      = (uint8_t)( g_vramctrl.regWF_MODE & 0x07u );
+            p->wf_plane     = (uint8_t)( g_vramctrl.regWF_PLANE & 0x0Fu );
+            p->rf_plane     = (uint8_t)( g_vramctrl.regRF_PLANE & 0x0Fu );
+            p->rf_search    = (uint8_t)( g_vramctrl.regRF_SEARCH & 0x01u );
+            p->wfrf_vbank   = (uint8_t)( g_vramctrl.regWFRF_VBANK & 0x01u );
+            p->has_hwscroll = 1;
+            p->hs_enabled   = (uint8_t)( g_hwscroll.enabled & 0x01u );
+            p->hs_sof       = (uint16_t) hwscroll_get_sof ( );
+            p->hs_ssa       = (uint8_t) hwscroll_get_ssa ( );
+            p->hs_sea       = (uint8_t) hwscroll_get_sea ( );
+            p->hs_sw        = (uint8_t) hwscroll_get_sw ( );
             memcpy ( p->platform, "mz800", 6 );
 #elif MZARCH == 1500
             /* MZ-1500: 8-entry palette `mode1500_color[8]`, žádný regBOR
@@ -6797,23 +6816,19 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
 
         case DBGAPI_CMD_GET_FRAME_SCREENSHOT_PNG:
         {
-            /* PNG screenshot - enkód plného framebufferu přes
-             * stb_image_write.h (viz png_encode.{c,h}).
+            /* PNG screenshot přes jádro screenshotu (screenshot_encode_png):
+             * oblast, měřítko a ořez podle p->opts (memset 0 = celý
+             * framebuffer 1:1, dřívější chování).
              *
              * Pixel acquisition je IDENTICKÁ jako GET_FRAME_SCREENSHOT_RAW
              * (= konzistence obrazu): INDEX8 buffer
              * g_iface_video->fbsnapshot_pixels (GUI cesta, pod
              * fbsnapshot_pixels_mutex), fallback na g_framebuffer.pixels
-             * (GDG live, headless). Expand na RGBA8888 přes paletu
-             * display_get_default_color_schema(), index = pixel & 0x0F.
+             * (GDG live, headless). Threading shodný s raw handlerem (krátký
+             * lock SDL path, GDG fallback bez locku v emu thread executoru).
              *
-             * Na rozdíl od raw nepoužíváme downscale - PNG je vždy plný
-             * frame (VIDEO_DISPLAY_WIDTH x VIDEO_DISPLAY_HEIGHT). Threading
-             * shodný s raw handlerem (krátký lock SDL path, GDG fallback
-             * bez locku v emu thread executoru).
-             *
-             * Buffer ownership: handler alokuje PNG stream (p->buffer)
-             * přes glib, dispatch ho po base64 uvolní g_free.
+             * Buffer ownership: PNG stream (p->buffer) alokuje jádro přes
+             * glib, dispatch ho po zápisu nebo base64 uvolní g_free.
              */
             st_DBGAPI_FRAME_SCREENSHOT_PNG_PARAM *p =
                 (st_DBGAPI_FRAME_SCREENSHOT_PNG_PARAM *) rq->data_ptr;
@@ -6822,19 +6837,10 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
                 rq->success = false;
                 break;
             };
+            /* Vstupní volby přežijí vynulování výstupů. */
+            st_SCREENSHOT_OPTS opts = p->opts;
             memset ( p, 0, sizeof ( *p ) );
-
-            uint32_t w = (uint32_t) VIDEO_DISPLAY_WIDTH;
-            uint32_t h = (uint32_t) VIDEO_DISPLAY_HEIGHT;
-            uint32_t *g_video_colormap = display_get_default_color_schema();
-            if ( !g_video_colormap )
-            {
-                /* Display modul ještě neinicializován. */
-                p->available = 0;
-                strcpy ( p->reason, "Display not initialized" );
-                rq->success = true;
-                break;
-            };
+            p->opts = opts;
 
             /* Výběr zdroje pixelů - viz raw handler pro threading detaily. */
             const uint8_t *src = NULL;
@@ -6863,45 +6869,28 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
                 break;
             };
 
-            /* RGBA8888 scratch buffer - expand INDEX8 -> RGBA. */
-            uint8_t *rgba = (uint8_t *) g_malloc ( (gsize) w * h * 4 );
-            uint8_t *dst = rgba;
-            for ( uint32_t y = 0; y < h; y++ )
-            {
-                const uint8_t *src_row = src + (size_t) y * w;
-                for ( uint32_t x = 0; x < w; x++ )
-                {
-                    uint8_t pix_idx = src_row[ x ] & 0x0Fu;
-                    uint32_t rgb = g_video_colormap[ pix_idx ];
-                    dst[ 0 ] = (uint8_t) ( ( rgb >> 16 ) & 0xFFu ); /* R */
-                    dst[ 1 ] = (uint8_t) ( ( rgb >> 8 ) & 0xFFu );  /* G */
-                    dst[ 2 ] = (uint8_t) ( rgb & 0xFFu );           /* B */
-                    dst[ 3 ] = 0xFF;                                /* A */
-                    dst += 4;
-                };
-            };
+            st_SCREENSHOT_PNG png;
+            bool encoded = screenshot_encode_png ( src, VIDEO_DISPLAY_WIDTH, &opts, &png,
+                                                   p->reason, sizeof ( p->reason ) );
             if ( sdl_locked )
             {
                 APP_MUTEX_UNLOCK ( g_iface_video->fbsnapshot_pixels_mutex );
             };
-
-            /* Enkód do PNG streamu (glib alokovaný buffer). */
-            size_t png_len = 0;
-            uint8_t *png = png_encode_rgba ( rgba, w, h, &png_len );
-            g_free ( rgba );
-            if ( !png || png_len == 0 )
+            if ( !encoded )
             {
-                g_free ( png );
+                /* Neplatné volby, neinicializovaný displej nebo chyba
+                 * enkódu - důvod je v p->reason. */
                 p->available = 0;
-                strcpy ( p->reason, "PNG encode failed" );
+                p->bad_opts  = png.bad_opts ? 1 : 0;
                 rq->success = true;
                 break;
             };
 
-            p->buffer      = png;
-            p->buffer_size = png_len;
-            p->width       = w;
-            p->height      = h;
+            p->buffer      = png.png;
+            p->buffer_size = png.png_len;
+            p->width       = png.width;
+            p->height      = png.height;
+            p->hires       = png.hires ? 1 : 0;
             p->available   = 1;
             rq->success = true;
             break;

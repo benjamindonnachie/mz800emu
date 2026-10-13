@@ -71,6 +71,16 @@ Všechny platformy. Podrobnosti viz [`video-recording.md`](video-recording.md).
 | `Alt + Shift + L`          | Zobrazit / skrýt okno dálkového ovládání nahrávání                          |
 | `Alt + U`                  | Přepnout časovou základnu nahrávání: emulační čas / podle reality (i během nahrávání) |
 
+## Screenshot
+
+Všechny platformy. Oblast, měřítko a výstupní složka se nastavují v Tools ->
+Screenshot -> Settings...; Tools -> Screenshot -> Save Screenshot As... se zeptá
+na jméno souboru. Podrobnosti viz [`screenshots.md`](screenshots.md).
+
+| Klávesa                    | Akce                                                                        |
+|----------------------------|-----------------------------------------------------------------------------|
+| `Alt + F`                  | Uložit PNG screenshot obrazu zobrazeného v okně do výstupní složky          |
+
 ## Debugger
 
 Dostupné pouze v buildech s `MZ800EMU_CFG_DEBUGGER_ENABLED`.

@@ -102,6 +102,21 @@
 st_DEBUGGER g_debugger;
 st_DEBUGGER_HISTORY g_debugger_history;
 
+/**
+ * @brief Příznak "debugger_init() doběhla" pro UI vlákno (GLib atomic).
+ *
+ * debugger_init() běží v emu vlákně až po inicializaci video rozhraní, UI
+ * vlákno mezitím už vykresluje. Okna debuggeru proto čtou stav jádra
+ * (g_breakpoints, watch, ...) až po nastavení příznaku na 1.
+ */
+static gint s_debugger_initialized = 0;
+
+
+/** @brief Vrátí nenulu, pokud debugger_init() doběhla a debugger_exit() ještě nezačala. */
+int debugger_is_initialized ( void ) {
+    return g_atomic_int_get ( &s_debugger_initialized );
+}
+
 
 void debugger_step_call ( unsigned value ) {
 
@@ -205,6 +220,8 @@ static const st_RECLIFE_DESC s_cdl_reclife = {
 
 
 void debugger_exit ( void ) {
+    g_atomic_int_set ( &s_debugger_initialized, 0 );
+
     /* CDL export při ukončení - dle nastaveného flag. Cesta a heuristika se
      * sestavují v cdl_reclife_save (NULL path = default z configu). Export
      * přes sdílenou reclife vrstvu, chování beze změny oproti původnímu
@@ -287,6 +304,7 @@ void debugger_membrowser_selected_addr_save_cb ( void *e, void *data ) {
 
 
 void debugger_init ( void ) {
+    g_atomic_int_set ( &s_debugger_initialized, 0 );
     g_debugger.state = DEBUGGER_STATE_NONE;
     g_debugger.active = 0;
     g_debugger.memop_call = 0;
@@ -855,6 +873,9 @@ void debugger_init ( void ) {
      * recording v režimu --cdl-mode=always bez otevřeného debug okna
      * vůbec neproběhne (default callbacks neaktivují MH/Tracelog hooky). */
     mzarch_platform_fn_debugger_state_changed ( TEST_DEBUGGER_ACTIVE );
+
+    /* Až teď smí UI vlákno kreslit okna debuggeru (debugger_is_initialized). */
+    g_atomic_int_set ( &s_debugger_initialized, 1 );
 }
 
 

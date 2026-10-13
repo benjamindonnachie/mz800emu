@@ -107,6 +107,40 @@ palette; the raw pixels would have to be obtained via a different
 Tool (= not via screenshot.raw, which performs the RGBA expand on
 the backend).
 
+### PNG to a file with area, scale and crop
+
+`emu_screenshot_save_to_file` (command `screenshot_save_to_file`)
+writes a PNG straight to a file on the server host. Optional parameters
+select what is saved:
+
+| Parameter | Values | Meaning |
+|-----------|--------|---------|
+| `area` | `full` (default), `canvas` | whole frame with the border, or the picture only |
+| `scale` | `framebuffer` (default), `native`, `1` to `4` | see below |
+| `crop` | `{"x", "y", "width", "height"}` | cut-out in output pixels, only with `framebuffer` or `native` |
+
+- `framebuffer` - framebuffer pixels 1:1, one pixel per GDG clock
+  horizontally and per picture line vertically (MZ-800 full frame
+  928x288, canvas 640x200). This is the behaviour without parameters.
+- `native` - one image pixel per dot of the computer. When all pairs of
+  neighbouring framebuffer pixels in the area are equal (320-dot modes),
+  the width is halved (MZ-800 canvas 320x200), otherwise it is kept
+  (640x200); lines 1:1. The reply contains `hires`.
+- `1` to `4` - the aspect ratio of the emulator window; `2` equals the
+  window at 100 % (MZ-800 full frame 928x576). Scale `1` drops every
+  second column in the 640-dot modes.
+
+Example - the 256x192 middle of a 320x200 picture:
+
+```python
+emu_screenshot_save_to_file(path="C:/tmp/viewport.png", area="canvas",
+                            scale="native",
+                            crop={"x": 32, "y": 4, "width": 256, "height": 192})
+```
+
+An unknown value or a crop outside the image is an error, no file is
+written.
+
 ### Known limitations
 
 - **Race condition in GUI mode** - if the client requests

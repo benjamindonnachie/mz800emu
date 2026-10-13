@@ -102,6 +102,39 @@ Resource `emulator://frame/framebuffer/info` s 16-entry paletou; raw
 pixels by ovšem bylo nutné získat jiným Tool (= ne přes screenshot.raw,
 který RGBA expand provádí backend).
 
+### PNG do souboru s oblastí, měřítkem a ořezem
+
+`emu_screenshot_save_to_file` (příkaz `screenshot_save_to_file`) zapíše
+PNG přímo do souboru na počítači se serverem. Volitelné parametry určují,
+co se uloží:
+
+| Parametr | Hodnoty | Význam |
+|----------|---------|--------|
+| `area` | `full` (výchozí), `canvas` | celý obraz s borderem, nebo jen obraz bez borderu |
+| `scale` | `framebuffer` (výchozí), `native`, `1` až `4` | viz níže |
+| `crop` | `{"x", "y", "width", "height"}` | výřez ve výstupních pixelech, jen s `framebuffer` nebo `native` |
+
+- `framebuffer` - pixely framebufferu 1:1, jeden pixel na takt GDG
+  vodorovně a na obrazový řádek svisle (MZ-800 celý obraz 928x288,
+  obraz bez borderu 640x200). Tak se příkaz chová bez parametrů.
+- `native` - jeden pixel obrázku na bod počítače. Když jsou v oblasti
+  všechny dvojice sousedních pixelů framebufferu stejné (režimy 320
+  bodů), šířka se zpoloviční (MZ-800 obraz 320x200), jinak zůstane
+  (640x200); řádky 1:1. Odpověď obsahuje `hires`.
+- `1` až `4` - poměr stran jako v okně emulátoru; `2` odpovídá oknu na
+  100 % (MZ-800 celý obraz 928x576). Měřítko `1` v režimech 640 bodů
+  vynechá každý druhý sloupec.
+
+Příklad - prostředních 256x192 bodů obrazu 320x200:
+
+```python
+emu_screenshot_save_to_file(path="C:/tmp/viewport.png", area="canvas",
+                            scale="native",
+                            crop={"x": 32, "y": 4, "width": 256, "height": 192})
+```
+
+Neznámá hodnota nebo ořez mimo obraz je chyba, soubor se nezapíše.
+
 ### Známá omezení
 
 - **Race condition v GUI mode** - pokud klient požaduje screenshot

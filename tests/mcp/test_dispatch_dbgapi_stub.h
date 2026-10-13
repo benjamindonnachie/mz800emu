@@ -57,6 +57,8 @@ typedef struct st_DISPATCH_STUB_STATE {
     en_DBGAPI_CMD        last_cmd;     /**< Poslední cmd předaný submitu. */
     en_DBGAPI_CMD_ORIGIN last_origin;  /**< Origin field z posledního volání. */
     void                *last_data;    /**< data_ptr poslední call. */
+    uint16_t             cpu_flags_last_mask; /**< update_mask posledního SET_CPU_FLAGS. */
+    uint8_t              cpu_flags_last_r;    /**< r_reg posledního SET_CPU_FLAGS. */
     void                *last_result;  /**< result_ptr poslední call. */
     int                  call_count;   /**< Počet volání mocku. */
     bool                 fail_next;    /**< Pokud true, příští call vrátí false. */
@@ -693,6 +695,7 @@ typedef struct st_DISPATCH_STUB_STATE {
     uint8_t              periph_gdg_fake_has_pal_group;
     uint8_t              periph_gdg_fake_has_cksw;
     uint8_t              periph_gdg_fake_regDMD;
+    uint8_t              periph_gdg_fake_has_vramctrl; /**< 1 = vyplnit WF/RF + HW scroll (MZ-800). */
     int                  periph_wd1793_calls;
     uint8_t              periph_wd1793_fake_available;
     uint8_t              periph_wd1793_fake_status;
@@ -740,6 +743,8 @@ typedef struct st_DISPATCH_STUB_STATE {
     int                  frame_screenshot_raw_calls;
     uint8_t              fb_available;
     int                  frame_screenshot_png_calls;
+    st_SCREENSHOT_OPTS   frame_screenshot_png_last_opts; /**< opts posledního GET_FRAME_SCREENSHOT_PNG. */
+    uint8_t              frame_screenshot_png_fake_bad_opts; /**< 1 = stub vrátí available=0 + bad_opts. */
     int                  video_text_dump_calls;
     uint8_t              text_dump_available;
 

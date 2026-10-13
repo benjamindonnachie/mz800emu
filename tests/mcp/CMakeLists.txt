@@ -59,6 +59,7 @@ mz_add_test(mcp_dispatch
         ${CMAKE_SOURCE_DIR}/src/emulator/mcp/cooperation.c
         ${CMAKE_SOURCE_DIR}/src/emulator/mcp/event_bus.c
         ${CMAKE_SOURCE_DIR}/src/emulator/mcp/trap_manager.c
+        ${CMAKE_SOURCE_DIR}/src/emulator/screenshot/screenshot.c
     LABELS   "standalone;mcp"
 )
 
@@ -462,6 +463,44 @@ if(Python3_FOUND)
         SKIP_RETURN_CODE 77
     )
     message(STATUS "  tests/mcp: registered mcp_mode_switch "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
+    # Test 7d1c: get_periph_gdg - řadič VRAM (WF/RF) a HW scroll MZ-800
+    # -----------------------------------------------------------
+    # Program zapíše WF, RF a registry scrollu; odpověď nese objekty
+    # vramctrl a hwscroll (scroll v jednotkách portu).
+    add_test(
+        NAME    mcp_periph_gdg_vramctrl
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_periph_gdg_vramctrl.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_periph_gdg_vramctrl PROPERTIES
+        LABELS  "e2e;mcp;tcp"
+        TIMEOUT 60
+        SKIP_RETURN_CODE 77
+    )
+    message(STATUS "  tests/mcp: registered mcp_periph_gdg_vramctrl "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
+    # Test 7d1d: screenshot_save_to_file - area, scale, crop
+    # -----------------------------------------------------------
+    # Rozměry PNG pro výchozí, canvas+native, scale 2 a ořez;
+    # ořez mimo obraz je chyba parametrů.
+    add_test(
+        NAME    mcp_screenshot_options
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_screenshot_options.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_screenshot_options PROPERTIES
+        LABELS  "e2e;mcp;tcp"
+        TIMEOUT 60
+        SKIP_RETURN_CODE 77
+    )
+    message(STATUS "  tests/mcp: registered mcp_screenshot_options "
                    "(Python ${Python3_VERSION})")
 
     # -----------------------------------------------------------

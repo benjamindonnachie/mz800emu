@@ -1241,9 +1241,10 @@ async def emu_set_register(reg: str, value: int) -> str:
     Accepts the same case-insensitive register names returned by
     ``emu_get_registers``: ``AF``, ``BC``, ``DE``, ``HL``, ``AF_`` /
     ``AF2``, ``BC_`` / ``BC2``, ``DE_`` / ``DE2``, ``HL_`` / ``HL2``,
-    ``IX``, ``IY``, ``SP``, ``PC``, ``WZ``, ``IR``. For the ``IR``
-    register only the lower byte (R) is updated and the I register
-    keeps its previous value (matches the debugger UI behaviour).
+    ``IX``, ``IY``, ``SP``, ``PC``, ``WZ``, ``IR``. ``IR`` writes the
+    complete I:R pair - I is the high byte, R the low byte including
+    bit 7 (like LD I,A plus LD R,A) - so a saved CPU state can be
+    restored exactly.
 
     WARNING: This is a destructive operation. Mutating ``PC`` mid-flight
     changes the execution path; mutating ``SP`` invalidates the current
@@ -1253,8 +1254,8 @@ async def emu_set_register(reg: str, value: int) -> str:
 
     Args:
         reg: register name (case-insensitive).
-        value: 16-bit value 0..65535 (for 8-bit registers I/R only
-            the lower byte is meaningful).
+        value: 16-bit value 0..65535 (for ``IR``: I in the high
+            byte, R in the low byte).
     """
     if not (0 <= value <= 0xFFFF):
         return json.dumps({"error": "value must be in range 0..65535"})
@@ -5070,8 +5071,9 @@ async def emu_set_cpu_flags(iff1: int = -1, iff2: int = -1,
         iff2: shadow interrupt enable (0 or 1).
         im: Interrupt Mode (0, 1 or 2). Other values are rejected.
         i: Interrupt Vector register (0..255).
-        r: Memory Refresh register (0..255). Bit 7 is preserved by
-            the backend to match the LD A,R / RETI semantics.
+        r: Memory Refresh register (0..255). All 8 bits are written,
+            including bit 7, the same as the LD R,A instruction (the
+            refresh counter itself only increments bits 0-6).
 
     Returns:
         JSON ``{"updated": ["iff1", "im", ...], "values": {...}}``
@@ -6792,6 +6794,20 @@ async def resource_periph_gdg() -> str:
     For MZ-700/MZ-1500 entries 0..7 are the ``mode_color[]`` values
     directly.
 
+    MZ-800 only (the keys are absent on MZ-700/MZ-1500):
+
+      - ``vramctrl``: VRAM access registers of the 800 graphics modes,
+        ``{"wf_mode": "single"|"exor"|"or"|"reset"|"replace"|"pset",
+        "wf_mode_code": int, "wf_planes": int, "rf_planes": int,
+        "rf_search": bool, "vbank": 0|1}``. Plane masks: bit 0 = plane I
+        .. bit 3 = plane IV. WF is port 0CCh, RF port 0CDh; both are
+        write-only on the real machine, these are mirrors.
+      - ``hwscroll``: hardware scroll registers in the units the program
+        writes to the ports, ``{"enabled": bool, "sof": 0..3FFh (01CFh +
+        02CFh), "ssa": 0..7Fh (04CFh), "sea": 0..7Fh (05CFh), "sw": 0..7Fh
+        (03CFh)}``. ``enabled`` is true when the register values activate
+        the scroll.
+
     The handler is side-effect free; no GDG register read/write occurs
     during snapshot. Reading ``beam_row`` returns the instantaneous
     raster line, useful for raster-effect debugging.
@@ -7155,7 +7171,10 @@ async def resource_frame_screenshot() -> str:
 
 
 @mcp.tool()
-async def emu_screenshot_save_to_file(path: str, format: str = "png") -> str:
+async def emu_screenshot_save_to_file(path: str, format: str = "png",
+                                      area: str = "full",
+                                      scale: str = "framebuffer",
+                                      crop: Optional[dict] = None) -> str:
     """Render the current frame as PNG and save it directly to a file on the server host.
 
     This is the robust, self-service path for visual verification. Unlike the
@@ -7164,18 +7183,40 @@ async def emu_screenshot_save_to_file(path: str, format: str = "png") -> str:
     the large transport payload entirely. The AI client then reads the written
     file from disk.
 
+    The framebuffer has one pixel per GDG clock horizontally and one per
+    picture line vertically; the picture area (canvas) is 640 framebuffer
+    pixels wide, so in the 320-dot modes one dot is two framebuffer pixels.
+
     Args:
         path: destination file path on the server host. An absolute path is
             recommended; relative paths resolve against the server process
             working directory.
         format: image format, currently only ``png`` (default). Any other
             value is rejected with an error.
+        area: ``full`` (default) - the whole frame including the border;
+            ``canvas`` - the picture only, without the border.
+        scale: ``framebuffer`` (default) - framebuffer pixels 1:1 (MZ-800
+            full frame 928x288); ``native`` - one image pixel per dot of
+            the computer: width halved when all pairs of framebuffer
+            pixels are equal (320-dot modes, MZ-800 canvas 320x200),
+            otherwise kept (640x200), lines 1:1; ``"1"`` to ``"4"`` - the
+            aspect ratio of the emulator window, ``"2"`` equals the window
+            at 100 % (MZ-800 full frame 928x576). Scale 1 drops every
+            second column in the 640-dot modes.
+        crop: optional rectangle ``{"x": int, "y": int, "width": int,
+            "height": int}`` in output pixels, only with ``framebuffer``
+            or ``native``. For a 256x192 ZX Spectrum style viewport in the
+            middle of a 320x200 canvas use ``area="canvas"``,
+            ``scale="native"``, ``crop={"x": 32, "y": 4, "width": 256,
+            "height": 192}``.
 
     Returns:
         ``{"available": true, "path": str, "format": "png", "width": int,
-        "height": int, "byte_size": int}`` on success, or
+        "height": int, "byte_size": int, "area": str, "scale": str}`` on
+        success (plus ``"hires": bool`` for ``scale="native"``), or
         ``{"available": false, "reason": str}`` when the framebuffer has not
-        been rendered yet.
+        been rendered yet. Invalid ``area``, ``scale`` or ``crop`` (also a
+        crop outside the image) returns an error.
 
     Note:
         Path access is unrestricted under the V0 ``wild`` security profile;
@@ -7184,8 +7225,15 @@ async def emu_screenshot_save_to_file(path: str, format: str = "png") -> str:
     data: dict[str, Any] = {"path": path}
     if format:
         data["format"] = format
+    if area:
+        data["area"] = area
+    if scale:
+        data["scale"] = scale
+    if crop is not None:
+        data["crop"] = crop
     resp = await _send_request("screenshot_save_to_file", data)
     return json.dumps(_data_or_error(resp))
+
 
 
 @mcp.resource("emulator://video/text_dump")

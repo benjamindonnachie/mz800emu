@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mz800emu 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-08 21:08+0200\n"
+"POT-Creation-Date: 2026-10-13 17:00+0200\n"
 "PO-Revision-Date: 2026-03-11 21:00+0100\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -63,21 +63,21 @@ msgstr ""
 "Adres = 0x%04x\n"
 "Instructie = '%s'\n"
 
-#: src/emulator/emulator.c:387
+#: src/emulator/emulator.c:392
 #: src/ui-imgui/mcp_activity/mcp_activity_window.cpp:421
 #: src/ui-imgui/videorec/videorec_menu.cpp:140
 msgid "PAUSED"
 msgstr "GEPAUZEERD"
 
-#: src/emulator/emulator.c:390
+#: src/emulator/emulator.c:395
 msgid "Max speed"
 msgstr "Maximale snelheid"
 
-#: src/emulator/emulator.c:393
+#: src/emulator/emulator.c:398
 msgid "Custom speed"
 msgstr "Aangepaste snelheid"
 
-#: src/emulator/emulator.c:395
+#: src/emulator/emulator.c:400
 msgid "Normal speed"
 msgstr "Normale snelheid"
 
@@ -101,7 +101,7 @@ msgstr "Tapebestanden"
 msgid "Select CMT file to open"
 msgstr "Selecteer CMT-bestand om te openen"
 
-#: src/emulator/hw-generic/cmt/cmthack.c:187
+#: src/emulator/hw-generic/cmt/cmthack.c:206
 msgid "Select a MZF File"
 msgstr "Selecteer een MZF-bestand"
 
@@ -654,6 +654,7 @@ msgstr "Elke lengte moet groter zijn dan 0 en hoogstens %.0f µs."
 #: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:109
 #: src/ui-imgui/joy/joy_setup_window.cpp:564
 #: src/ui-imgui/message/message_window.cpp:90
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:308
 #: src/ui-imgui/snapshot/snapshot_notification.cpp:95
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:338
 msgid "OK"
@@ -671,6 +672,7 @@ msgstr "OK"
 #: src/ui-imgui/memext/memext_save_dialog.cpp:207
 #: src/ui-imgui/ramdisk/pezik_settings_window.cpp:289
 #: src/ui-imgui/rom/rom_settings_window.cpp:323
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:313
 #: src/ui-imgui/snapshot/snapshot_save_dialog.cpp:139
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:176
 #: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:99
@@ -9549,7 +9551,7 @@ msgstr "Apparaten opnieuw scannen"
 msgid "Joystick"
 msgstr "Joystick"
 
-#: src/ui-imgui/main_window.cpp:102
+#: src/ui-imgui/main_window.cpp:104
 msgid "No audio device - running without sound"
 msgstr "Geen audioapparaat - draait zonder geluid"
 
@@ -10308,6 +10310,130 @@ msgstr "ROM binaire bestanden"
 msgid "CMT Hack Patch ROM"
 msgstr "CMT Hack patch ROM"
 
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:57
+msgid "The emulator screen is not available"
+msgstr "Het emulatorscherm is niet beschikbaar"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:92
+#, c-format
+msgid "Screenshot saved (%u x %u): %s"
+msgstr "Schermafbeelding opgeslagen (%u x %u): %s"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:96
+#, c-format
+msgid "Cannot save screenshot to '%s': %s"
+msgstr "Kan schermafbeelding niet opslaan naar '%s': %s"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:97
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:142
+msgid "Screenshot Error"
+msgstr "Fout bij schermafbeelding"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:127
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:159
+msgid "Save Screenshot"
+msgstr "Schermafbeelding opslaan"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:141
+#: src/ui-imgui/videorec/videorec_menu.cpp:422
+#, c-format
+msgid "Cannot open folder: %s"
+msgstr "Kan map niet openen: %s"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:158
+msgid "Screenshot"
+msgstr "Schermafbeelding"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:162
+msgid "Save Screenshot As..."
+msgstr "Schermafbeelding opslaan als..."
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:166
+#: src/ui-imgui/videorec/videorec_menu.cpp:462
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:317
+msgid "Settings..."
+msgstr "Instellingen..."
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:169
+#: src/ui-imgui/videorec/videorec_menu.cpp:466
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:315
+msgid "Open Output Folder"
+msgstr "Uitvoermap openen"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:199
+msgid "Native (computer dots, 320 or 640 wide)"
+msgstr "Native (punten van de computer, 320 of 640 breed)"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:200
+msgid "1x"
+msgstr "1x"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:201
+msgid "2x (window at 100 %)"
+msgstr "2x (venster op 100 %)"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:202
+msgid "3x"
+msgstr "3x"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:203
+msgid "4x"
+msgstr "4x"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:218
+#, c-format
+msgid "Image size: %u x %u or %u x %u (640-dot modes)"
+msgstr "Afbeeldingsgrootte: %u x %u of %u x %u (640-puntsmodi)"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:221
+#, c-format
+msgid "Image size: %u x %u"
+msgstr "Afbeeldingsgrootte: %u x %u"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:238
+msgid "Screenshot Settings"
+msgstr "Instellingen schermafbeelding"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:243
+msgid "Area"
+msgstr "Gebied"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:244
+msgid "Whole frame with border"
+msgstr "Volledig beeld met rand"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:247
+msgid "Picture without border"
+msgstr "Beeld zonder rand"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:253
+msgid "Scale"
+msgstr "Schaal"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:277
+msgid "1x drops every second column in the 640-dot modes."
+msgstr "1x laat in de 640-puntsmodi elke tweede kolom weg."
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:282
+#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:260
+msgid "Output folder"
+msgstr "Uitvoermap"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:285
+msgid "(default: screenshots folder next to the emulator)"
+msgstr "(standaard: map screenshots naast de emulator)"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:295
+#: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:80
+#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:273
+msgid "Select Directory"
+msgstr "Map selecteren"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:300
+#, c-format
+msgid "Save Screenshot (%s) saves the picture shown in the window."
+msgstr "Schermafbeelding opslaan (%s) slaat het in het venster getoonde beeld op."
+
 #: src/ui-imgui/snapshot/snapshot_load_dialog.cpp:157
 msgid "Snapshot Preview"
 msgstr "Momentopname-voorbeeld"
@@ -10405,11 +10531,6 @@ msgstr "Momentopname-instellingen"
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:64
 msgid "Default Directory"
 msgstr "Standaardmap"
-
-#: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:80
-#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:273
-msgid "Select Directory"
-msgstr "Map selecteren"
 
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:86
 msgid "Default Save Options"
@@ -10675,7 +10796,7 @@ msgid "Unicard alternate FDC ports 0x58 - 0x5F"
 msgstr "Alternatieve Unicard-FDC-poorten 0x58 - 0x5F"
 
 #: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:440
-#: src/ui-imgui/topmenu/menu_tools.cpp:30
+#: src/ui-imgui/topmenu/menu_tools.cpp:31
 msgid "Tools"
 msgstr "Extra"
 
@@ -11681,23 +11802,23 @@ msgstr "Verlagen - stap 100 %"
 msgid "Custom Speed Options"
 msgstr "Opties aangepaste snelheid"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:32
+#: src/ui-imgui/topmenu/menu_tools.cpp:33
 msgid "DSK Images..."
 msgstr "DSK-images..."
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:37
+#: src/ui-imgui/topmenu/menu_tools.cpp:38
 msgid "Version Check"
 msgstr "Versiecontrole"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:39
+#: src/ui-imgui/topmenu/menu_tools.cpp:40
 msgid "Make Online Version Check"
 msgstr "Online versiecontrole uitvoeren"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:44
+#: src/ui-imgui/topmenu/menu_tools.cpp:45
 msgid "Version Check Setup"
 msgstr "Instelling versiecontrole"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:64
+#: src/ui-imgui/topmenu/menu_tools.cpp:68
 msgid "MCP Activity##menu_mcp_activity"
 msgstr "MCP Activity##menu_mcp_activity"
 
@@ -11952,11 +12073,6 @@ msgstr "De opname start zodra de emulatie wordt hervat"
 msgid "Recording time base: %s"
 msgstr "Tijdbasis van de opname: %s"
 
-#: src/ui-imgui/videorec/videorec_menu.cpp:422
-#, c-format
-msgid "Cannot open folder: %s"
-msgstr "Kan map niet openen: %s"
-
 #: src/ui-imgui/videorec/videorec_menu.cpp:432
 msgid "Video Recording"
 msgstr "Video-opname"
@@ -11979,16 +12095,6 @@ msgstr ""
 "Aangevinkt: de opname volgt de echte tijd (wat op het scherm en uit de "
 "luidsprekers kwam). Uitgevinkt: emulatietijd (één geëmuleerd frame = één "
 "videoframe)."
-
-#: src/ui-imgui/videorec/videorec_menu.cpp:462
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:317
-msgid "Settings..."
-msgstr "Instellingen..."
-
-#: src/ui-imgui/videorec/videorec_menu.cpp:466
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:315
-msgid "Open Output Folder"
-msgstr "Uitvoermap openen"
 
 #: src/ui-imgui/videorec/videorec_menu.cpp:470
 msgid "Remote Control..."
@@ -12216,10 +12322,6 @@ msgstr ""
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:255
 msgid "Video Recording Settings"
 msgstr "Instellingen video-opname"
-
-#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:260
-msgid "Output folder"
-msgstr "Uitvoermap"
 
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:263
 msgid "(default: videos folder next to the emulator)"

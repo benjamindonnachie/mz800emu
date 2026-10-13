@@ -34,6 +34,14 @@ mz_add_test(gdg_mirror
     LABELS   "emu;peripherals"
 )
 
+# HW scroll MZ-800: zápis registru uprostřed řádku nesmí přemapovat pixely,
+# které paprsek už vykreslil; ladicí settery v jednotkách portu.
+mz_add_test(hwscroll
+    TYPE     EMU
+    SOURCES  test_hwscroll.c
+    LABELS   "emu;peripherals"
+)
+
 # Bootstrap --run-mzf (MZ-800 mód) nastavuje DMD cestou OUT CEh
 # (GATE0 CTC0, latch MZ-700), ne přímým zápisem g_gdg.regDMD.
 mz_add_test(mz800_bootstrap_dmd

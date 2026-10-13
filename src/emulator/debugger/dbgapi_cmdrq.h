@@ -32,6 +32,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include "app/app_thread.h"
+#include "screenshot/screenshot.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -951,7 +952,10 @@ typedef struct st_DBGAPI_CPU_FLAGS
 #define DBGAPI_CPU_FLAGS_UM_IFF2 (1u << 1)  /**< Zapsat iff2 (0/1) */
 #define DBGAPI_CPU_FLAGS_UM_IM   (1u << 2)  /**< Zapsat im (0/1/2 - jine hodnoty rejected) */
 #define DBGAPI_CPU_FLAGS_UM_I    (1u << 3)  /**< Zapsat i_reg (8-bit) */
-#define DBGAPI_CPU_FLAGS_UM_R    (1u << 4)  /**< Zapsat r_reg (8-bit) */
+/** Zapsat dolních 7 bitů r_reg (refresh čítač), bit 7 R zachovat - editace v okně CPU. */
+#define DBGAPI_CPU_FLAGS_UM_R    (1u << 4)
+/** Zapsat celý r_reg včetně bitu 7, jako instrukce LD R,A (MCP set_cpu_flags). Přednost před UM_R. */
+#define DBGAPI_CPU_FLAGS_UM_R_FULL (1u << 5)
 
 /**
  * @brief IM2 ISR vektor pro CPU window (jen platformy s PIO-Z80).
@@ -3789,6 +3793,20 @@ typedef struct st_DBGAPI_PERIPH_GDG_PARAM
     uint8_t  _pad[2];            /**< Zarovnání. */
     uint32_t tempo;              /**< OUT: tempo počítadlo (společné). */
     uint32_t tempo_divider;      /**< OUT: tempo_divider (společné). */
+    /* --- MZ-800: řadič VRAM (WF/RF, porty CCh/CDh) - platné při has_vramctrl --- */
+    uint8_t  has_vramctrl;       /**< OUT: 1 = MZ-800 (pole wf_* / rf_* / wfrf_vbank platná), 0 = jinde. */
+    uint8_t  wf_mode;            /**< OUT: režim zápisu WF 0-7 (enum WFR_MODE: 0 SINGLE, 1 EXOR, 2 OR, 3 RESET, 4 REPLACE, 6 PSET). */
+    uint8_t  wf_plane;           /**< OUT: maska plane pro zápis (bit 0 = I .. bit 3 = IV). */
+    uint8_t  rf_plane;           /**< OUT: maska plane pro čtení (bit 0 = I .. bit 3 = IV). */
+    uint8_t  rf_search;          /**< OUT: RF bit 7: 1 = vyhledávací (search) čtení, 0 = jednoduché. */
+    uint8_t  wfrf_vbank;         /**< OUT: VBANK pro přístup CPU do VRAM (0 = A, 1 = B). */
+    /* --- MZ-800: HW scroll (porty 01CFh-05CFh) - platné při has_hwscroll --- */
+    uint8_t  has_hwscroll;       /**< OUT: 1 = MZ-800 (pole hs_* platná), 0 = jinde. */
+    uint8_t  hs_enabled;         /**< OUT: 1 = podmínky scrollu splněné, scroll se uplatňuje. */
+    uint16_t hs_sof;             /**< OUT: SOF v jednotkách portů 01CFh/02CFh (0..3FFh). */
+    uint8_t  hs_ssa;             /**< OUT: SSA v jednotkách portu 04CFh (0..7Fh). */
+    uint8_t  hs_sea;             /**< OUT: SEA v jednotkách portu 05CFh (0..7Fh). */
+    uint8_t  hs_sw;              /**< OUT: SW v jednotkách portu 03CFh (0..7Fh). */
 } st_DBGAPI_PERIPH_GDG_PARAM;
 
 
@@ -4121,10 +4139,10 @@ typedef struct st_DBGAPI_FRAME_SCREENSHOT_RAW_PARAM
  * @brief Parametr pro DBGAPI_CMD_GET_FRAME_SCREENSHOT_PNG.
  *
  * Handler enkóduje aktuální framebuffer (= stejná pixel cesta jako
- * screenshot_raw: INDEX8 buffer expandovaný přes paletu na RGBA8888) do
- * PNG streamu pomocí vendorovaného stb_image_write.h. PNG je vždy plný
- * frame bez downscale (= jiný kontejner než raw, ale identický obsah
- * při raw factor=1).
+ * screenshot_raw: INDEX8 buffer) do PNG přes jádro screenshotu
+ * (screenshot_encode_png): oblast, měřítko a ořez podle `opts`. Nulová
+ * `opts` (memset 0) = celý framebuffer 1:1 bez ořezu, tedy identický
+ * obsah jako raw při factor=1.
  *
  * Při úspěchu `available=1`, `buffer` ukazuje na handlerem alokovaný
  * PNG file stream (glib alokace) a `buffer_size` je jeho délka; dispatch
@@ -4137,6 +4155,9 @@ typedef struct st_DBGAPI_FRAME_SCREENSHOT_RAW_PARAM
  */
 typedef struct st_DBGAPI_FRAME_SCREENSHOT_PNG_PARAM
 {
+    st_SCREENSHOT_OPTS opts;      /**< IN: oblast, měřítko, ořez (memset 0 = celý framebuffer 1:1). */
+    uint8_t  hires;               /**< OUT: měřítko native ponechalo šířku 640 bodů. */
+    uint8_t  bad_opts;            /**< OUT: při available=0 - neplatné opts (ořez mimo obraz, měřítko), reason popisuje. */
     uint8_t  available;           /**< OUT: 1 = PNG stream zapsán, 0 = nedostupný. */
     uint8_t  _pad[3];
     uint32_t width;               /**< OUT: šířka obrázku v pixelech. */

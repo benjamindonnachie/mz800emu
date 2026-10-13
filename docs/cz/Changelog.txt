@@ -1,3 +1,15 @@
+	- Nová funkce: screenshoty (Tools -> Screenshot) na všech platformách. Save Screenshot (Alt+F) uloží PNG obrazu zobrazeného v okně do výstupní složky (výchozí: screenshots vedle emulátoru) se jménem podle platformy a času, Save Screenshot As... se zeptá na jméno souboru. V Settings... se volí oblast (celý obraz s borderem, nebo obraz bez borderu), měřítko (nativní body počítače - obraz 320x200 nebo 640x200 - nebo 1x až 4x s poměrem stran okna, 2x = okno na 100 %) a výstupní složka; nastavení se ukládá do konfigurace. Viz screenshots.md.
+
+	- MCP - emu_screenshot_save_to_file má nové volitelné parametry area (celý obraz, nebo obraz bez borderu), scale (pixely framebufferu jako dosud, body počítače - obraz 320x200 nebo 640x200 - nebo 1 až 4násobek s poměrem stran okna emulátoru) a crop (výřez nativního obrázku). Viz mcp-server/headless-mode.md.
+
+	- ZMĚNA: MCP - emu_set_register s IR nyní zapíše celý pár I:R (dříve jen bity 0-6 registru R, I beze změny) a emu_set_cpu_flags zapíše všech 8 bitů R včetně bitu 7, stejně jako instrukce LD R,A. Uložený stav CPU tak jde obnovit přesně. Editace R v okně CPU debuggeru bit 7 dál zachovává.
+
+	- MCP - emulator://periph/gdg u MZ-800 vrací i registry přístupu do VRAM (vramctrl: zápisový formát WF s režimem zápisu a rovinami, čtecí formát RF s vyhledávacím režimem a rovinami, VBANK) a registry hardwarového scrollu (hwscroll: SOF, SSA, SEA, SW v jednotkách zapisovaných do portů a zda je scroll aktivní).
+
+	- BUGFIX: Debugger - okno I/O portů zobrazovalo registry hardwarového scrollu MZ-800 SOF, SW, SSA a SEA posunuté (např. 28h po zápisu A5h do SOF). Nyní ukazuje hodnoty, které program zapsal.
+
+	- BUGFIX: MZ-800 hardwarový scroll - změna registru scrollu (SOF, SW, SSA, SEA) uprostřed obrazového řádku se uplatnila i na část řádku, kterou paprsek už vykreslil. Vykreslená část si nyní ponechá předchozí polohu scrollu.
+
 	- BUGFIX: CTC 8253 a reproduktor - okamžik zápisu do CTC (včetně GATE CTC0) a změny reproduktoru se počítal, jako by už provedená část instrukce uběhla dvakrát, např. 14 cyklů CPU od začátku LD (HL),A, která trvá 7. CTC0 tak začínal čítat o několik period CLK0 později a hrany reproduktoru dostávaly o stejnou dobu pozdější čas. Nahrávání hodnoty do CTC naměřené na skutečném MZ-800 se nemění.
 
 	- BUGFIX: Debugger - každé uložení metadat ve formátu JSON ztratilo v paměti celý strom JSON: záznamy trace (každý chunk přepisuje svá metadata), breakpointy, záložky, watch, proměnné breakpointů a Memory Heatmap. Paměť zabraná dlouhým záznamem trace tak rostla s jeho délkou.

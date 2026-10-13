@@ -2201,7 +2201,8 @@ static en_MCP_DISPATCH_RESULT _handle_set_cpu_flags(
                                  MCP_DISPATCH_INVALID_PARAMS, out_response);
         }
         param.r_reg = (uint8_t)r;
-        param.update_mask |= DBGAPI_CPU_FLAGS_UM_R;
+        /* MCP zapisuje celý bajt jako LD R,A (včetně bitu 7). */
+        param.update_mask |= DBGAPI_CPU_FLAGS_UM_R_FULL;
     }
 
     if (param.update_mask == 0) {
@@ -2236,7 +2237,7 @@ static en_MCP_DISPATCH_RESULT _handle_set_cpu_flags(
         json_array_add_string_element(updated, "i");
         json_object_set_int_member(values, "i", (gint64)param.i_reg);
     }
-    if (param.update_mask & DBGAPI_CPU_FLAGS_UM_R) {
+    if (param.update_mask & DBGAPI_CPU_FLAGS_UM_R_FULL) {
         json_array_add_string_element(updated, "r");
         json_object_set_int_member(values, "r", (gint64)param.r_reg);
     }
@@ -12114,7 +12115,11 @@ static en_MCP_DISPATCH_RESULT _handle_get_periph_beeper(
  *    "regDMD": int, "regBOR": int, "regPALGRP": int, "regct53g7": int,
  *    "beam_row": int, "total_screens": int, "total_ticks": int,
  *    "sts_vsync": int, "sts_hsync": int, "hbln": int, "vbln": int,
- *    "cksw": int, "tempo": int, "tempo_divider": int}
+ *    "cksw": int, "tempo": int, "tempo_divider": int,
+ *    jen MZ-800: "vramctrl": {"wf_mode": str, "wf_mode_code": int,
+ *      "wf_planes": int, "rf_planes": int, "rf_search": bool, "vbank": int},
+ *    "hwscroll": {"enabled": bool, "sof": int, "ssa": int, "sea": int,
+ *      "sw": int} (scroll v jednotkách portu)}
  */
 static en_MCP_DISPATCH_RESULT _handle_get_periph_gdg(
     const st_JSONL_MESSAGE *req, char **out_response) {
@@ -12150,6 +12155,32 @@ static en_MCP_DISPATCH_RESULT _handle_get_periph_gdg(
     json_object_set_int_member(resp,    "cksw",         (gint64)param.cksw);
     json_object_set_int_member(resp,    "tempo",        (gint64)param.tempo);
     json_object_set_int_member(resp,    "tempo_divider", (gint64)param.tempo_divider);
+    /* MZ-800: řadič VRAM (WF/RF) - objekt jen tam, kde existuje. Kódy 5 a 7
+     * emulátor neukládá (GDG při WM2 = 1 ignoruje WM0, báze
+     * hw/10a-vram-rf-wf.md), tabulka je pro úplnost mapuje jako 4 a 6. */
+    if (param.has_vramctrl) {
+        static const char *const wf_mode_names[8] = {
+            "single", "exor", "or", "reset", "replace", "replace", "pset", "pset"
+        };
+        JsonObject *vc = json_object_new();
+        json_object_set_string_member(vc,  "wf_mode",      wf_mode_names[param.wf_mode & 0x07u]);
+        json_object_set_int_member(vc,     "wf_mode_code", (gint64)param.wf_mode);
+        json_object_set_int_member(vc,     "wf_planes",    (gint64)param.wf_plane);
+        json_object_set_int_member(vc,     "rf_planes",    (gint64)param.rf_plane);
+        json_object_set_boolean_member(vc, "rf_search",    param.rf_search ? TRUE : FALSE);
+        json_object_set_int_member(vc,     "vbank",        (gint64)param.wfrf_vbank);
+        json_object_set_object_member(resp, "vramctrl", vc);
+    }
+    /* MZ-800: HW scroll v jednotkách portu. */
+    if (param.has_hwscroll) {
+        JsonObject *hs = json_object_new();
+        json_object_set_boolean_member(hs, "enabled", param.hs_enabled ? TRUE : FALSE);
+        json_object_set_int_member(hs,     "sof",     (gint64)param.hs_sof);
+        json_object_set_int_member(hs,     "ssa",     (gint64)param.hs_ssa);
+        json_object_set_int_member(hs,     "sea",     (gint64)param.hs_sea);
+        json_object_set_int_member(hs,     "sw",      (gint64)param.hs_sw);
+        json_object_set_object_member(resp, "hwscroll", hs);
+    }
     /* Paleta array, jen palette_count platných entries. */
     JsonArray *pal_arr = json_array_new();
     unsigned pn = param.palette_count;
@@ -12666,6 +12697,86 @@ static en_MCP_DISPATCH_RESULT _handle_get_frame_screenshot(
 
 
 /**
+ * @brief Načte volby screenshotu (area, scale, crop) z parametrů requestu.
+ *
+ * - `area`  (string): "full" (výchozí) nebo "canvas",
+ * - `scale` (string nebo int): "framebuffer" (výchozí), "native", 1..4
+ *           (poměr stran okna, 2 = okno na 100 %),
+ * - `crop`  (objekt {x, y, width, height}): výřez ve výstupních pixelech,
+ *           jen se scale "framebuffer" nebo "native".
+ *
+ * Chybějící klíč = výchozí hodnota (dřívější chování: celý framebuffer 1:1).
+ *
+ * @param obj      Parametry requestu (může být NULL = výchozí volby).
+ * @param opts     Výstup.
+ * @param err      Buffer na anglický popis chyby.
+ * @param err_size Velikost `err`.
+ * @return true = volby načteny; false = neplatná hodnota (popis v `err`).
+ */
+static bool _screenshot_opts_from_json(JsonObject *obj, st_SCREENSHOT_OPTS *opts,
+                                       char *err, size_t err_size) {
+    screenshot_opts_init(opts);
+    if (!obj) return true;
+
+    if (json_object_has_member(obj, "area")) {
+        char *area = _obj_str_dup(obj, "area");
+        bool ok = area && screenshot_area_from_string(area, &opts->area);
+        g_free(area);
+        if (!ok) {
+            g_strlcpy(err, "'area' must be 'full' or 'canvas'", err_size);
+            return false;
+        }
+    }
+
+    if (json_object_has_member(obj, "scale")) {
+        JsonNode *n = json_object_get_member(obj, "scale");
+        bool ok = false;
+        if (n && json_node_get_node_type(n) == JSON_NODE_VALUE) {
+            GType t = json_node_get_value_type(n);
+            if (t == G_TYPE_STRING) {
+                ok = screenshot_scale_from_string(json_node_get_string(n),
+                                                  &opts->scale_mode, &opts->window_scale);
+            } else if (t == G_TYPE_INT64) {
+                gint64 v = json_node_get_int(n);
+                if (v >= 1 && v <= SCREENSHOT_WINDOW_SCALE_MAX) {
+                    opts->scale_mode = SCREENSHOT_SCALE_WINDOW;
+                    opts->window_scale = (unsigned)v;
+                    ok = true;
+                }
+            }
+        }
+        if (!ok) {
+            g_strlcpy(err, "'scale' must be 'framebuffer', 'native' or 1 to 4", err_size);
+            return false;
+        }
+    }
+
+    if (json_object_has_member(obj, "crop")) {
+        JsonNode *n = json_object_get_member(obj, "crop");
+        if (!n || json_node_get_node_type(n) != JSON_NODE_OBJECT) {
+            g_strlcpy(err, "'crop' must be an object {x, y, width, height}", err_size);
+            return false;
+        }
+        JsonObject *c = json_node_get_object(n);
+        gint64 x = _obj_int_or(c, "x", -1);
+        gint64 y = _obj_int_or(c, "y", -1);
+        gint64 w = _obj_int_or(c, "width", -1);
+        gint64 h = _obj_int_or(c, "height", -1);
+        if (x < 0 || y < 0 || w <= 0 || h <= 0 || x > 0xFFFF || y > 0xFFFF || w > 0xFFFF || h > 0xFFFF) {
+            g_strlcpy(err, "'crop' needs non-negative x, y and positive width, height", err_size);
+            return false;
+        }
+        opts->crop = true;
+        opts->crop_x = (unsigned)x;
+        opts->crop_y = (unsigned)y;
+        opts->crop_w = (unsigned)w;
+        opts->crop_h = (unsigned)h;
+    }
+    return true;
+}
+
+
+/**
  * @brief `screenshot_save_to_file` handler - server-side zápis PNG na disk.
  *
  * Reakce na mzdos request 0009. `get_frame_screenshot*` posílá PNG/RGBA
@@ -12678,10 +12789,17 @@ static en_MCP_DISPATCH_RESULT _handle_get_frame_screenshot(
  * Parametry (data):
  *   - `path`   (string, povinné)   - cílová cesta na disku serveru
  *   - `format` (string, volitelné) - jen "png" (default); jiné = chyba
+ *   - `area`   (string, volitelné) - "full" (default) / "canvas"
+ *   - `scale`  (string|int, volitelné) - "framebuffer" (default), "native",
+ *              1..4 (poměr stran okna, 2 = okno na 100 %)
+ *   - `crop`   (objekt, volitelné) - {x, y, width, height} ve výstupních
+ *              pixelech, jen se scale "framebuffer" nebo "native"
+ *   Viz _screenshot_opts_from_json(); neplatné volby = INVALID_PARAMS.
  *
  * Layout response (available=true):
  *   {"available": true, "path": str, "format": "png",
- *    "width": N, "height": N, "byte_size": N}
+ *    "width": N, "height": N, "byte_size": N,
+ *    "area": str, "scale": str, "hires": bool (jen scale "native")}
  *   available=false (framebuffer ještě nevykreslen):
  *   {"available": false, "reason": str}
  *
@@ -12716,13 +12834,27 @@ static en_MCP_DISPATCH_RESULT _handle_screenshot_save_to_file(
     }
     g_free(format);
 
+    /* Oblast, měřítko a ořez (výchozí = celý framebuffer 1:1). */
+    st_SCREENSHOT_OPTS opts;
+    char opts_err[128];
+    if (!_screenshot_opts_from_json(data_obj, &opts, opts_err, sizeof(opts_err))) {
+        g_free(path);
+        return _err_response(req_id, opts_err, MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+
     /* PNG capture - stejná emu-thread cesta jako get_frame_screenshot. */
     st_DBGAPI_FRAME_SCREENSHOT_PNG_PARAM param;
     memset(&param, 0, sizeof(param));
+    param.opts = opts;
     if (!_submit_dbgapi(DBGAPI_CMD_GET_FRAME_SCREENSHOT_PNG, &param, NULL)) {
         g_free(path);
         return _err_response(req_id, "get_frame_screenshot failed",
                              MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    if (!param.available && param.bad_opts) {
+        /* Neplatné volby (např. ořez mimo obraz) - chyba parametrů. */
+        g_free(path);
+        return _err_response(req_id, param.reason, MCP_DISPATCH_INVALID_PARAMS, out_response);
     }
     if (!param.available) {
         JsonObject *resp = json_object_new();
@@ -12757,6 +12889,11 @@ static en_MCP_DISPATCH_RESULT _handle_screenshot_save_to_file(
     json_object_set_int_member(resp,     "width",     (gint64)param.width);
     json_object_set_int_member(resp,     "height",    (gint64)param.height);
     json_object_set_int_member(resp,     "byte_size", (gint64)param.buffer_size);
+    json_object_set_string_member(resp,  "area",  screenshot_area_to_string(opts.area));
+    json_object_set_string_member(resp,  "scale", screenshot_scale_to_string(opts.scale_mode, opts.window_scale));
+    if (opts.scale_mode == SCREENSHOT_SCALE_NATIVE) {
+        json_object_set_boolean_member(resp, "hires", param.hires ? TRUE : FALSE);
+    }
     g_free(path);
     return _ok_response(req_id, resp, out_response);
 }

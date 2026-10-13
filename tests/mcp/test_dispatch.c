@@ -5062,6 +5062,25 @@ static JsonNode *_v1d1_dispatch_and_get_data(const char *cmd,
 }
 
 
+/**
+ * @brief set_cpu_flags {"r": N} zapíše celý bajt R včetně bitu 7 (jako LD R,A):
+ *        dispatch posílá DBGAPI_CPU_FLAGS_UM_R_FULL, ne UM_R (7 bitů pro okno CPU).
+ */
+void test_set_cpu_flags_r_writes_full_byte(void) {
+    dispatch_stub_reset();
+    st_JSONL_MESSAGE *req = _make_request(
+        "{\"type\":\"request\",\"id\":9101,\"cmd\":\"set_cpu_flags\",\"data\":{\"r\":133}}");
+    char *resp = NULL;
+    en_MCP_DISPATCH_RESULT rc = mcp_dispatch_request(req, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_TRUE(g_stub_state.cpu_flags_last_mask & DBGAPI_CPU_FLAGS_UM_R_FULL);
+    TEST_ASSERT_FALSE(g_stub_state.cpu_flags_last_mask & DBGAPI_CPU_FLAGS_UM_R);
+    TEST_ASSERT_EQUAL_HEX8(0x85, g_stub_state.cpu_flags_last_r);
+    free(resp);
+    jsonl_msg_free(req);
+}
+
+
 void test_get_config_settings_returns_filtered_or_sections(void) {
     dispatch_stub_reset();
     /* Stub vrátí non-OK pro SETTINGS_GET (= settings_fake_result = -2),
@@ -6097,6 +6116,22 @@ void test_get_periph_gdg_mz800_layout(void) {
         (int)json_array_get_int_element(pal, 1));
     TEST_ASSERT_EQUAL_INT(15 * 16,
         (int)json_array_get_int_element(pal, 15));
+    /* MZ-800: řadič VRAM (WF/RF) a HW scroll v jednotkách portu. */
+    TEST_ASSERT_TRUE(json_object_has_member(obj, "vramctrl"));
+    JsonObject *vc = json_object_get_object_member(obj, "vramctrl");
+    TEST_ASSERT_EQUAL_STRING("replace", json_object_get_string_member(vc, "wf_mode"));
+    TEST_ASSERT_EQUAL_INT(4, (int)json_object_get_int_member(vc, "wf_mode_code"));
+    TEST_ASSERT_EQUAL_INT(0x05, (int)json_object_get_int_member(vc, "wf_planes"));
+    TEST_ASSERT_EQUAL_INT(0x02, (int)json_object_get_int_member(vc, "rf_planes"));
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(vc, "rf_search"));
+    TEST_ASSERT_EQUAL_INT(1, (int)json_object_get_int_member(vc, "vbank"));
+    TEST_ASSERT_TRUE(json_object_has_member(obj, "hwscroll"));
+    JsonObject *hs = json_object_get_object_member(obj, "hwscroll");
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(hs, "enabled"));
+    TEST_ASSERT_EQUAL_INT(0x123, (int)json_object_get_int_member(hs, "sof"));
+    TEST_ASSERT_EQUAL_INT(5, (int)json_object_get_int_member(hs, "ssa"));
+    TEST_ASSERT_EQUAL_INT(0x7D, (int)json_object_get_int_member(hs, "sea"));
+    TEST_ASSERT_EQUAL_INT(0x78, (int)json_object_get_int_member(hs, "sw"));
     TEST_ASSERT_EQUAL_INT(1, g_stub_state.periph_gdg_calls);
     json_node_free(data);
     free(raw);
@@ -6114,6 +6149,7 @@ void test_get_periph_gdg_mz1500_layout(void) {
     g_stub_state.periph_gdg_fake_has_border_reg = 0;
     g_stub_state.periph_gdg_fake_has_pal_group  = 0;
     g_stub_state.periph_gdg_fake_has_cksw       = 0;
+    g_stub_state.periph_gdg_fake_has_vramctrl   = 0;
     char *raw = NULL;
     JsonNode *data = _v1d1_dispatch_and_get_data("get_periph_gdg", &raw);
     TEST_ASSERT_NOT_NULL(data);
@@ -6127,6 +6163,9 @@ void test_get_periph_gdg_mz1500_layout(void) {
     TEST_ASSERT_FALSE(json_object_get_boolean_member(obj, "has_cksw"));
     JsonArray *pal = json_object_get_array_member(obj, "palette");
     TEST_ASSERT_EQUAL_INT(8, (int)json_array_get_length(pal));
+    /* MZ-1500 nemá řadič VRAM MZ-800 ani HW scroll. */
+    TEST_ASSERT_FALSE(json_object_has_member(obj, "vramctrl"));
+    TEST_ASSERT_FALSE(json_object_has_member(obj, "hwscroll"));
     json_node_free(data);
     free(raw);
 }
@@ -6553,6 +6592,74 @@ void test_screenshot_save_to_file_png_unavailable(void) {
 }
 
 
+/** @brief Pomocník: screenshot_save_to_file s daty `data_json`, vrátí kód výsledku. */
+static en_MCP_DISPATCH_RESULT _screenshot_request(const char *data_json) {
+    char *line = g_strdup_printf("{\"type\":\"request\",\"req_id\":913,"
+                                 "\"cmd\":\"screenshot_save_to_file\",\"data\":%s}", data_json);
+    st_JSONL_MESSAGE *req = _make_request(line);
+    g_free(line);
+    char *resp = NULL;
+    en_MCP_DISPATCH_RESULT rc = mcp_dispatch_request(req, &resp);
+    free(resp);
+    jsonl_msg_free(req);
+    return rc;
+}
+
+
+/**
+ * @brief screenshot_save_to_file: area, scale a crop se předají do capture.
+ */
+void test_screenshot_save_to_file_options_passed(void) {
+    dispatch_stub_reset();
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _screenshot_request(
+        "{\"path\":\"x.png\",\"area\":\"canvas\",\"scale\":\"native\","
+        "\"crop\":{\"x\":32,\"y\":4,\"width\":256,\"height\":192}}"));
+    const st_SCREENSHOT_OPTS *o = &g_stub_state.frame_screenshot_png_last_opts;
+    TEST_ASSERT_EQUAL_INT(SCREENSHOT_AREA_CANVAS, o->area);
+    TEST_ASSERT_EQUAL_INT(SCREENSHOT_SCALE_NATIVE, o->scale_mode);
+    TEST_ASSERT_TRUE(o->crop);
+    TEST_ASSERT_EQUAL_UINT(32, o->crop_x);
+    TEST_ASSERT_EQUAL_UINT(4, o->crop_y);
+    TEST_ASSERT_EQUAL_UINT(256, o->crop_w);
+    TEST_ASSERT_EQUAL_UINT(192, o->crop_h);
+
+    /* scale jako číslo i jako řetězec; výchozí = framebuffer, full. */
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _screenshot_request("{\"path\":\"x.png\",\"scale\":3}"));
+    TEST_ASSERT_EQUAL_INT(SCREENSHOT_SCALE_WINDOW, o->scale_mode);
+    TEST_ASSERT_EQUAL_UINT(3, o->window_scale);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _screenshot_request("{\"path\":\"x.png\",\"scale\":\"2\"}"));
+    TEST_ASSERT_EQUAL_UINT(2, o->window_scale);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _screenshot_request("{\"path\":\"x.png\"}"));
+    TEST_ASSERT_EQUAL_INT(SCREENSHOT_AREA_FULL, o->area);
+    TEST_ASSERT_EQUAL_INT(SCREENSHOT_SCALE_FRAMEBUFFER, o->scale_mode);
+    TEST_ASSERT_FALSE(o->crop);
+}
+
+
+/**
+ * @brief screenshot_save_to_file: neplatné area / scale / crop a ořez mimo
+ *        obraz (bad_opts z capture) => INVALID_PARAMS.
+ */
+void test_screenshot_save_to_file_invalid_options(void) {
+    dispatch_stub_reset();
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS,
+        _screenshot_request("{\"path\":\"x.png\",\"area\":\"border\"}"));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS,
+        _screenshot_request("{\"path\":\"x.png\",\"scale\":5}"));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS,
+        _screenshot_request("{\"path\":\"x.png\",\"scale\":\"big\"}"));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS,
+        _screenshot_request("{\"path\":\"x.png\",\"crop\":{\"x\":0,\"y\":0,\"width\":0,\"height\":5}}"));
+    TEST_ASSERT_EQUAL_INT(0, g_stub_state.frame_screenshot_png_calls);
+
+    g_stub_state.frame_screenshot_png_fake_bad_opts = 1;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS,
+        _screenshot_request("{\"path\":\"x.png\",\"scale\":\"native\","
+                            "\"crop\":{\"x\":300,\"y\":0,\"width\":100,\"height\":5}}"));
+    TEST_ASSERT_EQUAL_INT(1, g_stub_state.frame_screenshot_png_calls);
+}
+
+
 /**
  * @brief V1.D.4 - get_video_text_dump available (default v stubu).
  */
@@ -6967,6 +7074,7 @@ int main(void) {
 
     /* V1.D.1 - Core + CPU extras Resource backings (9 testů) */
     RUN_TEST(test_get_config_settings_returns_filtered_or_sections);
+    RUN_TEST(test_set_cpu_flags_r_writes_full_byte);
     RUN_TEST(test_get_media_state_returns_slots_array_and_note);
     RUN_TEST(test_get_cpu_im2_vector_available_with_stub);
     RUN_TEST(test_get_cpu_interrupt_bus_z80_state_and_placeholders);
@@ -7034,6 +7142,8 @@ int main(void) {
     RUN_TEST(test_screenshot_save_to_file_missing_path);
     RUN_TEST(test_screenshot_save_to_file_bad_format);
     RUN_TEST(test_screenshot_save_to_file_png_unavailable);
+    RUN_TEST(test_screenshot_save_to_file_options_passed);
+    RUN_TEST(test_screenshot_save_to_file_invalid_options);
     RUN_TEST(test_get_video_text_dump_available);
     RUN_TEST(test_get_video_text_dump_unavailable);
 

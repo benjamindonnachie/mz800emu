@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mz800emu 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-08 21:08+0200\n"
+"POT-Creation-Date: 2026-10-13 17:00+0200\n"
 "PO-Revision-Date: 2026-03-11 22:00+0100\n"
 "Last-Translator: Claude Code\n"
 "Language-Team: Español\n"
@@ -62,21 +62,21 @@ msgstr ""
 "Dirección = 0x%04x\n"
 "Instrucción = '%s'\n"
 
-#: src/emulator/emulator.c:387
+#: src/emulator/emulator.c:392
 #: src/ui-imgui/mcp_activity/mcp_activity_window.cpp:421
 #: src/ui-imgui/videorec/videorec_menu.cpp:140
 msgid "PAUSED"
 msgstr "PAUSADO"
 
-#: src/emulator/emulator.c:390
+#: src/emulator/emulator.c:395
 msgid "Max speed"
 msgstr "Velocidad máxima"
 
-#: src/emulator/emulator.c:393
+#: src/emulator/emulator.c:398
 msgid "Custom speed"
 msgstr "Velocidad personalizada"
 
-#: src/emulator/emulator.c:395
+#: src/emulator/emulator.c:400
 msgid "Normal speed"
 msgstr "Velocidad normal"
 
@@ -100,7 +100,7 @@ msgstr "Archivos de cinta"
 msgid "Select CMT file to open"
 msgstr "Seleccionar archivo CMT para abrir"
 
-#: src/emulator/hw-generic/cmt/cmthack.c:187
+#: src/emulator/hw-generic/cmt/cmthack.c:206
 msgid "Select a MZF File"
 msgstr "Seleccionar archivo MZF"
 
@@ -641,7 +641,9 @@ msgstr "Pulsos personalizados de la cinta"
 
 #: src/ui-imgui/cmt/ImGuiCmt.cpp:121
 msgid "Pulse lengths in microseconds (order of the UniCMT CMTSPEED header):"
-msgstr "Duración de los pulsos en microsegundos (orden de la cabecera CMTSPEED de UniCMT):"
+msgstr ""
+"Duración de los pulsos en microsegundos (orden de la cabecera CMTSPEED de "
+"UniCMT):"
 
 #: src/ui-imgui/cmt/ImGuiCmt.cpp:125
 msgid "Long pulse high (bit 1)"
@@ -683,6 +685,7 @@ msgstr "Cada duración debe ser mayor que 0 y como máximo %.0f µs."
 #: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:109
 #: src/ui-imgui/joy/joy_setup_window.cpp:564
 #: src/ui-imgui/message/message_window.cpp:90
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:308
 #: src/ui-imgui/snapshot/snapshot_notification.cpp:95
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:338
 msgid "OK"
@@ -700,6 +703,7 @@ msgstr "OK"
 #: src/ui-imgui/memext/memext_save_dialog.cpp:207
 #: src/ui-imgui/ramdisk/pezik_settings_window.cpp:289
 #: src/ui-imgui/rom/rom_settings_window.cpp:323
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:313
 #: src/ui-imgui/snapshot/snapshot_save_dialog.cpp:139
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:176
 #: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:99
@@ -9631,7 +9635,7 @@ msgstr "Volver a escanear dispositivos"
 msgid "Joystick"
 msgstr "Joystick"
 
-#: src/ui-imgui/main_window.cpp:102
+#: src/ui-imgui/main_window.cpp:104
 msgid "No audio device - running without sound"
 msgstr "No hay dispositivo de audio - funcionando sin sonido"
 
@@ -10397,6 +10401,130 @@ msgstr "Archivos binarios ROM"
 msgid "CMT Hack Patch ROM"
 msgstr "ROM del parche CMT Hack"
 
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:57
+msgid "The emulator screen is not available"
+msgstr "La pantalla del emulador no está disponible"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:92
+#, c-format
+msgid "Screenshot saved (%u x %u): %s"
+msgstr "Captura de pantalla guardada (%u x %u): %s"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:96
+#, c-format
+msgid "Cannot save screenshot to '%s': %s"
+msgstr "No se puede guardar la captura de pantalla en '%s': %s"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:97
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:142
+msgid "Screenshot Error"
+msgstr "Error de captura de pantalla"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:127
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:159
+msgid "Save Screenshot"
+msgstr "Guardar captura de pantalla"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:141
+#: src/ui-imgui/videorec/videorec_menu.cpp:422
+#, c-format
+msgid "Cannot open folder: %s"
+msgstr "No se puede abrir la carpeta: %s"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:158
+msgid "Screenshot"
+msgstr "Captura de pantalla"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:162
+msgid "Save Screenshot As..."
+msgstr "Guardar captura de pantalla como..."
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:166
+#: src/ui-imgui/videorec/videorec_menu.cpp:462
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:317
+msgid "Settings..."
+msgstr "Ajustes..."
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:169
+#: src/ui-imgui/videorec/videorec_menu.cpp:466
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:315
+msgid "Open Output Folder"
+msgstr "Abrir carpeta de salida"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:199
+msgid "Native (computer dots, 320 or 640 wide)"
+msgstr "Nativa (puntos del ordenador, ancho 320 o 640)"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:200
+msgid "1x"
+msgstr "1x"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:201
+msgid "2x (window at 100 %)"
+msgstr "2x (ventana al 100 %)"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:202
+msgid "3x"
+msgstr "3x"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:203
+msgid "4x"
+msgstr "4x"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:218
+#, c-format
+msgid "Image size: %u x %u or %u x %u (640-dot modes)"
+msgstr "Tamaño de la imagen: %u x %u o %u x %u (modos de 640 puntos)"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:221
+#, c-format
+msgid "Image size: %u x %u"
+msgstr "Tamaño de la imagen: %u x %u"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:238
+msgid "Screenshot Settings"
+msgstr "Ajustes de captura de pantalla"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:243
+msgid "Area"
+msgstr "Área"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:244
+msgid "Whole frame with border"
+msgstr "Imagen completa con borde"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:247
+msgid "Picture without border"
+msgstr "Imagen sin borde"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:253
+msgid "Scale"
+msgstr "Escala"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:277
+msgid "1x drops every second column in the 640-dot modes."
+msgstr "1x omite una de cada dos columnas en los modos de 640 puntos."
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:282
+#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:260
+msgid "Output folder"
+msgstr "Carpeta de salida"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:285
+msgid "(default: screenshots folder next to the emulator)"
+msgstr "(predeterminado: carpeta screenshots junto al emulador)"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:295
+#: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:80
+#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:273
+msgid "Select Directory"
+msgstr "Seleccionar directorio"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:300
+#, c-format
+msgid "Save Screenshot (%s) saves the picture shown in the window."
+msgstr "Guardar captura de pantalla (%s) guarda la imagen mostrada en la ventana."
+
 #: src/ui-imgui/snapshot/snapshot_load_dialog.cpp:157
 msgid "Snapshot Preview"
 msgstr "Vista previa de instantánea"
@@ -10494,11 +10622,6 @@ msgstr "Ajustes de instantánea"
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:64
 msgid "Default Directory"
 msgstr "Directorio predeterminado"
-
-#: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:80
-#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:273
-msgid "Select Directory"
-msgstr "Seleccionar directorio"
 
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:86
 msgid "Default Save Options"
@@ -10763,7 +10886,7 @@ msgid "Unicard alternate FDC ports 0x58 - 0x5F"
 msgstr "Puertos FDC alternativos de Unicard 0x58 - 0x5F"
 
 #: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:440
-#: src/ui-imgui/topmenu/menu_tools.cpp:30
+#: src/ui-imgui/topmenu/menu_tools.cpp:31
 msgid "Tools"
 msgstr "Herramientas"
 
@@ -11771,23 +11894,23 @@ msgstr "Disminuir - paso 100 %"
 msgid "Custom Speed Options"
 msgstr "Opciones de velocidad personalizada"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:32
+#: src/ui-imgui/topmenu/menu_tools.cpp:33
 msgid "DSK Images..."
 msgstr "Imágenes DSK..."
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:37
+#: src/ui-imgui/topmenu/menu_tools.cpp:38
 msgid "Version Check"
 msgstr "Comprobación de versión"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:39
+#: src/ui-imgui/topmenu/menu_tools.cpp:40
 msgid "Make Online Version Check"
 msgstr "Comprobar versión en línea"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:44
+#: src/ui-imgui/topmenu/menu_tools.cpp:45
 msgid "Version Check Setup"
 msgstr "Configuración de comprobación de versión"
 
-#: src/ui-imgui/topmenu/menu_tools.cpp:64
+#: src/ui-imgui/topmenu/menu_tools.cpp:68
 msgid "MCP Activity##menu_mcp_activity"
 msgstr "MCP Activity##menu_mcp_activity"
 
@@ -12041,11 +12164,6 @@ msgstr "La grabación comenzará cuando se reanude la emulación"
 msgid "Recording time base: %s"
 msgstr "Base de tiempo de la grabación: %s"
 
-#: src/ui-imgui/videorec/videorec_menu.cpp:422
-#, c-format
-msgid "Cannot open folder: %s"
-msgstr "No se puede abrir la carpeta: %s"
-
 #: src/ui-imgui/videorec/videorec_menu.cpp:432
 msgid "Video Recording"
 msgstr "Grabación de vídeo"
@@ -12068,16 +12186,6 @@ msgstr ""
 "Marcado: la grabación sigue el tiempo real (lo que se vio en pantalla y se "
 "oyó por los altavoces). Desmarcado: tiempo emulado (un fotograma emulado = "
 "un fotograma de vídeo)."
-
-#: src/ui-imgui/videorec/videorec_menu.cpp:462
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:317
-msgid "Settings..."
-msgstr "Ajustes..."
-
-#: src/ui-imgui/videorec/videorec_menu.cpp:466
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:315
-msgid "Open Output Folder"
-msgstr "Abrir carpeta de salida"
 
 #: src/ui-imgui/videorec/videorec_menu.cpp:470
 msgid "Remote Control..."
@@ -12306,10 +12414,6 @@ msgstr ""
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:255
 msgid "Video Recording Settings"
 msgstr "Ajustes de grabación de vídeo"
-
-#: src/ui-imgui/videorec/videorec_setup_dialog.cpp:260
-msgid "Output folder"
-msgstr "Carpeta de salida"
 
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:263
 msgid "(default: videos folder next to the emulator)"

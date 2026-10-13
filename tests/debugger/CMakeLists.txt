@@ -348,3 +348,11 @@ mz_add_test(mhmap_resolve
     SOURCES  test_mhmap_resolve.c
     LABELS   "emu;debugger"
 )
+
+# Příznak debugger_is_initialized(): okna debuggeru v UI vlákně se kreslí až
+# po debugger_init() v emu vlákně (dřív pád okna Breakpoints na NULL poli).
+mz_add_test(debugger_init_flag
+    TYPE     EMU
+    SOURCES  test_debugger_init_flag.c
+    LABELS   "emu;debugger"
+)

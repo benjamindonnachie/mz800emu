@@ -29,6 +29,7 @@
 #include "ui-imgui/debugger/breakpoints/bpt_state.h"
 #include "ui-imgui/debugger/dbgapi_helpers.h"
 #include "ui-imgui/videorec/videorec_menu.h"
+#include "ui-imgui/screenshot/screenshot_ui.h"
 
 extern "C"
 {
@@ -420,6 +421,13 @@ void imgui_global_shortcuts(void)
          * nepodporované platformě start jen ohlásí chybu.
          */
         imgui_videorec_shortcuts();
+
+        /*
+         * Screenshot: Alt + F
+         * Uloží PNG zobrazovaného obrazu do výstupního adresáře (Tools ->
+         * Screenshot). F není v jiných globálních Alt zkratkách použité.
+         */
+        imgui_screenshot_shortcuts();
 
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
         /*
