@@ -705,6 +705,7 @@ void z80_reset(z80_t *cpu) {
     cpu->cycles = 0;
     cpu->total_cycles = 0;
     cpu->wait_cycles = 0;
+    cpu->op_tstate = 0;
     cpu->q = 0;
 
     /* Obnovíme callbacky */
