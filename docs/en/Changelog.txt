@@ -1,3 +1,6 @@
+
+2026-10-14 - Released version 2.0.6
+
 	- BUGFIX: Sound - a PSG channel that changed exactly at the start of an audio frame was held at its previous level for the whole frame (20 ms, on the MZ-1500 16.7 ms) in the sound output, in music once every one to three seconds; usually not audible in music, clearly visible when comparing with the exact sound of the audio capture (reference.wav). The sound recorded into a video in emulated time did not have this defect.
 
 	- Audio capture in the GUI and on the command line: Tools -> Audio Capture -> Record Audio Capture (Alt+Q) records into a new folder in its own output folder (default audio_captures next to the emulator) what the sound hardware does - changes of the channel levels, PSG writes, the exact sound and the sound you hear (two WAV files to compare); AUDIO with the captured time is shown in the top left corner of the picture, a notification reports the folder. Settings... sets the output folder and selects the files to write. --audio-capture <folder> starts it right after startup, --audio-capture-frames <count> stops it after the given number of frames (with --headless the emulator then exits). See audio-capture.md.
@@ -27,7 +30,6 @@
 	- BUGFIX: CTC 8253 and speaker - the time of a write to the CTC (including the CTC0 gate) and of a speaker change was taken as if the already executed part of the instruction had passed twice, e.g. 14 CPU cycles after the start of LD (HL),A, which takes 7. CTC0 thus started counting a few CLK0 periods late and speaker edges were timestamped late by the same amount. The measured load behaviour of the CTC on a real MZ-800 is unchanged.
 
 	- BUGFIX: Debugger - every save of JSON metadata leaked the whole JSON tree: trace recordings (each chunk rewrites its metadata), breakpoints, bookmarks, watches, breakpoint variables and the Memory Heatmap. The memory use of a long trace recording kept growing with its length.
-
 
 	- New options --cmt <file>, --cmt-play, --cmt-play-pause and --cmt-boot: insert a tape (MZF, MZT, TAP or WAV) into the virtual cassette recorder at startup. The CMT hack is turned off for that session only and the Virtual CMT window opens. --cmt-play presses PLAY, --cmt-play-pause leaves the tape waiting until the computer turns the cassette motor on, and --cmt-boot (MZ-800) also holds the C key at startup so the boot menu loads the program from the tape.
 
