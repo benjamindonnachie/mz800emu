@@ -36,6 +36,16 @@
 
 SdlApp *g_sdlapp = NULL;
 
+/**
+ * @brief Nejdelší čekání hlavní smyčky na událost SDL v režimu --headless [ms].
+ *
+ * Headless běží smyčka v režimu SDLAPP_LOOP_WAIT_TIMEOUT místo aktivního
+ * pollingu. Události (časovače sdlapp, ukončení) čekání probudí hned; hodnota
+ * určuje jen nejdelší prodlevu, než si smyčka všimne sdlapp_quit() z jiného
+ * vlákna (ten událost nevloží).
+ */
+#define MAIN_HEADLESS_LOOP_WAIT_MS 20
+
 
 /**
  * @brief Whitelist všech známých CLI options.
@@ -555,6 +565,17 @@ int main(int argc, char *argv[])
     {
         SDLAPP_ERROR("Failed to start emulator thread");
         return EXIT_FAILURE;
+    };
+
+    /* Headless: hlavní vlákno nemá okno, které by smyčku brzdilo vykreslením
+     * (vsync), a ve výchozím režimu SDLAPP_LOOP_POLL by se točilo naprázdno
+     * na celém jádru. Práce pro hlavní vlákno chodí jako události SDL
+     * (časovače sdlapp, SDL_EVENT_QUIT), které čekání hned probudí; timeout
+     * jen omezuje, jak dlouho po sdlapp_quit() z jiného vlákna smyčka ještě
+     * běží. Emulace, MCP TCP server a zvuk mají vlastní vlákna. */
+    if (sdlapp_option_present("--headless"))
+    {
+        sdlapp_set_loop_mode(g_sdlapp, SDLAPP_LOOP_WAIT_TIMEOUT, MAIN_HEADLESS_LOOP_WAIT_MS);
     };
 
     sdlapp_run(g_sdlapp);
