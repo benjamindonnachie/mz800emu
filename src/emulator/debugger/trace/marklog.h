@@ -158,6 +158,21 @@ void marklog_finalize ( void );
 int marklog_is_truncated ( void );
 
 /**
+ * @brief Uložit aktuální segment, volitelně přesměrovat na @p path.
+ *
+ * Stejná sémantika jako iorqlog_save_segment():
+ *  - @p path NULL nebo prázdná: zapíše rozpracovaný chunk a manifest,
+ *    segment pokračuje (nic se nezahodí),
+ *  - jinak uzavře segment, přesměruje dir/name na @p path a při aktivním
+ *    nahrávání otevře nový segment.
+ *
+ * @param path Cílová cesta dalšího segmentu, nebo NULL (jen flush).
+ * @return 0 OK, -1 chyba (restart writeru selhal).
+ * @pre Emu vlákno (dbgapi trace lifecycle).
+ */
+int marklog_save_segment ( const char *path );
+
+/**
  * @brief Zaregistrovat marker name -> uint16 id (parse-time API).
  *
  * Idempotentní per name - opakované volání se stejným `name` vrací

@@ -280,7 +280,8 @@ void mzarch_platform_fn_debugger_state_changed(bool active)
      *
      * trace-suite subsystémy (cputrack/iorqlog/intlog/hwlog) jsou nezávislé:
      *  - cputrack hookuje až po z80_step v mzarch_main_emulator_run smyčce,
-     *    nepotřebuje swap memory callbacků
+     *    swap memory callbacků potřebuje kvůli bajtům instrukce z fetch
+     *    (g_debugger_insn_fetch, viz TEST_DEBUGGER_NEED_DEBUG_CALLBACKS)
      *  - iorqlog/intlog/hwlog mají vlastní hook strategii (Fáze 3-5)
      */
     /* Pořadí kritické: nejdřív update trace-suite active flagů (může změnit

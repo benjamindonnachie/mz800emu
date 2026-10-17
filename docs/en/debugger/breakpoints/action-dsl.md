@@ -96,7 +96,13 @@ Semantics of `%s`:
 
 A bank-specific lookup is not exposed in the action DSL.
 
-The output goes to stdout.
+The output goes to stdout. In the `--mcp-pipe` mode stdout carries the
+MCP messages, so the emulator redirects its text output (including
+`[BP-LOG]` lines) to stderr; an MCP client cannot read it through MCP.
+
+In MEM_R / MEM_W / IORQ breakpoints `PC` is already behind the accessing
+instruction; log `InsnPC` for the instruction address (see
+[expression-syntax.md](expression-syntax.md#cpu-registers-z80)).
 
 ### `continue`
 
@@ -343,7 +349,7 @@ cdl_export "cdl-%d.json", $id
 ### `trace_start <channel>`, `trace_stop <channel>`
 
 Start / stop a binary trace-suite channel. `<channel>` is one of
-`cputrack` / `iorqlog` / `intlog` / `hwlog` (case-sensitive, no quotes).
+`cputrack` / `iorqlog` / `intlog` / `hwlog` / `marklog` (case-sensitive, no quotes).
 
 ```
 trace_start cputrack

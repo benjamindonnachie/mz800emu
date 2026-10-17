@@ -790,7 +790,7 @@ static bool parse_set_reg_stmt ( const char *args_str,
  * @brief Přeloží jméno trace kanálu na en_DBGAPI_TRACE_CHANNEL.
  *
  * Akceptuje stejné kanonické názvy jako MCP dispatch (cputrack/iorqlog/
- * intlog/hwlog), case-sensitive.
+ * intlog/hwlog/marklog), case-sensitive.
  *
  * @return true při platném názvu, false jinak.
  */
@@ -800,6 +800,7 @@ static bool parse_trace_channel ( const char *name, en_DBGAPI_TRACE_CHANNEL *out
     if ( strcmp ( name, "iorqlog" )  == 0 ) { *out = DBGAPI_TRACE_CHANNEL_IORQLOG;  return true; };
     if ( strcmp ( name, "intlog" )   == 0 ) { *out = DBGAPI_TRACE_CHANNEL_INTLOG;   return true; };
     if ( strcmp ( name, "hwlog" )    == 0 ) { *out = DBGAPI_TRACE_CHANNEL_HWLOG;    return true; };
+    if ( strcmp ( name, "marklog" )  == 0 ) { *out = DBGAPI_TRACE_CHANNEL_MARKLOG;  return true; };
     return false;
 }
 

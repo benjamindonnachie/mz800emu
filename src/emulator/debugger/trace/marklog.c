@@ -313,6 +313,35 @@ int marklog_is_truncated ( void )
 }
 
 
+int marklog_save_segment ( const char *path )
+{
+    /* Vzor sdílený s cputrack_save_segment / iorqlog_save_segment - viz tam
+     * pro detaily semantiky. */
+    int was_active = ( g_marklog_active != 0 );
+
+    /* Prázdná cesta = "force save now": flush rozdělaného segmentu BEZ
+     * uzavření/reopenu (segment pokračuje do téhož manifestu, mzdos 0022). */
+    if ( !( path && path[ 0 ] ) ) {
+        if ( s_writer_open ) {
+            uint64_t now_px = tlog_common_get_pxclk_total ( );
+            uint64_t now_cpu = tlog_common_get_cpuclk_total ( );
+            uint32_t now_sc = tlog_common_get_screens_total ( );
+            tlog_writer_flush_chunk ( &s_writer, now_px, now_cpu, now_sc );
+        }
+        return 0;
+    }
+
+    if ( s_writer_open ) {
+        marklog_stop ( );
+    }
+    reclife_redirect_path ( &g_marklog_config.dir, &g_marklog_config.name, path );
+    if ( was_active ) {
+        return marklog_start ( );
+    }
+    return 0;
+}
+
+
 /* Sdílený lifecycle deskriptor (reclife) - viz cputrack.c pro detaily vzoru. */
 static const st_RECLIFE_DESC s_marklog_reclife = {
     .subsys_name = "marklog",
@@ -321,7 +350,7 @@ static const st_RECLIFE_DESC s_marklog_reclife = {
     .fn_start    = marklog_start,
     .fn_stop     = marklog_stop,
     .fn_reset    = NULL,
-    .fn_save     = NULL,
+    .fn_save     = marklog_save_segment,
 };
 
 

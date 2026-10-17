@@ -111,8 +111,13 @@ extern "C" {
         uint8_t  BankPC;        /**< bank kontext PC */
         uint8_t  BankAddr;      /**< bank kontext target adresy */
         /* Globální emu state (= naplnit z g_mzarch_main / g_gdg). */
-        int64_t  Cycle;         /**< T-states counter [neověřeno - frame/total semantika] */
-        int64_t  Frame;         /**< frame counter */
+        int32_t  InsnPC;        /**< Adresa právě vykonávané instrukce (g_mzarch_main.instruction_addr);
+                                     u MEM_R/MEM_W/IORQ je živé PC už za ní. */
+        int64_t  Cycle;         /**< Takty GDG od resetu na začátku instrukce (gdg_get_total_ticks);
+                                     ve výrazu oříznuté na int32 (přeteče asi po 121 s PAL). */
+        int64_t  Frame;         /**< Počet dokončených snímků od resetu. */
+        int32_t  FrameCycle;    /**< Takty GDG od začátku aktuálního snímku (0 .. takty snímku - 1),
+                                     na začátku instrukce; nepřetéká. */
         int32_t  Scanline;      /**< GDG raster line */
         /* CPU stav (NULL = registry resolve na 0). */
         z80_t   *cpu;

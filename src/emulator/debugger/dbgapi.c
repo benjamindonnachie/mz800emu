@@ -67,6 +67,7 @@
 #include "trace/cputrack.h"
 #include "trace/iorqlog.h"
 #include "trace/intlog.h"
+#include "trace/marklog.h"
 #include "trace/hwlog.h"
 #include "snapshot/snapshot.h"
 #include "videorec/videorec.h"
@@ -1162,6 +1163,11 @@ static bool dbgapi_resolve_trace_channel ( en_DBGAPI_TRACE_CHANNEL channel,
             out->fn_reset = NULL;
             out->fn_save  = hwlog_save_segment;
             return true;
+        case DBGAPI_TRACE_CHANNEL_MARKLOG:
+            out->mode_ptr = (int *) &g_marklog_config.mode;
+            out->fn_reset = NULL;
+            out->fn_save  = marklog_save_segment;
+            return true;
         default:
             return false;
     }
@@ -1839,8 +1845,8 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
             /* Čtení bloku paměti respektujícího banking. data_ptr:
              * st_DBGAPI_MEM_PARAM* (= addr + len + buf). Buffer
              * vlastní caller, dispatch ho jen vyplní. Forward přes
-             * debugger_memory_read_byte() (= memory_read_byte přes
-             * banking, BEZ side effects pro VRAM/IORQ ports). */
+             * debugger_memory_read_byte() (= memory_read_byte_no_se:
+             * banking, bez MEM_R breakpointů). */
             if (rq->data_ptr)
             {
                 st_DBGAPI_MEM_PARAM *p = (st_DBGAPI_MEM_PARAM *)rq->data_ptr;
@@ -2204,7 +2210,9 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
              * dokončených instrukcí, pole g_debugger_history.row[]).
              * result_ptr je buffer pro st_DEBUGGER_HISTORY_ROW pole
              * o velikosti DEBUGGER_HISTORY_LENGTH (= 32 položek). Caller
-             * si pole alokuje sám.
+             * si pole alokuje sám. Volitelný data_ptr (unsigned *) dostane
+             * g_debugger_history.position ze stejného okamžiku jako řádky
+             * (za běhu se ring mezi dvěma příkazy posune).
              *
              * (hypotéza) Pro V1 vystačíme s g_debugger_history rámcem;
              * pokud bude třeba bohatší metadata (T-states, registry
@@ -2215,6 +2223,10 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
                 memcpy ( rq->result_ptr,
                          g_debugger_history.row,
                          sizeof(g_debugger_history.row) );
+                if ( rq->data_ptr )
+                {
+                    *(unsigned *) rq->data_ptr = g_debugger_history.position;
+                };
                 rq->success = true;
             }
             else
@@ -7214,7 +7226,15 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
              */
             st_DBGAPI_REGIONS_ENUM_PARAM *p =
                 (st_DBGAPI_REGIONS_ENUM_PARAM *) rq->data_ptr;
-            if ( !p || !p->out || p->max_count <= 0 )
+            if ( p && !p->out )
+            {
+                /* Režim "všechny regiony": kopie bez stropu na počet
+                 * (MCP regions_list; plná sestava MZ-800 má přes 500). */
+                p->out_dup = dbgapi_regions_enumerate_dup ( &p->out_count );
+                rq->success = true;
+                break;
+            };
+            if ( !p || p->max_count <= 0 )
             {
                 rq->success = false;
                 break;

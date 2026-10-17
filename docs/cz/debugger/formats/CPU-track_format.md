@@ -77,6 +77,11 @@ Počet platných bajtů v `insn_bytes`. Z80 instrukce mají délku 1-4 B
 Až 4 bajty opcode + operandů. Bajty mimo `insn_length` jsou nedefinované
 (pravděpodobně 0, ale parser nesmí spoléhat).
 
+Jsou to bajty, které CPU při vykonání instrukce načetlo (fetch), takže
+sedí i u instrukce, která přepíše vlastní bajty nebo pod sebou přepne
+banking paměti (hned po instrukci může být na `regPC` v paměti něco
+jiného).
+
 Z `regPC` + `insn_bytes[0..insn_length-1]` lze plně rekonstruovat:
 - co Z80 vykonal (= disassemble)
 - standardní délku v T-states (Z80 ISA tabulka)

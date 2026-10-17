@@ -1391,7 +1391,8 @@ async def emu_run(frames: int) -> str:
 
     Response includes ``actual_frames`` (frames actually run), ``stopped_by``
     (why it stopped: ``"frames"`` = ran the full count, ``"breakpoint"`` = a
-    breakpoint paused it first, ``"manual"`` = a manual/UI pause, ``"timeout"``
+    breakpoint paused it first, ``"manual"`` = a manual/UI pause, ``"run_to"`` = a
+    temporary breakpoint (run-to-cursor / step over), ``"timeout"``
     = safety timeout, ``"unknown"`` = other) and ``complete`` (= true only when
     the full requested count was reached, i.e. ``stopped_by == "frames"``).
 
@@ -1603,7 +1604,9 @@ async def emu_step_over() -> str:
     For ordinary instructions behaves like ``emu_step_into``. For
     CALL/RST/DJNZ and block instructions, a temporary breakpoint is
     placed at the return address and the emulator runs until it hits
-    that BP (= the subroutine is executed as one logical step).
+    that BP (= the subroutine is executed as one logical step). The stop
+    emits the event ``paused`` with ``reason: "run_to"`` (subscribe via
+    ``emu_event_subscribe``, wait with ``emu_event_poll``).
 
     Requires paused state; the backend rejects the call when emulation
     is running.
@@ -1651,9 +1654,13 @@ async def emu_run_until_addr(addr: int, max_cycles: int = 10_000_000) -> str:
 
     Places a temporary breakpoint at ``addr`` and resumes emulation.
     The backend pauses when PC equals ``addr`` (or when a permanent
-    breakpoint hits first). Use ``emu_status`` to poll progress; the
-    emulator currently does not automatically time out (the
-    ``max_cycles`` argument is reserved for future timeout support).
+    breakpoint hits first) and emits the event ``paused`` with
+    ``{"reason": "run_to", "pc": addr}`` (a permanent breakpoint that
+    stops instead gives ``reason: "breakpoint"``, never both). Subscribe
+    to ``paused`` via ``emu_event_subscribe`` and wait with
+    ``emu_event_poll``, or poll ``emu_status``; the emulator currently
+    does not automatically time out (the ``max_cycles`` argument is
+    reserved for future timeout support).
 
     The emulator must be paused before calling this tool. If it is
     running, the call returns an error ("Emulator is running ...") and
@@ -2591,7 +2598,8 @@ async def emu_step_out(max_cycles: int = 10_000_000) -> str:
 
     Uses shadow callstack tracking to look up the return address of the
     top frame, then sets a temporary breakpoint and runs until PC reaches
-    it. Useful for the "step out of this function" debug workflow.
+    it (the stop emits the event ``paused`` with ``reason: "run_to"``).
+    Useful for the "step out of this function" debug workflow.
 
     Requires callstack tracking to be active (toggle via the Callstack
     debugger window or the --callstack CLI flag). Requires emulator
@@ -2841,9 +2849,12 @@ async def emu_event_poll(timeout_ms: int = 0,
         return json.dumps({"error": "max_events must be in 1..100"})
     if not isinstance(timeout_ms, int) or timeout_ms < 0 or timeout_ms > 60000:
         return json.dumps({"error": "timeout_ms must be in 0..60000"})
+    # Backend smí čekat až timeout_ms: limit odpovědi = čekání + běžná
+    # rezerva SEND_TIMEOUT_S, jinak by poll nad 30 s skončil chybou wrapperu.
     resp = await _send_request(
         "event_poll",
-        {"timeout_ms": timeout_ms, "max_events": max_events})
+        {"timeout_ms": timeout_ms, "max_events": max_events},
+        timeout_s=SEND_TIMEOUT_S + timeout_ms / 1000.0)
     if not resp.get("success", False):
         return json.dumps(
             {"error": resp.get("error", "event_poll failed")})
@@ -3334,7 +3345,7 @@ async def emu_cdl_export(path: str) -> str:
 
 # Valid trace channel identifiers (kept in sync with the C dispatch
 # layer in src/emulator/mcp/dispatch.c::_trace_parse_channel).
-_TRACE_CHANNELS = ("cputrack", "iorqlog", "intlog", "hwlog")
+_TRACE_CHANNELS = ("cputrack", "iorqlog", "intlog", "hwlog", "marklog")
 
 
 def _trace_validate_channel(channel: str) -> "str | None":
@@ -3362,7 +3373,8 @@ async def emu_trace_start(channel: str) -> str:
     from the current emulator state.
 
     Args:
-        channel: One of ``cputrack``, ``iorqlog``, ``intlog``, ``hwlog``.
+        channel: One of ``cputrack``, ``iorqlog``, ``intlog``, ``hwlog``,
+            ``marklog``.
 
     Returns:
         JSON ``{"started": true}`` on success or ``{"error": "..."}``.
@@ -3384,7 +3396,8 @@ async def emu_trace_stop(channel: str) -> str:
     the current segment. The recorded chunk files stay on disk.
 
     Args:
-        channel: One of ``cputrack``, ``iorqlog``, ``intlog``, ``hwlog``.
+        channel: One of ``cputrack``, ``iorqlog``, ``intlog``, ``hwlog``,
+            ``marklog``.
 
     Returns:
         JSON ``{"stopped": true}`` on success or ``{"error": "..."}``.
@@ -3400,15 +3413,20 @@ async def emu_trace_stop(channel: str) -> str:
 
 @mcp.tool()
 async def emu_trace_reset(channel: str) -> str:
-    """Reset (discard) the current trace segment of a channel.
+    """Flush the current trace segment of a channel to disk (nothing is discarded).
 
-    The streamed trace logs have no counters like CDL, so a reset means
-    closing the current segment and reopening a fresh one (the previous
-    contents become a separate, finalized segment). For ``cputrack`` the
-    HALT/self-loop collapse state is reset as well.
+    The streamed trace logs have no counters like CDL. A reset writes the
+    pending chunk and the manifest (``<name>.json``) of the current segment
+    to disk and recording continues in the **same** segment; already
+    recorded data stay. For ``cputrack`` the HALT/self-loop collapse state
+    is reset as well: the T-states of a collapsed run that are not written
+    yet are dropped and the next instruction starts a new record.
+    To start a separate segment, use ``emu_trace_save`` with a new path,
+    or ``emu_trace_stop`` and ``emu_trace_start``.
 
     Args:
-        channel: One of ``cputrack``, ``iorqlog``, ``intlog``, ``hwlog``.
+        channel: One of ``cputrack``, ``iorqlog``, ``intlog``, ``hwlog``,
+            ``marklog``.
 
     Returns:
         JSON ``{"reset": true}`` on success or ``{"error": "..."}``.
@@ -3436,7 +3454,8 @@ async def emu_trace_save(channel: str, path: str = "") -> str:
     ``trace_stop`` - that closes the segment with the correct manifest.
 
     Args:
-        channel: One of ``cputrack``, ``iorqlog``, ``intlog``, ``hwlog``.
+        channel: One of ``cputrack``, ``iorqlog``, ``intlog``, ``hwlog``,
+            ``marklog``.
         path: Optional output path for the next segment (the basename
             becomes the chunk-file prefix; the directory is created if
             missing on the next start). Empty string = keep current

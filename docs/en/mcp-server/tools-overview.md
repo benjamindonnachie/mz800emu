@@ -63,9 +63,9 @@ documented separately in [Resources overview](resources-overview.md).
 | `emu_cdl_stop` | no | Stop CDL recording (data preserved) |
 | `emu_cdl_reset` | no | Clear CDL counters |
 | `emu_cdl_export` | no | Export CDL bitmap + meta to files |
-| `emu_trace_start` | no | Start trace recording of a channel (cputrack/iorqlog/intlog/hwlog) |
+| `emu_trace_start` | no | Start trace recording of a channel (cputrack/iorqlog/intlog/hwlog/marklog) |
 | `emu_trace_stop` | no | Stop trace recording of a channel (segment closed) |
-| `emu_trace_reset` | no | Clear the current trace channel segment |
+| `emu_trace_reset` | no | Flush the current trace channel segment to disk (nothing discarded) |
 | `emu_trace_save` | no | Save/redirect a trace channel segment (optional path) |
 | `emu_videorec_start` | yes (creates / overwrites a file) | Start lossless video recording (optional path, auto-stop after N frames) |
 | `emu_videorec_stop` | no | Stop video recording, by default wait until the files are saved |
@@ -286,6 +286,7 @@ Response contains:
 - `requested_frames` (int) - what was requested
 - `stopped_by` (string) - why it stopped: `"frames"` (ran the full count),
   `"breakpoint"` (a breakpoint paused it), `"manual"` (manual/UI pause),
+  `"run_to"` (a temporary breakpoint: run to cursor, step over),
   `"timeout"` (safety timeout), `"unknown"` (other)
 - `complete` (bool) - true only if the full frame count was reached
   (= `stopped_by` is `"frames"`)
@@ -432,7 +433,9 @@ NOT execute (the client must call again).
 Like `emu_step_into` for ordinary instructions, but for
 CALL/RST/DJNZ and block instructions a temporary breakpoint is
 placed at addr+length and run-to executes (= subroutine becomes
-one logical step). Requires paused state.
+one logical step). Requires paused state. When the run-to stops on its
+temporary breakpoint, the `paused` event carries `reason: "run_to"`
+(see `emu_run_until_addr`).
 
 ### `emu_step_n`
 
@@ -460,6 +463,16 @@ Requires paused state. On a running emulator the call returns the
 error `Emulator is running: run_until_addr needs a paused emulator ...`
 and the emulator keeps running unchanged (a freshly started emulator
 runs, so call `emu_pause` first).
+
+When PC reaches `addr`, the emulator emits the event `paused` with
+`{"reason": "run_to", "pc": <addr>}` (topic `paused`, see
+`emu_event_subscribe`), so the client can wait with `emu_event_poll`
+instead of polling `emu_status`. If a permanent breakpoint stops the
+emulation first, or sits on `addr` and stops there, the event is the
+breakpoint's (`reason: "breakpoint"`), never both. A permanent
+breakpoint on `addr` that does not stop (condition false, `skip_count`,
+an action that continues) does not hide the target: the run still stops
+at `addr` with `reason: "run_to"`.
 
 ### `emu_snapshot_save` (sensitive - overwrites a file)
 
@@ -639,7 +652,8 @@ Arguments:
 
 Response: `{"return_addr": <int>, "max_cycles": <int>, "running": true}`
 or an error if callstack tracking is inactive, the stack is empty, or
-the emulator is already running.
+the emulator is already running. Reaching `return_addr` emits the
+`paused` event with `reason: "run_to"` (see `emu_run_until_addr`).
 
 ### `emu_run_until_raster`
 
@@ -891,8 +905,8 @@ the number of region files emitted (platform-dependent).
 
 ## Trace tools
 
-Runtime lifecycle control of the 4 binary trace-suite channels
-(`cputrack`, `iorqlog`, `intlog`, `hwlog`). The interface mirrors the
+Runtime lifecycle control of the 5 binary trace-suite channels
+(`cputrack`, `iorqlog`, `intlog`, `hwlog`, `marklog`). The interface mirrors the
 CDL tools - it lets an AI client bracket the recording precisely around
 the section of interest instead of saving only at emulator exit. For
 the output format details see [Trace Suite](../debugger/Trace_Suite.md).
@@ -900,7 +914,8 @@ the output format details see [Trace Suite](../debugger/Trace_Suite.md).
 All 4 tools have a mandatory argument:
 
 - `channel` (string, required) - one of `cputrack` / `iorqlog` /
-  `intlog` / `hwlog`.
+  `intlog` / `hwlog` / `marklog` (`marklog` records the markers of the
+  breakpoint action `mark`).
 
 ### `emu_trace_start`
 
@@ -914,9 +929,13 @@ Returns `{"stopped": true}`.
 
 ### `emu_trace_reset`
 
-Clears the current channel segment (closes + reopens the segment; for
-cputrack also resets the HALT/self-loop collapse). Returns
-`{"reset": true}`.
+Writes the pending chunk and the manifest of the current channel segment
+to disk; recording continues in the same segment and nothing recorded is
+discarded. For cputrack it also resets the HALT/self-loop collapse: the
+T-states of a collapsed run that are not written yet are dropped and the
+next instruction starts a new record. A separate segment is
+started by `emu_trace_save` with a new path, or by `emu_trace_stop`
+and `emu_trace_start`. Returns `{"reset": true}`.
 
 ### `emu_trace_save`
 

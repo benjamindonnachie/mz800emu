@@ -54,6 +54,13 @@ anything beyond is silently truncated.
 | `IM` | current interrupt mode (0/1/2) |
 | `IFF1`, `IFF2` | interrupt flip-flops (0/1) |
 
+`PC` is the live register. In a PC_EXEC breakpoint it equals the address
+of the instruction about to execute. In MEM_R, MEM_W and IORQ breakpoints
+the instruction that makes the access is already being executed, so `PC`
+points behind it: `LD (4000h),A` at 3003h gives `PC = 3006h`. Use
+`InsnPC` (see [Breakpoint context](#breakpoint-context)) for the address
+of the instruction itself.
+
 ### Shadow registers
 
 | Identifier | Meaning |
@@ -89,7 +96,8 @@ evaluated outside enforcement (= Test Eval, ad-hoc), they remain zero.
 | `Address` | Memory access address (MEM_R/MEM_W/PC_EXEC); for IORQ the port value |
 | `Value` | Byte read / written in the given access |
 | `IsRead`, `IsWrite`, `IsExec`, `IsPort` | Access type (0/1) |
-| `BankPC` | Active banking zone for PC |
+| `InsnPC` | Address of the instruction being executed (its first opcode byte). Same as `PC` in PC_EXEC; in MEM_R / MEM_W / IORQ the instruction that makes the access (`PC` is already behind it). Valid also outside enforcement (Test Eval). |
+| `BankPC` | Active banking zone for the live `PC` |
 | `BankAddr` | Active banking zone for `Address` (typically the same as `BankPC`) |
 | `Reason` | IFF change reason - valid only within an active IFF*_CHANGE fire; outside an active fire returns `none` (0xFF). See [Reason vocabulary](#reason-vocabulary). |
 
@@ -134,7 +142,8 @@ see [hw-events.md](hw-events.md#cpu-events).
 
 | Identifier | Meaning |
 |------------|---------|
-| `Cycle` | GDG pixel ticks (cumulative, the number of pixel ticks since reset). **Note:** GDG pixel ticks (16x faster than the Z80 T-state at 3.5 MHz), not a pure Z80 T-state counter. For per-frame relative timing it is OK. |
+| `Cycle` | GDG pixel ticks since reset at the start of the current instruction. **Note:** not a Z80 T-state counter: one T-state is 5 GDG ticks on PAL machines (MZ-800, MZ-700 PAL) and 4 on NTSC (MZ-700 NTSC, MZ-1500). Like every value it is truncated to 32 bits and wraps to negative numbers after 2^31 ticks, about 121 s of emulated time on PAL (17 721 600 ticks per second) and about 150 s on NTSC. |
+| `FrameCycle` | GDG pixel ticks since the start of the current frame, at the start of the current instruction: 0 .. ticks per frame - 1 (354 432 per frame on PAL, 238 944 on NTSC). Does not wrap; use it for timing within a frame. `Cycle = Frame * ticks per frame + FrameCycle` while `Cycle` does not wrap. |
 | `Frame` | Number of complete frames since reset. Incremented at the end of a frame. |
 | `Scanline` | Current GDG raster row (0..frame_height-1). |
 
@@ -202,13 +211,15 @@ Semantics:
 
 | Form | Meaning |
 |------|---------|
-| `[addr]` | Read 8-bit from RAM/VRAM |
-| `[addr]!` | Read 8-bit with the explicit side-effect flag (parsed) |
-| `{addr}` | Read 16-bit (little-endian) - two 8-bit reads |
+| `[addr]` | Read 8-bit from the current CPU memory map (RAM, ROM, VRAM) without triggering MEM_R breakpoints |
+| `[addr]!` | Same read, but MEM_R breakpoints on `addr` are evaluated (they can fire and stop the emulation) |
+| `{addr}` | Read 16-bit (little-endian) - two 8-bit reads, like `[addr]` |
 
-The side-effect flag (`!`) is preserved in the AST, but at runtime it
-currently always calls the regular memory read (= behaves like a read
-on the default side-effect path).
+Both forms respect the current banking. In MZ-700 mode the chips mapped
+at 0E000h-0E008h (8255, 8253, GDG status) are read without side effects
+in both forms: the autotype does not advance, the host keyboard and
+joystick are not polled and the 8253 LSB/MSB flip-flop does not toggle.
+For a read with the real chip side effects use `port[N]!`.
 
 `{addr}` (16-bit word) has no variant with a side-effect flag.
 
@@ -362,7 +373,9 @@ None of these situations crash the evaluator or the BP enforcement.
 - No loops / iteration in the expression.
 - No user-defined functions (= only built-ins).
 - No strings or arrays (only scalar `int32_t`).
-- `Cycle` returns GDG pixel ticks, not a pure Z80 T-state counter.
+- `Cycle` returns GDG pixel ticks, not a pure Z80 T-state counter, and
+  wraps after about 121 s of emulated time (PAL); within a frame use
+  `FrameCycle`.
 - No explicit `unsigned` type - shifts and comparisons operate signed;
   for unsigned compare either mask (`a & 0xFFFF`) or use `s8` / `s16`
   for explicit sign-extension.

@@ -218,6 +218,26 @@ if(Python3_FOUND)
                    "(Python ${Python3_VERSION})")
 
     # -----------------------------------------------------------
+    # Wrapper: emu_event_poll s timeout_ms nad limitem odpovědi
+    # -----------------------------------------------------------
+    # Falešný emulátor odpoví na event_poll až po timeout_ms; wrapper
+    # nesmí skončit timeoutem dřív (limit = SEND_TIMEOUT_S + timeout_ms).
+    # Bez FastMCP (.venv) 77 (SKIP).
+    add_test(
+        NAME    mcp_wrapper_event_poll_timeout
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_wrapper_event_poll_timeout.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_wrapper_event_poll_timeout PROPERTIES
+        LABELS  "mcp;wrapper"
+        TIMEOUT 60
+        SKIP_RETURN_CODE 77
+    )
+    message(STATUS "  tests/mcp: registered mcp_wrapper_event_poll_timeout "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
     # Test 5c: oznámení restartu přes skutečný MCP protokol (stdio)
     # -----------------------------------------------------------
     # Spustí mcp_server.py pod venv (FastMCP) jako MCP server, místo
@@ -584,6 +604,135 @@ if(Python3_FOUND)
         TIMEOUT 120
     )
     message(STATUS "  tests/mcp: registered mcp_bp_addr_range "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
+    # Událost paused po zastavení na dočasném breakpointu (pipe)
+    # -----------------------------------------------------------
+    # run_until_addr, step_over přes CALL a step_out vyšlou paused
+    # s reason "run_to"; uživatelský BP s nesplněnou podmínkou na cíli
+    # dočasný BP nezakryje; uživatelský BP bez podmínky dá jedinou
+    # událost (reason "breakpoint").
+    add_test(
+        NAME    mcp_run_to_paused_event
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_run_to_paused_event.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_run_to_paused_event PROPERTIES
+        LABELS  "e2e;mcp;pipe;breakpoints"
+        TIMEOUT 120
+    )
+    message(STATUS "  tests/mcp: registered mcp_run_to_paused_event "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
+    # Regiony plné sestavy MZ-800 přes MCP (pipe)
+    # -----------------------------------------------------------
+    # MemExt Luftner + RAMdisk STD 16 MB + PEZIK 68h = 532 regionů:
+    # regions_list vrátí všechny (dřív useknuto na 128), region_write
+    # a region_read na ID nad 512 fungují, ID = count je chyba.
+    add_test(
+        NAME    mcp_regions_full_config
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_regions_full_config.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_regions_full_config PROPERTIES
+        LABELS  "e2e;mcp;pipe;regions"
+        TIMEOUT 120
+    )
+    message(STATUS "  tests/mcp: registered mcp_regions_full_config "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
+    # Čtení paměti debuggerem nespouští MEM_R breakpoint (pipe)
+    # -----------------------------------------------------------
+    # mem_read a dasm přes adresu s MEM_R BP nezmění hits ani nevyšlou
+    # breakpoint_hit; čtení CPU (LD A,(nn)) BP dál spustí.
+    add_test(
+        NAME    mcp_debugger_read_no_mem_r_bp
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_debugger_read_no_mem_r_bp.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_debugger_read_no_mem_r_bp PROPERTIES
+        LABELS  "e2e;mcp;pipe;breakpoints"
+        TIMEOUT 120
+    )
+    message(STATUS "  tests/mcp: registered mcp_debugger_read_no_mem_r_bp "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
+    # InsnPC a FrameCycle ve výrazech breakpointů (pipe)
+    # -----------------------------------------------------------
+    # MEM_W BP s InsnPC zastaví na zápisu dané instrukce, PC je u MEM_W
+    # za instrukcí; FrameCycle = Cycle - Frame * takty snímku.
+    add_test(
+        NAME    mcp_bp_expr_insnpc
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_bp_expr_insnpc.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_bp_expr_insnpc PROPERTIES
+        LABELS  "e2e;mcp;pipe;breakpoints"
+        TIMEOUT 120
+    )
+    message(STATUS "  tests/mcp: registered mcp_bp_expr_insnpc "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
+    # Zápis paměti debuggerem nespouští MEM_W breakpoint (pipe)
+    # -----------------------------------------------------------
+    # mem_write a region_write (Logical) přes adresu s MEM_W BP nezmění
+    # hits ani nevyšlou breakpoint_hit; zápis CPU (LD (nn),A) BP spustí.
+    add_test(
+        NAME    mcp_debugger_write_no_mem_w_bp
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_debugger_write_no_mem_w_bp.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_debugger_write_no_mem_w_bp PROPERTIES
+        LABELS  "e2e;mcp;pipe;breakpoints"
+        TIMEOUT 120
+    )
+    message(STATUS "  tests/mcp: registered mcp_debugger_write_no_mem_w_bp "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
+    # Kanál marklog přes trace_* (pipe)
+    # -----------------------------------------------------------
+    # trace_start/reset/save/stop přijmou channel "marklog"; BP s akcí
+    # mark zapíše manifest a neprázdný chunk do adresáře z INI.
+    add_test(
+        NAME    mcp_trace_marklog
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_trace_marklog.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_trace_marklog PROPERTIES
+        LABELS  "e2e;mcp;pipe;trace"
+        TIMEOUT 120
+    )
+    message(STATUS "  tests/mcp: registered mcp_trace_marklog "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
+    # Cputrack: bajty instrukce z fetch, ne z paměti po vykonání (pipe)
+    # -----------------------------------------------------------
+    # LD (3001h),A na 3001h přepíše vlastní opkód; záznam musí mít
+    # délku 3 a bajty 32 01 30 (dřív 1 bajt 00h = NOP).
+    add_test(
+        NAME    mcp_cputrack_insn_bytes
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_cputrack_insn_bytes.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_cputrack_insn_bytes PROPERTIES
+        LABELS  "e2e;mcp;pipe;trace"
+        TIMEOUT 120
+    )
+    message(STATUS "  tests/mcp: registered mcp_cputrack_insn_bytes "
                    "(Python ${Python3_VERSION})")
 
     # -----------------------------------------------------------

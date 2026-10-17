@@ -63,9 +63,9 @@ dokumentu [Resources overview](resources-overview.md).
 | `emu_cdl_stop` | ne | Stop CDL recording (data zachována) |
 | `emu_cdl_reset` | ne | Vynuluje CDL countery |
 | `emu_cdl_export` | ne | Export CDL bitmap + meta do souborů |
-| `emu_trace_start` | ne | Spustí trace záznam kanálu (cputrack/iorqlog/intlog/hwlog) |
+| `emu_trace_start` | ne | Spustí trace záznam kanálu (cputrack/iorqlog/intlog/hwlog/marklog) |
 | `emu_trace_stop` | ne | Zastaví trace záznam kanálu (segment uzavřen) |
-| `emu_trace_reset` | ne | Vynuluje aktuální segment trace kanálu |
+| `emu_trace_reset` | ne | Zapíše aktuální segment trace kanálu na disk (nic nezahodí) |
 | `emu_trace_save` | ne | Uloží/přesměruje segment trace kanálu (volitelný path) |
 | `emu_videorec_start` | ano (vytvoří / přepíše soubor) | Spustí bezeztrátové nahrávání videa (volitelná cesta, automatický stop po N snímcích) |
 | `emu_videorec_stop` | ne | Ukončí nahrávání videa, standardně počká na uložení souborů |
@@ -282,6 +282,7 @@ Response obsahuje:
 - `requested_frames` (int) - co bylo žádáno
 - `stopped_by` (string) - důvod zastavení: `"frames"` (doběhl počet snímků),
   `"breakpoint"` (zastavil breakpoint), `"manual"` (manuální/UI pauza),
+  `"run_to"` (dočasný breakpoint: run to cursor, step over),
   `"timeout"` (safety timeout), `"unknown"` (jiný důvod)
 - `complete` (bool) - true jen pokud doběhl plný počet snímků (= `stopped_by`
   je `"frames"`)
@@ -426,7 +427,9 @@ zavolat znovu).
 
 Jako `emu_step_into` pro běžné instrukce, ale pro CALL/RST/DJNZ
 a blokové instrukce nastaví dočasný BP na addr+length a run-to
-(= subroutine se vykoná jako jeden krok). Vyžaduje pause stav.
+(= subroutine se vykoná jako jeden krok). Vyžaduje pause stav. Když
+run-to zastaví na svém dočasném BP, nese událost `paused` hodnotu
+`reason: "run_to"` (viz `emu_run_until_addr`).
 
 ### `emu_step_n`
 
@@ -454,6 +457,15 @@ Vyžaduje pause stav. Na běžícím emulátoru vrátí chybu
 `Emulator is running: run_until_addr needs a paused emulator ...`
 a emulátor běží dál beze změny (čerstvě spuštěný emulátor běží, proto
 nejdřív `emu_pause`).
+
+Když PC dosáhne `addr`, emulátor vyšle událost `paused`
+s `{"reason": "run_to", "pc": <addr>}` (topic `paused`, viz
+`emu_event_subscribe`), takže klient může čekat přes `emu_event_poll`
+místo pollování `emu_status`. Zastaví-li emulaci dřív trvalý breakpoint,
+nebo trvalý breakpoint na `addr`, je událost jeho (`reason: "breakpoint"`),
+nikdy obě. Trvalý breakpoint na `addr`, který nezastaví (nesplněná
+podmínka, `skip_count`, akce s pokračováním), cíl nezakryje: běh na `addr`
+přesto zastaví s `reason: "run_to"`.
 
 ### `emu_snapshot_save` (sensitive - přepíše soubor)
 
@@ -629,6 +641,8 @@ Argumenty:
 
 Odpověď: `{"return_addr": <int>, "max_cycles": <int>, "running": true}`
 nebo error pokud callstack neaktivní / prázdný stack / emu už běží.
+Dosažení `return_addr` vyšle událost `paused` s `reason: "run_to"`
+(viz `emu_run_until_addr`).
 
 ### `emu_run_until_raster`
 
@@ -871,8 +885,8 @@ počet exportovaných region souborů (= dependent na platformě).
 
 ## Trace tools
 
-Lifecycle ovládání 4 binárních kanálů trace-suite (`cputrack`,
-`iorqlog`, `intlog`, `hwlog`) za běhu. Rozhraní zrcadlí CDL tooly -
+Lifecycle ovládání 5 binárních kanálů trace-suite (`cputrack`,
+`iorqlog`, `intlog`, `hwlog`, `marklog`) za běhu. Rozhraní zrcadlí CDL tooly -
 umožňuje AI klientovi ohraničit záznam přesně kolem sledovaného úseku
 místo ukládání až při ukončení emulátoru. Detaily formátu výstupu viz
 [Trace Suite](../debugger/Trace_Suite.md).
@@ -880,7 +894,8 @@ místo ukládání až při ukončení emulátoru. Detaily formátu výstupu viz
 Všechny 4 tooly mají povinný argument:
 
 - `channel` (string, povinný) - jeden z `cputrack` / `iorqlog` /
-  `intlog` / `hwlog`.
+  `intlog` / `hwlog` / `marklog` (`marklog` zaznamenává značky z akce
+  breakpointu `mark`).
 
 ### `emu_trace_start`
 
@@ -893,8 +908,13 @@ Zastaví záznam kanálu; segment se uzavře (flush + close). Vrací
 
 ### `emu_trace_reset`
 
-Vynuluje aktuální segment kanálu (uzavře + znovuotevře segment;
-u cputrack i reset HALT/self-loop collapse). Vrací `{"reset": true}`.
+Zapíše rozpracovaný chunk a manifest aktuálního segmentu kanálu na disk;
+záznam pokračuje ve stejném segmentu a nic zaznamenaného se nezahodí.
+U cputrack navíc vynuluje HALT/self-loop collapse: T-stavy sbaleného
+běhu, které ještě nejsou zapsané, zahodí a další instrukce začne nový
+záznam. Samostatný segment založí `emu_trace_save`
+s novou cestou, nebo `emu_trace_stop` a `emu_trace_start`. Vrací
+`{"reset": true}`.
 
 ### `emu_trace_save`
 

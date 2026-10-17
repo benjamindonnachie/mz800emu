@@ -124,6 +124,27 @@ extern "C" {
     extern void pio8255_set_autotype ( char *txt );
     extern int pio8255_autotype_get_matrix ( char c, uint8_t *ret, bool *ret_shift );
     extern uint8_t pio8255_read ( int addr );
+
+    /**
+     * @brief Čtení portu 8255 bez vedlejšího efektu (debugger, mapované 0E000h-0E003h).
+     *
+     * Vrací totéž co pio8255_read() pro stejný stav, ale stav nemění:
+     *  - Port B: autotype se neposune (hodnota jako při čtení CPU teď),
+     *    nezpracují se čekající události klávesnice hostitele
+     *    (iface_keyboard_pool_keyboard_events) a vkbd probe se neoznačí.
+     *    Bez autotype vrací matici z posledního zpracování událostí.
+     *  - Port C: data z pásky (bit 5) z poslední synchronizace pásky,
+     *    bez cmt_update_output (ten může přejít na další blok nebo do STOP).
+     *  - Port A a nepodporovaná adresa jako pio8255_read().
+     *
+     * @param addr DEF_PIO8255_PORTA / PORTB / PORTC (spodní 2 bity adresy).
+     * @return Hodnota portu.
+     * @note Hodnota se od čtení CPU v tomtéž okamžiku může lišit jen tam,
+     *       kde read nejdřív dosynchronizuje vstup (klávesnice hostitele,
+     *       páska); jinak je shodná.
+     * @pre Emu vlákno, nebo pauza (čte sdílený stav bez zámku jako IO mirror).
+     */
+    extern uint8_t pio8255_peek ( int addr );
     extern void pio8255_write ( int addr, uint8_t value );
 
     /** @brief Aktivuje probe pro ověření dosednutí vkbd klávesy.

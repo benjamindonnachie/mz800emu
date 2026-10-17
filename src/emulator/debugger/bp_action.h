@@ -31,7 +31,7 @@
  *   if <expr> then <stmt>    - jednořádkový conditional, žádný else
  *   cdl_start / cdl_stop / cdl_reset       - CDL (Memory Heatmap) lifecycle
  *   cdl_export "fmt" [args]  - export CDL do souboru (šablona jména přes %X..)
- *   trace_start <chan>       - spustit trace kanál (cputrack/iorqlog/intlog/hwlog)
+ *   trace_start <chan>       - spustit trace kanál (cputrack/iorqlog/intlog/hwlog/marklog)
  *   trace_stop  <chan>       - zastavit trace kanál
  *   trace_save  <chan>, "fmt" [args] - uložit/přesměrovat segment kanálu
  *   snapshot "fmt" [args]    - uložit .mzs snapshot (vyžaduje paused emu)

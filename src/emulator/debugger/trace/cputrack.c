@@ -91,29 +91,57 @@ static int emit_event ( uint16_t pc, uint8_t insn_len, const uint8_t *insn_bytes
 
 
 /**
- * @brief Pomocná - přečíst N bajtů instrukce přes debugger_dasm read cb.
+ * @brief Read callback pro z80ex_dasm: bajty z fetch, zbytek z paměti.
  *
- * Vrací reálný počet přečtených bajtů (1-4). Použito pro emit eventu -
- * potřebujeme přečíst skutečné opcode bajty z pohledu CPU (= aktuální
- * mapping). debugger_dasm_read_cb to umí.
+ * Bajty, které CPU při fetch instrukce na @p user_data adrese skutečně
+ * načetlo (g_debugger_insn_fetch), mají přednost; adresy za nimi se čtou
+ * z aktuální mapy (debugger_dasm_read_cb).
+ *
+ * @param addr      Adresa čteného bajtu.
+ * @param user_data Ukazatel na uint16_t adresu začátku instrukce.
+ * @return Bajt instrukce.
+ */
+static uint8_t insn_byte_read_cb ( uint16_t addr, void *user_data )
+{
+    uint16_t pc = *(const uint16_t *) user_data;
+    uint16_t off = (uint16_t) ( addr - pc );
+    if ( g_debugger_insn_fetch.addr == pc && off < g_debugger_insn_fetch.count ) {
+        return g_debugger_insn_fetch.byte[ off ];
+    }
+    return debugger_dasm_read_cb ( addr, NULL );
+}
+
+
+/**
+ * @brief Pomocná - zjistit délku a bajty právě vykonané instrukce.
+ *
+ * Vrací reálný počet bajtů (1-4). Bajty bere z g_debugger_insn_fetch
+ * (= co CPU načetlo při fetch; cputrack si vynucuje logovací čtecí
+ * callback, viz TEST_DEBUGGER_NEED_DEBUG_CALLBACKS), takže sedí i u
+ * instrukce, která přepíše vlastní bajty nebo přepne banking pod sebou.
+ * Chybějící bajty (fetch je nenačetl, např. instrukce přerušená, nebo
+ * buffer patří jiné adrese) doplní z aktuální mapy paměti.
+ *
+ * @param pc      Adresa začátku instrukce.
+ * @param out_buf Výstup, 4 bajty (za délkou nuly).
+ * @return Délka instrukce 1-4.
  */
 static uint8_t read_insn_bytes ( uint16_t pc, uint8_t out_buf[ 4 ] )
 {
     /* Délku instrukce zjistíme dasm metodou - máme z80ex_dasm. */
     char mnemonic[ 64 ];
     int t_states, t_states2;
-    extern uint8_t debugger_dasm_read_cb ( uint16_t addr, void *user_data );
     extern unsigned z80ex_dasm ( char *output, unsigned output_size, int eindex,
                                  int *t_states, int *t_states2,
                                  uint8_t (*read_cb)( uint16_t addr, void *user_data ),
                                  uint16_t base_addr, void *user_data );
     unsigned len = z80ex_dasm ( mnemonic, sizeof ( mnemonic ) - 1, 0,
                                 &t_states, &t_states2,
-                                debugger_dasm_read_cb, pc, NULL );
+                                insn_byte_read_cb, pc, &pc );
     if ( len < 1 ) len = 1;
     if ( len > 4 ) len = 4;
     for ( unsigned i = 0; i < len; i++ ) {
-        out_buf[ i ] = debugger_dasm_read_cb ( (uint16_t)( pc + i ), NULL );
+        out_buf[ i ] = insn_byte_read_cb ( (uint16_t)( pc + i ), &pc );
     }
     for ( unsigned i = len; i < 4; i++ ) out_buf[ i ] = 0;
     return (uint8_t)len;

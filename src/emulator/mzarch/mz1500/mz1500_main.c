@@ -237,8 +237,9 @@ void mzarch_platform_fn_debugger_state_changed(bool active)
      * Instruction History (cpuhist) NEBO Memory Heatmap (CDL).
      *
      * trace-suite cputrack hookuje až po z80_step v mzarch_main_emulator_run,
-     * nepotřebuje swap memory callbacků. Iorqlog/intlog/hwlog mají vlastní
-     * hook strategii (Fáze 3-5).
+     * swap memory callbacků potřebuje kvůli bajtům instrukce z fetch
+     * (g_debugger_insn_fetch). Iorqlog/intlog/hwlog mají vlastní hook
+     * strategii (Fáze 3-5).
      */
     /* Pořadí: nejdřív update trace-suite active (může změnit
      * TEST_DEBUGGER_NEED_DEBUG_CALLBACKS via iorqlog), pak swap callbacků. */

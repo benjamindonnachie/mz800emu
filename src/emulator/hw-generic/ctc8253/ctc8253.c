@@ -332,8 +332,8 @@ void ctc8253_sync_ctc0(void)
  * @warning Funkce je urcena vyhradne pro GUEST cteni (CPU IORQ / mapped MMIO
  *          na emu vlakne). Debugger / UI okna NIKDY tuto funkci nevolaji -
  *          ctou raw fieldy `g_ctc8253[cs]` side-effect-free (viz ctc_window.cpp,
- *          io_catalog.c) a mapped-read pres `memory_read_byte` jde nosync
- *          cestou, ktera CTC nevola (vraci konstantu).
+ *          io_catalog.c) a mapped-read pres `memory_read_byte` /
+ *          `memory_read_byte_no_se` jde nosync cestou pres ctc8253_peek_byte().
  *
  * @pre Volat z emu vlakna v ramci CPU instrukcni cesty.
  * @post U LSBMSB / latch cteni je aktualizovan `rl_byte` / `latch_op`.
@@ -368,8 +368,8 @@ uint8_t ctc8253_read_byte(unsigned cs)
          * na debug stav). Drivejsi guard `if (!TEST_DEBUGGER_MEMOP_CALL)` mel
          * potlacit mutaci pri debuggerem-iniciovanem cteni, jenze debugger se
          * na tuto funkci nikdy nedostane (mapped-read jde pres nosync cestu
-         * memory_read_byte, ktera CTC necte pres ctc8253_read_byte - vraci
-         * konstantu; UI okna ctou raw g_ctc8253[] side-effect-free). Jediny
+         * memory_read_byte, ktera CTC cte pres ctc8253_peek_byte bez mutace;
+         * UI okna ctou raw g_ctc8253[] side-effect-free). Jediny
          * pripad, kdy guard fakticky firnul, byla cross-thread data-race:
          * UI vlakno nastavi ne-atomicky g_debugger.memop_call=1 (pro sve
          * nesouvisejici disasm cteni pameti) behem soubezneho hostova CTC
@@ -404,6 +404,24 @@ uint8_t ctc8253_read_byte(unsigned cs)
     DBGPRINTF(DBGINF, "Read CTC addr: %d, value: 0x%02x, PC = 0x%04x\n", cs, retval, g_mzarch_main.instruction_addr);
 
     return retval;
+}
+
+uint8_t ctc8253_peek_byte(unsigned cs)
+{
+    if (cs > CTC_CS2) return 0x00;
+
+    unsigned value = (g_ctc8253[cs].latch_op == 1) ? g_ctc8253[cs].read_latch : g_ctc8253[cs].value;
+
+    switch (g_ctc8253[cs].rlf)
+    {
+    case CTC_RLF_LSB:
+        return (value & 0xff);
+    case CTC_RLF_MSB:
+        return (value >> 8) & 0xff;
+    case CTC_RLF_LSBMSB:
+        return (g_ctc8253[cs].rl_byte == 0) ? (value & 0xff) : ((value >> 8) & 0xff);
+    };
+    return 0x00;
 }
 
 /**

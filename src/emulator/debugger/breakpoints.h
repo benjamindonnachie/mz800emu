@@ -1196,12 +1196,16 @@ struct st_BP_ACTION;
      * Volá se z mzarch.c před vykonáním instrukce. Wrapper kolem
      * breakpoints_enforce s naplněným ctx pro PC_EXEC scénář.
      *
-     * Pro temporary BP (= run-to-cursor / step-over CALL/RST/DJNZ/ED) si
-     * zachovává legacy chování (= pause + show debugger bez BP okna).
+     * Temporary BP (= run-to-cursor / step-over CALL/RST/DJNZ/ED, MCP
+     * run_until_addr / step_out) nemá podmínku ani akci: pozastaví emulaci
+     * s důvodem @c EMU_PAUSE_REASON_RUN_TO, ukáže okno debuggeru a vyšle
+     * MCP událost `paused` (`reason: "run_to"`, `pc`). Je-li na @p pc i
+     * trvalý BP, vyhodnotí se nejdřív on; dočasný zastaví jen tehdy, když
+     * trvalý emulaci nepozastavil (= vždy právě jedna událost `paused`).
      *
      * @param pc Aktuální g_mzarch_main.instruction_addr.
      *
-     * Side effects: viz breakpoints_enforce.
+     * Side effects: viz breakpoints_enforce; pauza maže dočasný BP.
      */
     extern void breakpoints_enforce_pc_exec ( uint16_t pc );
 
@@ -1387,11 +1391,12 @@ struct st_BP_ACTION;
      *
      * Helper pro UI Test Eval i pro enforce hooky. Caller předá zero-init
      * ctx (= bp_expr_ctx_zero); funkce přepíše jen pole nezávislá na typu
-     * hooku (cpu, BankPC, BankAddr). Pole závislá na typu (Address, Value,
-     * IsRead/Write/Exec/Port, self_id) plní caller sám.
+     * hooku (cpu, InsnPC, Cycle, Frame, FrameCycle, Scanline, BankPC,
+     * BankAddr). Pole závislá na typu (Address, Value, IsRead/Write/Exec/Port,
+     * self_id) plní caller sám.
      *
-     * Cycle/Frame/Scanline zůstávají nuly - V1 nemá kanonické zdroje
-     * globálního T-state / frame counteru přístupné přes mzarch API.
+     * Cycle/Frame/FrameCycle/Scanline jsou z GDG (g_gdg), InsnPC
+     * z g_mzarch_main.instruction_addr.
      *
      * Threading: jen z EMU vlákna v normálním BP enforce, z UI vlákna
      * pro Test Eval (= snapshot read, race tolerable při pause).

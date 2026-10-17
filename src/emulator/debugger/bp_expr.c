@@ -997,8 +997,13 @@ static int32_t resolve_ident ( const char *raw_name, const bp_expr_ctx_t *ctx ) 
     if ( strcmp ( name, "isport" )   == 0 ) return ctx->IsPort  ? 1 : 0;
     if ( strcmp ( name, "bankpc" )   == 0 ) return ctx->BankPC;
     if ( strcmp ( name, "bankaddr" ) == 0 ) return ctx->BankAddr;
+    /* Cycle a Frame jsou v ctx 64bitové, výraz je int32: oříznutí je
+     * záměrné a zdokumentované (Cycle přeteče asi po 121 s emulace PAL);
+     * čas v rámci snímku bez přetečení dává FrameCycle. */
     if ( strcmp ( name, "cycle" )    == 0 ) return (int32_t) ctx->Cycle;
     if ( strcmp ( name, "frame" )    == 0 ) return (int32_t) ctx->Frame;
+    if ( strcmp ( name, "framecycle" ) == 0 ) return ctx->FrameCycle;
+    if ( strcmp ( name, "insnpc" )   == 0 ) return ctx->InsnPC;
     if ( strcmp ( name, "scanline" ) == 0 ) return ctx->Scanline;
 
     /* Reason - ambient global pro IFF*_CHANGE eventy (V1.7+ 1.5).
@@ -1081,9 +1086,10 @@ static int32_t resolve_ident ( const char *raw_name, const bp_expr_ctx_t *ctx ) 
  *
  * V1.6+ TODO 4.2 5a: side_effect=false → memory_read_byte_no_se()
  * (= bez MEM_R BP fire); side_effect=true → memory_read_byte()
- * (= s plným side-effecty vč. MEM_R BP fire). MZ-800 memory subsystem
- * jine side-effecty mimo BP fire nema (= tape state v memory_read_byte
- * neni triggered, je v separate cmt_update_output v iorq path).
+ * (= s vyhodnocením MEM_R BP). Jiné vedlejší efekty nemá ani jedna cesta:
+ * mapované porty 0xE000-0xE008 (režim MZ-700) obě čtou přes *_peek funkce
+ * čipů (bez posunu autotype, bez načtení vstupů hostitele, bez přepnutí
+ * klopného obvodu 8253).
  */
 static uint8_t bp_read_byte ( uint16_t addr, bool side_effect ) {
     if ( side_effect ) {

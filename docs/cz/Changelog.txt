@@ -1,4 +1,24 @@
 
+	- BUGFIX: Trace Suite - cputrack zapisuje bajty instrukce tak, jak je procesor načetl. Instrukce, která přepsala vlastní bajty nebo pod sebou přepnula banking paměti, se dřív zapsala s bajty z paměti po vykonání (např. LD (nn),A jako NOP). Nahrávání cputrack je tím asi o 12 % pomalejší (měřeno v MAX SPEED).
+
+	- BUGFIX: MCP - emu_event_poll s timeout_ms nad 30 000 už neskončí chybou wrapperu (timeout odpovědi); wrapper čeká tak dlouho, jak dlouho smí čekat emulátor (až 60 s).
+
+	- MCP - nástroje emu_trace_start, emu_trace_stop, emu_trace_reset a emu_trace_save nově ovládají i kanál marklog (značky z akce breakpointu mark), stejně jako akce trace_start a trace_stop v breakpointech.
+
+	- BUGFIX: MCP - emu_history_get za běhu emulace vrací pozici v historii instrukcí ze stejného okamžiku jako samotné řádky; dřív se pozice četla později a nemusela k řádkům sedět.
+
+	- BUGFIX: Debugger a MCP - zápis paměti debuggerem (úpravy v Memory Browseru, zmrazení bajtů, MCP emu_mem_write a emu_region_write) už nespouští MEM_W breakpointy. Dřív každý takový zápis na hlídanou adresu zvýšil počet zásahů a vyslal události breakpoint_hit a paused; zmrazený bajt na hlídané adrese spouštěl breakpoint v každém snímku.
+
+	- Debugger - výrazy breakpointů mají nové identifikátory InsnPC a FrameCycle. InsnPC je adresa vykonávané instrukce: u MEM_R, MEM_W a IORQ breakpointů ukazuje PC už za instrukci, která přístup dělá, InsnPC na ni. FrameCycle jsou takty GDG od začátku snímku a na rozdíl od Cycle (asi po 121 s emulace přeteče) nepřetéká.
+
+	- BUGFIX: Debugger - v režimu MZ-700 zobrazení adres 0E000h-0E008h (Memory Browser, Watch, disassembler, MCP emu_mem_read, výrazy breakpointů) už neovlivní emulaci. Dřív čtení 0E001h posunulo automatické psaní textu (autotype), zpracovalo klávesnici hostitele a narušilo ověření dosednutí kláves MCP, na MZ-700 a MZ-1500 čtení 0E008h načetlo joystick. Na 0E004h-0E006h debugger nově ukazuje stav čítače 8253 místo konstanty.
+
+	- BUGFIX: Debugger a MCP - čtení paměti debuggerem (disassembler, zásobník, MCP emu_mem_read a emu_dasm) už nespouští MEM_R breakpointy. Dřív každé zobrazení adresy s MEM_R breakpointem zvýšilo počet zásahů a vyslalo události breakpoint_hit a paused, i když procesor nic nečetl.
+
+	- BUGFIX: MCP a Memory Browser - s MemExtem Luftner, RAMdiskem STD 16 MB a PEZIKem (přes 500 paměťových regionů) jsou dostupné všechny regiony. MCP emu_regions_list dřív výčet usekl na 128 položek a emu_region_read / emu_region_write odmítly vyšší ID, takže banky RAMdisku nešly číst; Memory Browser, jeho porovnání a zmrazení bajtů (freeze) viděly nejvýš 512 regionů.
+
+	- BUGFIX: Debugger a MCP - zastavení na dočasném breakpointu (Run to cursor, Step over přes CALL, MCP emu_run_until_addr a emu_step_out) nově vyšle událost paused s důvodem run_to, takže MCP klient nemusí stav pollovat (emu_run hlásí stopped_by run_to). Dočasný breakpoint na adrese, kde je i breakpoint s nesplněnou podmínkou, emulaci už spolehlivě zastaví; dřív ji nechal běžet dál.
+
 	- Režim --headless už zbytečně nezatěžuje celé jedno jádro procesoru. Hlavní vlákno bez okna dřív dokola kontrolovalo události, teď na ně čeká; rychlost emulace se nemění.
 
 	- Debugger a MCP - krok a pokračování z pauzy se provedou hned. Dřív emulace po příkazu Step nebo Run v pauze čekala ještě až 20 ms, takže automatické krokování nebo opakovaný běh k breakpointu, které čekají na výsledek, stály na každý krok či rozběh 20 ms navíc.

@@ -4,11 +4,16 @@
  * Implementuje veřejné funkce z dbgapi_regions.h:
  *   - dbgapi_regions_enumerate(): dispatch na per-arch <arch>_regions_collect()
  *     a cache snapshot pro následující read/write.
+ *   - dbgapi_regions_enumerate_dup(): kopie celého výčtu bez stropu.
+ *   - dbgapi_regions_refresh(): jen obnoví cache (bez kopie).
+ *   - dbgapi_regions_get() / dbgapi_regions_find_kind(): deskriptor z cache
+ *     podle ID nebo podle (kind, sub_id).
  *   - dbgapi_regions_read(): no-side-effect read; per-kind dispatch.
  *   - dbgapi_regions_write(): safe write; respekt writable/connected flagů.
  *
  * Cache snapshot:
- *   - s_region_cache[] drží poslední enumerate výsledek
+ *   - s_region_cache[] drží poslední enumerate výsledek, alokace roste podle
+ *     skutečného počtu regionů (bez pevného stropu)
  *   - s_region_cache_count = počet validních záznamů
  *   - read/write hledá podle id v cache (= O(1) lookup, id == index v cache)
  *
@@ -71,16 +76,18 @@
 /* ============================================================================
  * Cache poslední enumerate výsledek
  *
- * Maximální počet regionů = LOGICAL + RAM + 2× ROM + CGROM + 2× CGRAM/700 +
- * 2× VRAM_700 + 4× VRAM_PLANE + 3× PCG + 2× 128 Memext + 256 RAMDISK_STD +
- * 2× 8 PEZIK + PROHIBITED. Worst case (MZ-800 Luftner + STD 16M + 2× PEZIK):
- *   1 + 1 + 2 + 1 + 1 + 2 + 4 + 256 + 256 + 16 + 1 = ~541 regionů.
- * Zaokrouhlujeme na 1024 pro bezpečnost.
+ * Počet regionů závisí na připojeném HW: MZ-800 s MemExtem Luftner, RAMdiskem
+ * STD 16 MB a oběma PEZIKy má podle per-arch collect 12 + 256 + 256 + 16
+ * (+ 1 PROHIBITED po OUT 0E5h) regionů. Pevný strop by výčet zase usekl,
+ * proto se alokace cache zvětšuje podle počtu, který collect vrátí (collect
+ * počítá i položky, které se do pole nevešly, viz dbgapi_regions_add()).
  * ============================================================================ */
 
-#define REGION_CACHE_MAX 1024
-
-static st_REGION_DESC s_region_cache[REGION_CACHE_MAX];
+/** @brief Cache výčtu; alokace s_region_cache_cap položek, NULL do 1. plnění. */
+static st_REGION_DESC *s_region_cache = NULL;
+/** @brief Počet alokovaných položek s_region_cache (jen roste). */
+static int s_region_cache_cap = 0;
+/** @brief Počet platných položek s_region_cache (<= s_region_cache_cap). */
 static int s_region_cache_count = 0;
 
 /**
@@ -116,13 +123,19 @@ static int arch_regions_collect(st_REGION_DESC *out, int max_count)
  * ============================================================================ */
 
 /* Helper: naplní cache z per-arch collect. Volat POUZE pod
- * s_region_cache_mutex. */
+ * s_region_cache_mutex. Nevejde-li se výčet do alokace, zvětší ji na
+ * skutečný počet a collect zopakuje (stav HW se mezi oběma průchody nemění,
+ * volání drží zámek a výčet jen čte). */
 static void region_cache_fill_locked(void)
 {
-    s_region_cache_count = arch_regions_collect(s_region_cache, REGION_CACHE_MAX);
-    if (s_region_cache_count > REGION_CACHE_MAX) {
-        s_region_cache_count = REGION_CACHE_MAX;
+    int n = arch_regions_collect(s_region_cache, s_region_cache_cap);
+    if (n > s_region_cache_cap) {
+        s_region_cache = g_renew(st_REGION_DESC, s_region_cache, n);
+        s_region_cache_cap = n;
+        n = arch_regions_collect(s_region_cache, s_region_cache_cap);
     }
+    if (n < 0) n = 0;
+    s_region_cache_count = (n < s_region_cache_cap) ? n : s_region_cache_cap;
 }
 
 
@@ -140,6 +153,33 @@ int dbgapi_regions_enumerate(st_REGION_DESC *out, int max_count)
     memcpy(out, s_region_cache, n * sizeof(st_REGION_DESC));
     g_mutex_unlock(&s_region_cache_mutex);
     return n;
+}
+
+
+void dbgapi_regions_refresh(void)
+{
+    g_mutex_lock(&s_region_cache_mutex);
+    region_cache_fill_locked();
+    g_mutex_unlock(&s_region_cache_mutex);
+}
+
+
+st_REGION_DESC *dbgapi_regions_enumerate_dup(int *out_count)
+{
+    st_REGION_DESC *copy = NULL;
+    int n;
+
+    g_mutex_lock(&s_region_cache_mutex);
+    region_cache_fill_locked();
+    n = s_region_cache_count;
+    if (n > 0) {
+        copy = g_new(st_REGION_DESC, n);
+        memcpy(copy, s_region_cache, (size_t) n * sizeof(st_REGION_DESC));
+    }
+    g_mutex_unlock(&s_region_cache_mutex);
+
+    if (out_count) *out_count = n;
+    return copy;
 }
 
 
@@ -165,6 +205,33 @@ static bool lookup_region_copy(int region_id, st_REGION_DESC *out_desc)
     if (region_id >= 0 && region_id < s_region_cache_count) {
         *out_desc = s_region_cache[region_id];
         found = true;
+    }
+    g_mutex_unlock(&s_region_cache_mutex);
+    return found;
+}
+
+
+bool dbgapi_regions_get(int region_id, st_REGION_DESC *out)
+{
+    if (!out) return false;
+    return lookup_region_copy(region_id, out);
+}
+
+
+bool dbgapi_regions_find_kind(en_REGION_KIND kind, int sub_id, st_REGION_DESC *out)
+{
+    bool found = false;
+    if (!out) return false;
+    g_mutex_lock(&s_region_cache_mutex);
+    if (s_region_cache_count <= 0) {
+        region_cache_fill_locked();
+    }
+    for (int i = 0; i < s_region_cache_count; i++) {
+        if (s_region_cache[i].kind == kind && s_region_cache[i].sub_id == sub_id) {
+            *out = s_region_cache[i];
+            found = true;
+            break;
+        }
     }
     g_mutex_unlock(&s_region_cache_mutex);
     return found;
@@ -417,11 +484,12 @@ int dbgapi_regions_write(int region_id, uint32_t offset, const uint8_t *data, ui
     switch (desc->kind) {
 
     case REGION_KIND_LOGICAL: {
-        /* Banking-aware write přes memory_write_byte. POZOR: může mít
-         * side-effecty (např. VRAM write hits GDG WF dispatch). Pro VRAM
-         * editaci v pause modu preferovat fyzický plane region. */
+        /* Banking-aware write přes memory_write_byte_no_bp (bez MEM_W
+         * breakpointu - zápis debuggerem). POZOR: může mít side-effecty
+         * (např. VRAM write hits GDG WF dispatch). Pro VRAM editaci
+         * v pause modu preferovat fyzický plane region. */
         for (uint32_t i = 0; i < n; i++) {
-            memory_write_byte((uint16_t)(offset + i), data[i]);
+            memory_write_byte_no_bp((uint16_t)(offset + i), data[i]);
         }
         return (int)n;
     }

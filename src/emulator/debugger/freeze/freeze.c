@@ -44,15 +44,6 @@ static size_t s_count = 0;
 unsigned g_freeze_active = 0;
 
 
-/**
- * @brief Pomocný buffer pro region enumerate v apply path.
- *
- * Static aby šel reusovat bez stack alokace per call.
- */
-#define FREEZE_REGIONS_MAX 512
-static st_REGION_DESC s_apply_regions[FREEZE_REGIONS_MAX];
-
-
 void freeze_init ( void )
 {
     memset ( s_entries, 0, sizeof ( s_entries ) );
@@ -165,32 +156,22 @@ void freeze_apply_all ( void )
      * predictor v default OFF stavu naučí "vždy false". */
     if ( g_freeze_active == 0 ) return;
 
-    /* Enumerate aktuální regiony jednou per call (banking-aware snapshot).
-     * Pro každý entry hledáme region_id podle (kind, sub_id). */
-    int n = dbgapi_regions_enumerate ( s_apply_regions, FREEZE_REGIONS_MAX );
-    if ( n <= 0 ) return;
+    /* Obnov výčet regionů jednou per call (banking-aware snapshot, bez
+     * stropu na počet regionů). Pro každý entry hledáme region podle
+     * (kind, sub_id) v obnovené cache. */
+    dbgapi_regions_refresh ( );
 
     for ( int i = 0; i < FREEZE_MAX_ENTRIES; i++ ) {
         if ( !s_entries[i].in_use ) continue;
 
-        /* Najdi region_id v aktuálním snapshotu. */
-        int region_id = -1;
-        for ( int j = 0; j < n; j++ ) {
-            if ( (int) s_apply_regions[j].kind == s_entries[i].region_kind
-                 && s_apply_regions[j].sub_id == s_entries[i].sub_id ) {
-                region_id = s_apply_regions[j].id;
-                /* Skip pokud region disconnected nebo R-only - soft tolerance. */
-                if ( !s_apply_regions[j].connected
-                     || !s_apply_regions[j].writable ) {
-                    region_id = -1;
-                }
-                break;
-            }
-        }
-        if ( region_id < 0 ) continue;
+        st_REGION_DESC desc;
+        if ( !dbgapi_regions_find_kind ( (en_REGION_KIND) s_entries[i].region_kind,
+                                         s_entries[i].sub_id, &desc ) ) continue;
+        /* Skip pokud region disconnected nebo R-only - soft tolerance. */
+        if ( !desc.connected || !desc.writable ) continue;
 
         /* Apply - 1-byte write přes dbgapi (no side-effect na chip state). */
-        dbgapi_regions_write ( region_id, s_entries[i].offset,
+        dbgapi_regions_write ( desc.id, s_entries[i].offset,
                                &s_entries[i].value, 1 );
     }
 }

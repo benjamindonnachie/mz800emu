@@ -15,7 +15,7 @@
  *
  * Slouží jen jako signál pro MCP `emu_run` (pole `stopped_by`), aby klient
  * rozlišil, zda emulace doběhla požadovaný počet framů, nebo ji zastavil
- * breakpoint / manuální pauza. Není to autoritativní stav emulace - pauzy
+ * breakpoint / dočasný breakpoint / manuální pauza. Není to autoritativní stav emulace - pauzy
  * z jiných důvodů (HALT, fatal) ho nemusí nastavit, pak zůstane @c NONE.
  */
 typedef enum en_EMU_PAUSE_REASON
@@ -23,7 +23,9 @@ typedef enum en_EMU_PAUSE_REASON
     EMU_PAUSE_REASON_NONE = 0,    /**< Bez konkrétního důvodu / běží. */
     EMU_PAUSE_REASON_FRAMES,      /**< Doběhl požadovaný počet framů (emu_run). */
     EMU_PAUSE_REASON_BREAKPOINT,  /**< Zastaveno breakpointem. */
-    EMU_PAUSE_REASON_MANUAL       /**< Manuální pauza (UI nebo MCP pause). */
+    EMU_PAUSE_REASON_MANUAL,      /**< Manuální pauza (UI nebo MCP pause). */
+    EMU_PAUSE_REASON_RUN_TO       /**< Zastaveno dočasným breakpointem (Run to cursor,
+                                       Step over přes CALL, MCP run_until_addr / step_out). */
 } en_EMU_PAUSE_REASON;
 
 /**

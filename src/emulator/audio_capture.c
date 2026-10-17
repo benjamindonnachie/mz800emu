@@ -68,7 +68,8 @@ typedef struct st_AC_WAV {
 } st_AC_WAV;
 
 /**
- * @brief Stav modulu (emu vlákno; sdl a sdl_samples/sdl_blocks pod sdl_mutex).
+ * @brief Stav modulu; celý ho chrání s_mutex (háčky emu vlákna, sdl a sdl_blocks
+ *        zapisuje i vlákno SDL zvuku přes audio_capture_sdl_output()).
  *
  * @invariant active => (origin, frame, last_horizon) platí pro běžící zachycení.
  * @invariant began => origin a last_horizon platí i po konci zachycení
@@ -83,9 +84,9 @@ static struct {
     FILE *events;                    /**< events.csv, nebo NULL. */
     FILE *psg;                       /**< psg_writes.csv, nebo NULL. */
     st_AC_WAV ref;                   /**< reference.wav. */
-    st_AC_WAV sdl;                   /**< sdl.wav (pod sdl_mutex). */
-    uint64_t sdl_blocks;             /**< Zapsané bloky SDL cesty (pod sdl_mutex). */
-    bool sdl_writing;                /**< Bloky SDL cesty se zapisují (false = rozjezd, zahazují se; pod sdl_mutex). */
+    st_AC_WAV sdl;                   /**< sdl.wav (zapisuje i vlákno SDL zvuku). */
+    uint64_t sdl_blocks;             /**< Zapsané bloky SDL cesty. */
+    bool sdl_writing;                /**< Bloky SDL cesty se zapisují (false = rozjezd, zahazují se). */
     unsigned warmup_frames;          /**< Zbývající snímky rozjezdu SDL cesty před začátkem. */
     st_VIDEOREC_AUDIO renderer;      /**< Renderer reference.wav (platí jen při active && ref.fp). */
     bool renderer_init;              /**< renderer je inicializovaný (k uvolnění). */

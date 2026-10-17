@@ -156,6 +156,24 @@ extern "C"
 
     extern void ctc8253_init(void);
     extern uint8_t ctc8253_read_byte(unsigned cs);
+
+    /**
+     * @brief Bajt, který by vrátilo čtení čítače @p cs, bez vedlejšího efektu.
+     *
+     * Stejná volba zdroje (read_latch při Counter Latch, jinak value) a bajtu
+     * (LSB / MSB / podle rl_byte u LSBMSB) jako ctc8253_read_byte(), ale
+     * rl_byte ani latch_op nemění. Pro debugger a mapované čtení 0E004h-0E006h
+     * v režimu MZ-700 (memory_read_byte_no_se, Memory Browser, Watch).
+     *
+     * @param cs Index čítače CTC_CS0..CTC_CS2; jiná hodnota vrátí 0x00.
+     * @return Bajt čítače.
+     * @note CTC0 se v rychlé cestě (MZ800EMU_CFG_CLK1M1_FAST) před čtením
+     *       nedosynchronizuje (ctc8253_sync_ctc0() mění stav): vrátí hodnotu
+     *       z poslední synchronizace, která se od čtení CPU v tomtéž okamžiku
+     *       může lišit. CTC1 a CTC2 se synchronizací nečtou.
+     * @pre Emu vlákno, nebo pauza.
+     */
+    extern uint8_t ctc8253_peek_byte(unsigned cs);
     extern void ctc8253_write_byte(unsigned addr, uint8_t value);
     extern void ctc8253_gate(unsigned addr, unsigned gate, unsigned event_screen_ticks);
     extern void ctc8253_clkfall(unsigned cs, unsigned event_ticks);

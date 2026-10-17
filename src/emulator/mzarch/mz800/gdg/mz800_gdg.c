@@ -282,6 +282,12 @@ uint8_t gdg_read_dmd_status_memop(void)
     return retval;
 }
 
+uint8_t gdg_peek_dmd_status_memop(void)
+{
+    /* Čtení statusu na MZ-800 nemá vedlejší efekt. */
+    return gdg_read_dmd_status_memop();
+}
+
 void gdg_write_byte(unsigned addr, uint8_t value)
 {
     // printf("%s():%d - addr = 0x%04x, value = 0x%02x, PC = 0x%04x\n", __func__, __LINE__, addr, value, g_mz800_main.instruction_addr);

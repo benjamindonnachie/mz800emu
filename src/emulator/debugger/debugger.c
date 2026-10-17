@@ -101,6 +101,7 @@
 
 st_DEBUGGER g_debugger;
 st_DEBUGGER_HISTORY g_debugger_history;
+st_DEBUGGER_INSN_FETCH g_debugger_insn_fetch;
 
 /**
  * @brief Příznak "debugger_init() doběhla" pro UI vlákno (GLib atomic).
@@ -970,7 +971,10 @@ void debugger_animation ( void ) {
 uint8_t debugger_dasm_read_cb ( uint16_t addr, void *user_data ) {
     (void)user_data;
     g_debugger.memop_call = 1;
-    uint8_t retval = memory_read_byte ( addr );
+    /* Čtení debuggerem nesmí spustit MEM_R breakpoint (falešné zásahy,
+     * hits, události breakpoint_hit/paused, z UI vlákna i souběh s emu
+     * vláknem), proto _no_se, ne memory_read_byte. */
+    uint8_t retval = memory_read_byte_no_se ( addr );
     g_debugger.memop_call = 0;
     return retval;
 }
@@ -992,7 +996,8 @@ uint8_t debugger_dasm_pure_ram_read_cb ( uint16_t addr, void *user_data ) {
 void debugger_memory_write_byte ( uint16_t addr, uint8_t value ) {
     g_debugger.memop_call = 1;
     g_debugger.memop_vram_touched = 0;
-    memory_write_byte ( addr, value );
+    /* Zápis debuggerem nesmí spustit MEM_W breakpoint (ten hlídá zápisy CPU). */
+    memory_write_byte_no_bp ( addr, value );
     g_debugger.memop_call = 0;
 
     /* Pokud zápis v aktuálním banking/mode kontextu dopadl do VRAM/CGRAM

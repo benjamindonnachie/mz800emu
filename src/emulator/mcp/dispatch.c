@@ -1575,7 +1575,7 @@ static en_MCP_DISPATCH_RESULT _handle_run(const st_JSONL_MESSAGE *req,
 
     /* stopped_by: proč se emulace zastavila. !done = safety timeout; jinak
      * důvod, který nastavil ten, kdo emu pausnul (frame target / breakpoint /
-     * manuální pauza). "unknown" = emu se zastavil z jiného důvodu, který
+     * dočasný breakpoint / manuální pauza). "unknown" = emu se zastavil z jiného důvodu, který
      * pause_reason nenastavuje (HALT, fatal). */
     const char *stopped_by;
     bool reached;
@@ -1588,6 +1588,7 @@ static en_MCP_DISPATCH_RESULT _handle_run(const st_JSONL_MESSAGE *req,
             case EMU_PAUSE_REASON_FRAMES:     stopped_by = "frames";     break;
             case EMU_PAUSE_REASON_BREAKPOINT: stopped_by = "breakpoint"; break;
             case EMU_PAUSE_REASON_MANUAL:     stopped_by = "manual";     break;
+            case EMU_PAUSE_REASON_RUN_TO:     stopped_by = "run_to";     break;
             default:                          stopped_by = "unknown";    break;
         }
         reached = (g_emulator.pause_reason == EMU_PAUSE_REASON_FRAMES);
@@ -1865,14 +1866,16 @@ static en_MCP_DISPATCH_RESULT _handle_history_get(const st_JSONL_MESSAGE *req,
     int64_t req_id = jsonl_msg_get_req_id(req);
     st_DEBUGGER_HISTORY_ROW rows[DEBUGGER_HISTORY_LENGTH];
     memset(rows, 0, sizeof(rows));
-    if (!_submit_dbgapi(DBGAPI_CMD_HISTORY_GET, NULL, rows)) {
+    /* Pozice ringu ze stejného okamžiku jako řádky (čte ji emu vlákno
+     * v témže příkazu); dřív se četla až tady, mimo emu vlákno. */
+    unsigned position = 0;
+    if (!_submit_dbgapi(DBGAPI_CMD_HISTORY_GET, &position, rows)) {
         return _err_response(req_id, "HISTORY_GET failed",
                              MCP_DISPATCH_EMU_ERROR, out_response);
     }
     JsonObject *data = json_object_new();
     json_object_set_int_member(data, "current_position",
-                               (gint64)(g_debugger_history.position
-                                        & DEBUGGER_HISTORY_POSMASK));
+                               (gint64)(position & DEBUGGER_HISTORY_POSMASK));
     json_object_set_int_member(data, "length",
                                (gint64)DEBUGGER_HISTORY_LENGTH);
     JsonArray *entries = json_array_new();
@@ -6952,7 +6955,7 @@ static en_MCP_DISPATCH_RESULT _handle_cdl_export(const st_JSONL_MESSAGE *req,
 /**
  * @brief Převést channel string na en_DBGAPI_TRACE_CHANNEL.
  *
- * Akceptované hodnoty: "cputrack", "iorqlog", "intlog", "hwlog".
+ * Akceptované hodnoty: "cputrack", "iorqlog", "intlog", "hwlog", "marklog".
  *
  * @param s    Channel string (může být NULL = nevalidní).
  * @param out  Výstupní enum (vyplněn jen při návratu TRUE).
@@ -6977,6 +6980,10 @@ static gboolean _trace_parse_channel(const char *s,
     }
     if (g_strcmp0(s, "hwlog") == 0) {
         *out = DBGAPI_TRACE_CHANNEL_HWLOG;
+        return TRUE;
+    }
+    if (g_strcmp0(s, "marklog") == 0) {
+        *out = DBGAPI_TRACE_CHANNEL_MARKLOG;
         return TRUE;
     }
     return FALSE;
@@ -7040,7 +7047,7 @@ static en_MCP_DISPATCH_RESULT _trace_start_stop_common(
 /**
  * @brief `trace_start` handler - aktivuje trace recording kanálu (ALWAYS).
  *
- * Parametry: `channel` (cputrack/iorqlog/intlog/hwlog). Forward na
+ * Parametry: `channel` (cputrack/iorqlog/intlog/hwlog/marklog). Forward na
  * DBGAPI_CMD_TRACE_START. Response: `{"started": true}`.
  */
 static en_MCP_DISPATCH_RESULT _handle_trace_start(const st_JSONL_MESSAGE *req,
@@ -7090,7 +7097,7 @@ static en_MCP_DISPATCH_RESULT _handle_trace_reset(const st_JSONL_MESSAGE *req,
  * @brief `trace_save` handler - uloží/přesměruje trace segment kanálu.
  *
  * Parametry:
- *   - `channel` (string, povinný) - cputrack/iorqlog/intlog/hwlog.
+ *   - `channel` (string, povinný) - cputrack/iorqlog/intlog/hwlog/marklog.
  *   - `path` (string, volitelný) - cílová cesta NÁSLEDNÉHO segmentu. Bez
  *     `path` se jen uzavře a znovuotevře aktuální segment na stávající
  *     dir/name (= force save now).
@@ -13458,25 +13465,31 @@ static const char *_region_kind_to_str(int kind) {
  * si vybere region a použije ID v `region_read`. ID jsou stable v
  * rámci session, NE per HW reconfigure (= memext/ramdisk attach/detach
  * invaliduje, klient musí re-enumerate).
+ *
+ * Výčet je úplný (bez stropu na počet): plná sestava MZ-800 (MemExt
+ * Luftner, RAMdisk STD 16 MB, oba PEZIKy) má přes 500 regionů. Dřív
+ * pevné pole 128 položek schovalo banky RAMdisku.
  */
-#define MCP_REGIONS_MAX 128
 static en_MCP_DISPATCH_RESULT _handle_regions_list(
     const st_JSONL_MESSAGE *req, char **out_response) {
     int64_t req_id = jsonl_msg_get_req_id(req);
-    st_REGION_DESC descs[MCP_REGIONS_MAX];
-    memset(descs, 0, sizeof(descs));
+    /* out == NULL = backend vrátí kopii všech regionů v out_dup. */
     st_DBGAPI_REGIONS_ENUM_PARAM param = {
-        .out = descs,
-        .max_count = MCP_REGIONS_MAX,
+        .out = NULL,
+        .max_count = 0,
         .out_count = 0,
+        .out_dup = NULL,
     };
     if (!_submit_dbgapi(DBGAPI_CMD_REGIONS_ENUMERATE, &param, NULL)) {
+        g_free(param.out_dup);
         return _err_response(req_id, "REGIONS_ENUMERATE failed",
                              MCP_DISPATCH_EMU_ERROR, out_response);
     }
+    const st_REGION_DESC *descs = (const st_REGION_DESC *)param.out_dup;
+    int count = descs ? param.out_count : 0;
     JsonObject *data = json_object_new();
     JsonArray *arr = json_array_new();
-    for (int i = 0; i < param.out_count; i++) {
+    for (int i = 0; i < count; i++) {
         const st_REGION_DESC *d = &descs[i];
         JsonObject *r = json_object_new();
         json_object_set_int_member(r, "id", d->id);
@@ -13496,7 +13509,8 @@ static en_MCP_DISPATCH_RESULT _handle_regions_list(
         json_array_add_object_element(arr, r);
     }
     json_object_set_array_member(data, "regions", arr);
-    json_object_set_int_member(data, "count", param.out_count);
+    json_object_set_int_member(data, "count", count);
+    g_free(param.out_dup);
     return _ok_response(req_id, data, out_response);
 }
 
@@ -13526,7 +13540,8 @@ static en_MCP_DISPATCH_RESULT _handle_region_read(
     gint64 region_id = _obj_int_or(obj, "region_id", -1);
     gint64 offset    = _obj_int_or(obj, "offset",    0);
     gint64 length    = _obj_int_or(obj, "length",    -1);
-    if (region_id < 0 || region_id > MCP_REGIONS_MAX
+    /* Horní mez ID kontroluje backend proti výčtu (lookup_region_copy). */
+    if (region_id < 0 || region_id > G_MAXINT
             || offset < 0 || offset > 0xFFFFFFFFu
             || length < 1 || length > 65536) {
         return _err_response(req_id, "Invalid parameters",
@@ -13737,7 +13752,8 @@ static en_MCP_DISPATCH_RESULT _handle_region_write(
     JsonObject *obj = json_node_get_object(data_node);
     gint64 region_id = _obj_int_or(obj, "region_id", -1);
     gint64 offset    = _obj_int_or(obj, "offset",    0);
-    if (region_id < 0 || region_id > MCP_REGIONS_MAX
+    /* Horní mez ID kontroluje backend proti výčtu (lookup_region_copy). */
+    if (region_id < 0 || region_id > G_MAXINT
             || offset < 0 || offset > 0xFFFFFFFFu) {
         return _err_response(req_id, "Invalid parameters",
                              MCP_DISPATCH_INVALID_PARAMS, out_response);

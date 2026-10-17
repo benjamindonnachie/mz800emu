@@ -358,7 +358,11 @@ static inline uint8_t memory_internal_read_rom_e000_efff_sync ( uint16_t addr ) 
 
 /**
  * Cteni z 0xe000 - 0xefff - bez synchronizace
- * 
+ *
+ * Bez vedlejšího efektu: mapované porty (8255, 8253, status GDG) se čtou
+ * přes *_peek funkce čipů, které stav nemění (memory_read_byte_no_se,
+ * memory_read_byte = debugger, Memory Browser, Watch, výrazy BP).
+ *
  * @param addr
  * @return 
  */
@@ -378,7 +382,7 @@ static inline uint8_t memory_internal_read_rom_e000_efff ( uint16_t addr ) {
     if ( addr_low > 0x08 ) return g_mzarch_main.regDBUS_latch;
 
     /* cteni z E008 ( regDMD ) */
-    if ( 0x08 == addr_low ) return gdg_read_dmd_status_memop ( );
+    if ( 0x08 == addr_low ) return gdg_peek_dmd_status_memop ( );
 
 
     /* cteni z CTC8253 */
@@ -388,11 +392,11 @@ static inline uint8_t memory_internal_read_rom_e000_efff ( uint16_t addr ) {
         if ( 0x07 == addr_low ) {
             return g_mzarch_main.regDBUS_latch;
         };
-        return 0xff;
+        return ctc8253_peek_byte ( addr_low & 0x03 );
     };
 
     /* cteni z PIO8255 */
-    return pio8255_read ( addr & 0x03 );
+    return pio8255_peek ( addr & 0x03 );
 }
 
 
@@ -544,6 +548,10 @@ uint8_t memory_read_with_logging_cb ( z80_t *cpu, uint16_t addr, int m1_state, v
         g_debugger_history.byte_position = 1;
     } else if ( access_kind == MHMAP_ACCESS_X ) {
         g_debugger_history.byte_position++;
+    };
+    /* Bajty instrukce tak, jak je CPU načetlo (cputrack, nezávisle na cpuhist). */
+    if ( access_kind == MHMAP_ACCESS_X ) {
+        debugger_insn_fetch_record ( is_m1_start, g_debugger_history.byte_position - 1, addr, retval );
     };
 
     /* CPU Instruction History (cpuhist) - dle cpuhist_mode (default jen při aktivním debug okně). */
@@ -855,6 +863,22 @@ void memory_write_byte ( uint16_t addr, uint8_t value ) {
         breakpoints_enforce_mem_w ( addr, value );
     }
 #endif
+    memory_write_byte_no_bp ( addr, value );
+}
+
+
+/**
+ * Zapis do aktualne mapovane pameti - bez synchronizace, bez MEM_W breakpointu.
+ *
+ * Stejny zapis jako memory_write_byte() (banking, VRAM, mapovane porty), ale
+ * bez vyhodnoceni MEM_W breakpointu. Pro zapisy debuggerem
+ * (debugger_memory_write_byte, region Logical: MCP region_write, Memory
+ * Browser, freeze) - MEM_W breakpoint hlida zapisy CPU.
+ *
+ * @param addr
+ * @param value
+ */
+void memory_write_byte_no_bp ( uint16_t addr, uint8_t value ) {
     unsigned addr_high = addr >> 12;
     memory_internal_write_0000_0fff ( addr_high );
     memory_internal_write_1000_cfff ( addr_high );

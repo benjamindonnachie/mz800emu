@@ -1117,6 +1117,18 @@ void test_cmd_history_get_null_result_fails ( void ) {
 }
 
 
+/* Pozice ringu se čte ve stejném příkazu jako řádky (data_ptr = unsigned*),
+ * ne až po návratu mimo emu vlákno (MCP history_get). */
+void test_cmd_history_get_returns_position ( void ) {
+    g_debugger_history.position = 7;
+    st_DEBUGGER_HISTORY_ROW out[ DEBUGGER_HISTORY_LENGTH ];
+    unsigned position = 0xFFFFFFFFu;
+    bool ok = call_dispatch ( DBGAPI_CMD_HISTORY_GET, &position, out );
+    TEST_ASSERT_TRUE ( ok );
+    TEST_ASSERT_EQUAL_UINT ( 7, position );
+}
+
+
 /* ========================================================================= */
 /*  MAIN                                                                      */
 /* ========================================================================= */
@@ -1224,6 +1236,7 @@ int main ( int argc, char *argv[] ) {
 
     RUN_TEST ( test_cmd_history_get_copies_buffer );
     RUN_TEST ( test_cmd_history_get_null_result_fails );
+    RUN_TEST ( test_cmd_history_get_returns_position );
 
     int result = UNITY_END ( );
 

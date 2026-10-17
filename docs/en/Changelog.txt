@@ -1,4 +1,24 @@
 
+	- BUGFIX: Trace Suite - cputrack records the instruction bytes as the processor fetched them. An instruction that overwrote its own bytes or switched the memory banking under itself used to be recorded with the bytes found in memory after it ran (e.g. LD (nn),A as NOP). cputrack recording is about 12 % slower because of this (measured in MAX SPEED).
+
+	- BUGFIX: MCP - emu_event_poll with timeout_ms above 30 000 no longer fails with a wrapper error (response timeout); the wrapper waits as long as the emulator may wait (up to 60 s).
+
+	- MCP - the emu_trace_start, emu_trace_stop, emu_trace_reset and emu_trace_save tools now also control the marklog channel (markers from the breakpoint action mark), as do the trace_start and trace_stop breakpoint actions.
+
+	- BUGFIX: MCP - emu_history_get during running emulation returns the instruction history position from the same moment as the rows; before, the position was read later and might not match the rows.
+
+	- BUGFIX: Debugger and MCP - memory writes by the debugger (Memory Browser edits, byte freeze, MCP emu_mem_write and emu_region_write) no longer trigger MEM_W breakpoints. Before, every such write to a watched address raised the hit count and emitted the breakpoint_hit and paused events; a frozen byte on a watched address triggered the breakpoint in every frame.
+
+	- Debugger - breakpoint expressions have the new identifiers InsnPC and FrameCycle. InsnPC is the address of the executing instruction: in MEM_R, MEM_W and IORQ breakpoints PC already points behind the instruction that makes the access, InsnPC points at it. FrameCycle counts GDG ticks from the start of the frame and, unlike Cycle (which wraps after about 121 s of emulation), never wraps.
+
+	- BUGFIX: Debugger - in MZ-700 mode, displaying the addresses 0E000h-0E008h (Memory Browser, Watch, disassembler, MCP emu_mem_read, breakpoint expressions) no longer affects the emulation. Before, reading 0E001h advanced the automatic text typing (autotype), processed the host keyboard and disturbed the MCP key landing check, and on MZ-700 and MZ-1500 reading 0E008h polled the joystick. At 0E004h-0E006h the debugger now shows the 8253 counter instead of a constant.
+
+	- BUGFIX: Debugger and MCP - memory reads by the debugger (disassembler, stack, MCP emu_mem_read and emu_dasm) no longer trigger MEM_R breakpoints. Before, every display of an address with a MEM_R breakpoint raised its hit count and emitted the breakpoint_hit and paused events, although the CPU read nothing.
+
+	- BUGFIX: MCP and Memory Browser - with a Luftner MemExt, a 16 MB STD RAM disk and a PEZIK (over 500 memory regions) all regions are available. MCP emu_regions_list used to cut the list at 128 entries and emu_region_read / emu_region_write rejected higher IDs, so the RAM disk banks could not be read; the Memory Browser, its diff and the byte freeze saw at most 512 regions.
+
+	- BUGFIX: Debugger and MCP - a stop on a temporary breakpoint (Run to cursor, Step over a CALL, MCP emu_run_until_addr and emu_step_out) now emits the paused event with the reason run_to, so an MCP client no longer has to poll the state (emu_run reports stopped_by run_to). A temporary breakpoint on an address that also holds a breakpoint with a false condition now reliably stops the emulation; it used to let it run on.
+
 	- The --headless mode no longer keeps one processor core needlessly busy. The main thread without a window used to check for events in a loop, now it waits for them; the emulation speed does not change.
 
 	- Debugger and MCP - a step or a continue from pause is carried out at once. Before, after a Step or Run command in pause the emulation still waited up to 20 ms, so automated stepping or repeated runs to a breakpoint that wait for the result paid an extra 20 ms per step or run.

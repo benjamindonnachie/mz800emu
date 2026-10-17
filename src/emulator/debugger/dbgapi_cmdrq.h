@@ -90,7 +90,7 @@ typedef enum en_DBGAPI_CMD
 
     /* --- Disassembly --- */
     DBGAPI_CMD_DASM,        /* Disassembly na adrese — data_ptr: st_DBGAPI_DASM_PARAM*, result_ptr: st_DBGAPI_DASM_RESULT* */
-    DBGAPI_CMD_HISTORY_GET, /* Čtení historie instrukcí — result_ptr: buffer pro historii */
+    DBGAPI_CMD_HISTORY_GET, /* Čtení historie instrukcí — result_ptr: buffer pro historii, data_ptr (volitelný): unsigned* pro pozici ringu ze stejného okamžiku */
 
     /* --- CPU rozšířený stav (CPU window) --- */
     DBGAPI_CMD_GET_CPU_FLAGS,   /* Čtení doplňkového CPU stavu — result_ptr: st_DBGAPI_CPU_FLAGS* */
@@ -2688,13 +2688,14 @@ typedef enum en_DBGAPI_TRACE_CHANNEL
     DBGAPI_TRACE_CHANNEL_IORQLOG,       /**< I/O port log (iorqlog). */
     DBGAPI_TRACE_CHANNEL_INTLOG,        /**< Interrupt/PIO log (intlog). */
     DBGAPI_TRACE_CHANNEL_HWLOG,         /**< HW signál log (hwlog). */
+    DBGAPI_TRACE_CHANNEL_MARKLOG,       /**< Značky z akce `mark` v BP (marklog). */
 } en_DBGAPI_TRACE_CHANNEL;
 
 
 /**
  * @brief Parametr pro DBGAPI_CMD_TRACE_{START,STOP,RESET,SAVE}.
  *
- * @field channel  Cílový trace kanál (cputrack/iorqlog/intlog/hwlog).
+ * @field channel  Cílový trace kanál (cputrack/iorqlog/intlog/hwlog/marklog).
  * @field path     Cílová cesta segmentu pro TRACE_SAVE (NULL = jen flush+
  *                 restart na stávající dir/name). Ignorováno u START/STOP/RESET.
  * @field out_result  Výstup: 0 = OK, -1 = chyba (např. restart writeru selhal).
@@ -4394,20 +4395,30 @@ typedef struct st_DBGAPI_WATCH_SNAPSHOT_PARAM
 /**
  * @brief Parametr pro CMD_REGIONS_ENUMERATE.
  *
- * Caller alokuje pole `out` o velikosti `max_count`. Handler vyplní entries
- * a počet v `out_count`. Per documentation v dbgapi_regions.h - IDs jsou
- * stable v rámci jedné enumerate volání; mezi voláními se po HW
- * reconfigure (= memext/ramdisk attach/detach) může změnit.
+ * Dva režimy:
+ *  - `out != NULL`: caller alokuje pole `out` o velikosti `max_count`.
+ *    Handler vyplní entries a počet v `out_count` (výčet useknutý na
+ *    `max_count`).
+ *  - `out == NULL`: handler vrátí kopii **všech** regionů v `out_dup`
+ *    (dbgapi_regions_enumerate_dup, bez stropu) a počet v `out_count`;
+ *    `max_count` se ignoruje. Kopii vlastní caller (g_free).
  *
- * @field out         (IN/OUT) Pole alokované callerem (min `max_count` položek).
- * @field max_count   (IN) Velikost pole.
- * @field out_count   (OUT) Skutečný počet zapsaných položek.
+ * Per documentation v dbgapi_regions.h - IDs jsou stable v rámci jedné
+ * enumerate volání; mezi voláními se po HW reconfigure (= memext/ramdisk
+ * attach/detach) může změnit.
+ *
+ * @field out         (IN/OUT) Pole alokované callerem (min `max_count` položek), nebo NULL.
+ * @field max_count   (IN) Velikost pole `out`.
+ * @field out_count   (OUT) Skutečný počet zapsaných / vrácených položek.
+ * @field out_dup     (OUT) Jen při `out == NULL`: kopie všech regionů
+ *                    (st_REGION_DESC*), NULL při prázdném výčtu.
  */
 typedef struct st_DBGAPI_REGIONS_ENUM_PARAM
 {
     void *out;       /* st_REGION_DESC* (= dbgapi_regions.h) */
     int max_count;
     int out_count;
+    void *out_dup;   /* st_REGION_DESC*, g_free callerem (režim out == NULL) */
 } st_DBGAPI_REGIONS_ENUM_PARAM;
 
 /**

@@ -78,7 +78,10 @@ reads a single character spec. If you need zero-padded hex emit it
 via multiple `log` calls or fixed-width construction externally.
 
 Max 8 expression arguments per `log` call. Output goes to stdout as
-`[BP-LOG] <formatted>\n`.
+`[BP-LOG] <formatted>\n`. Under `--mcp-pipe` stdout carries MCP JSONL,
+so the text goes to stderr and is **not readable through MCP**; count hits
+via `bp_list` or stop the BP instead. In MEM_R / MEM_W / IORQ BPs log
+`InsnPC`, not `PC` (the live PC is behind the accessing instruction).
 
 ```
 log "PC=%X A=%X HL=%X", PC, A, HL
@@ -259,7 +262,7 @@ paths.
 
 ### Trace suite
 
-`<chan>` is one of `cputrack`, `iorqlog`, `intlog`, `hwlog`
+`<chan>` is one of `cputrack`, `iorqlog`, `intlog`, `hwlog`, `marklog`
 (case-sensitive). Unknown channel = parse error.
 
 | Command | Effect |

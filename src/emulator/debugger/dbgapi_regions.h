@@ -55,6 +55,7 @@
 #define DBGAPI_REGIONS_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -150,6 +151,64 @@ typedef struct st_REGION_DESC
  *       cache-ovat ID mezi enumerate calls.
  */
 int dbgapi_regions_enumerate(st_REGION_DESC *out, int max_count);
+
+/**
+ * @brief Obnoví vnitřní cache výčtu regionů podle aktuálního stavu HW.
+ *
+ * Stejné jako dbgapi_regions_enumerate() bez kopie ven. Použití: volající,
+ * který pak hledá v cache přes dbgapi_regions_find_kind() nebo
+ * dbgapi_regions_get() a potřebuje čerstvé příznaky connected/mapped_now
+ * (freeze jednou za snímek).
+ *
+ * @post Cache obsahuje všechny regiony aktuální sestavy (bez stropu); ID se
+ *       mohla po HW reconfigure posunout.
+ * @note Thread-safe (zámek cache), bez vedlejších efektů na stav čipů.
+ *       Může alokovat (cache roste podle počtu regionů).
+ */
+void dbgapi_regions_refresh(void);
+
+/**
+ * @brief Vrátí kopii celého výčtu regionů (bez stropu na počet).
+ *
+ * Obnoví cache jako dbgapi_regions_enumerate() a vrátí nově alokovanou kopii
+ * všech položek. Pro volající, kteří nesmí výčet useknout (Memory Browser,
+ * MCP `regions_list`): plná sestava MZ-800 (MemExt Luftner, RAMdisk STD 16 MB,
+ * oba PEZIKy) má přes 500 regionů.
+ *
+ * @param[out] out_count Počet položek ve vrácené kopii (0 = žádné); smí být NULL.
+ * @return Kopie pole (out[i].id == i), nebo NULL, když je výčet prázdný.
+ *         Vlastní volající, uvolní přes g_free().
+ * @note Thread-safe (zámek cache), bez vedlejších efektů na stav čipů.
+ */
+st_REGION_DESC *dbgapi_regions_enumerate_dup(int *out_count);
+
+/**
+ * @brief Deskriptor regionu podle ID z posledního výčtu.
+ *
+ * Bez nového výčtu (cache se plní jen tehdy, když je prázdná). ID platí
+ * do příští změny sestavy HW, viz dbgapi_regions_enumerate().
+ *
+ * @param[in]  region_id ID z dbgapi_regions_enumerate() a spol.
+ * @param[out] out       Kopie deskriptoru (zapsaná jen při úspěchu).
+ * @return true = ID existuje, false = neplatné ID nebo @p out == NULL.
+ * @note Thread-safe (zámek cache).
+ */
+bool dbgapi_regions_get(int region_id, st_REGION_DESC *out);
+
+/**
+ * @brief Najde region podle (kind, sub_id) v posledním výčtu.
+ *
+ * Bez nového výčtu (cache se plní jen tehdy, když je prázdná); čerstvý stav
+ * dá předchozí dbgapi_regions_refresh(). Vrací i odpojený nebo jen pro čtení
+ * region, rozhoduje volající podle @c connected a @c writable.
+ *
+ * @param[in]  kind   Druh regionu.
+ * @param[in]  sub_id Disambiguator (banka, plane, instance PEZIK).
+ * @param[out] out    Kopie deskriptoru (zapsaná jen při úspěchu).
+ * @return true = nalezeno, false = region v sestavě není nebo @p out == NULL.
+ * @note Thread-safe (zámek cache).
+ */
+bool dbgapi_regions_find_kind(en_REGION_KIND kind, int sub_id, st_REGION_DESC *out);
 
 /**
  * @brief No-side-effect read z regionu.

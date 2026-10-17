@@ -78,6 +78,11 @@ Number of valid bytes in `insn_bytes`. Z80 instructions have length 1-4 B
 Up to 4 bytes of opcode + operands. Bytes beyond `insn_length` are
 undefined (likely 0, but the parser must not rely on it).
 
+The bytes are the ones the CPU fetched when it executed the instruction,
+so they are correct also for an instruction that overwrites its own bytes
+or switches the memory banking under itself (the memory may hold other
+bytes at `regPC` right after the instruction).
+
 From `regPC` + `insn_bytes[0..insn_length-1]` one can fully reconstruct:
 - what the Z80 executed (= disassemble)
 - the standard length in T-states (Z80 ISA table)

@@ -3260,16 +3260,23 @@ void breakpoints_fill_global_ctx ( bp_expr_ctx_t *ctx ) {
      *              inkrementuje se v gdg_on_screen_done_event).
      * - Scanline = g_gdg.beam_row (= aktuální raster row paprsku).
      * - Cycle    = gdg_get_total_ticks() = kumulativní GDG pixel ticks od
-     *              resetu (16 pixel ticks per Z80 T-state na 3.5 MHz). NENI
-     *              čistý Z80 T-state counter; pro per-frame timing relativní
-     *              jednotky stačí. Plný T-state cycle counter = TODO V1.6+. */
+     *              resetu na začátku instrukce (GDGCLK2CPU_DIVIDER = 5 taktů
+     *              GDG na T-stav u PAL, 4 u NTSC). NENI čistý Z80 T-state
+     *              counter. Plný T-state cycle counter = TODO V1.6+.
+     * - FrameCycle = g_gdg.total_elapsed.ticks (= takty GDG od začátku
+     *              snímku; Cycle = Frame * VIDEO_SCREEN_TICKS + FrameCycle).
+     * - InsnPC   = g_mzarch_main.instruction_addr (= adresa vykonávané
+     *              instrukce; živé cpu->pc je u MEM/IORQ hooků už za ní). */
+    ctx->InsnPC   = (int32_t) g_mzarch_main.instruction_addr;
 #if ( MZARCH == 800 ) || ( MZARCH == 1500 ) || ( MZARCH == 700 )
     ctx->Cycle    = (int64_t) gdg_get_total_ticks ( );
     ctx->Frame    = (int64_t) g_gdg.total_elapsed.screens;
+    ctx->FrameCycle = (int32_t) g_gdg.total_elapsed.ticks;
     ctx->Scanline = (int32_t) g_gdg.beam_row;
 #else
     ctx->Cycle    = 0;
     ctx->Frame    = 0;
+    ctx->FrameCycle = 0;
     ctx->Scanline = 0;
 #endif
     /* BankPC/BankAddr: D.5 banking awareness.
@@ -3491,19 +3498,45 @@ void breakpoints_enforce_pc_exec_nonsingle ( uint16_t pc ) {
 }
 
 
-void breakpoints_enforce_pc_exec ( uint16_t pc ) {
-    int marker = g_bptmap.bpmap[pc];
-    if ( marker == BREAKPOINT_TYPE_NONE ) return;
+/**
+ * @brief Zastaví emulaci na dočasném breakpointu.
+ *
+ * Dočasný BP (Run to cursor, Step over přes CALL/RST/DJNZ/ED, MCP
+ * `run_until_addr` a `step_out`) nemá podmínku ani akci: nastaví důvod pauzy
+ * @c EMU_PAUSE_REASON_RUN_TO, pozastaví emulaci, ukáže okno debuggeru
+ * a (s MCP serverem) vyšle událost `paused` s `reason: "run_to"` a `pc`.
+ *
+ * @param pc Adresa instrukce, na které se zastavuje (= adresa dočasného BP).
+ *
+ * @pre Emu vlákno, před vykonáním instrukce na @p pc; emulace neběží v pauze.
+ * @post EMULATOR_TEST_PAUSED; dočasný BP smazaný (emulator_pause() ho maže
+ *       při každé pauze).
+ */
+static void breakpoints_stop_at_temporary ( uint16_t pc ) {
+    printf ( "DEBUGGER - activated temporary breakpoint on addr: 0x%04x\n", pc );
+    g_emulator.pause_reason = EMU_PAUSE_REASON_RUN_TO;
+    emulator_pause ( true );
+    debugger_show_main_window ( );
+#ifdef MZ800EMU_CFG_MCP_SERVER_ENABLED
+    /* Stejný tvar jako "paused" u breakpointu a manuální pauzy, ať klient
+     * nemusí po run_until_addr / step_over / step_out pollovat stav. */
+    JsonObject *p_payload = json_object_new ( );
+    json_object_set_string_member ( p_payload, "reason", "run_to" );
+    json_object_set_int_member ( p_payload, "pc", pc );
+    event_bus_emit ( "paused", p_payload );
+#endif /* MZ800EMU_CFG_MCP_SERVER_ENABLED */
+}
 
-    /* Temporary BP (run-to-cursor / step-over): legacy chování -
-     * pause + show debugger, žádná condition / action. */
-    if ( marker == BREAKPOINT_TYPE_TEMPORARY ) {
-        printf ( "DEBUGGER - activated temporary breakpoint on addr: 0x%04x\n", pc );
-        emulator_pause ( true );
-        debugger_show_main_window ( );
-        return;
-    };
 
+/**
+ * @brief Vyhodnotí trvalý PC_EXEC breakpoint ze značky v bpmap[].
+ *
+ * @param marker Značka z g_bptmap.bpmap[pc] (> 0 = ID breakpointu).
+ * @param pc Adresa instrukce.
+ *
+ * Side effects: viz breakpoints_enforce (může pozastavit emulaci).
+ */
+static void breakpoints_enforce_pc_exec_user ( int marker, uint16_t pc ) {
     /* marker > 0 = bp_id existujícího BP. */
     st_BPT *bpt = breakpoints_find_by_id ( marker );
     if ( !bpt ) return;
@@ -3525,6 +3558,30 @@ void breakpoints_enforce_pc_exec ( uint16_t pc ) {
     ctx.IsExec = true;
 
     breakpoints_enforce ( bpt, &ctx );
+}
+
+
+void breakpoints_enforce_pc_exec ( uint16_t pc ) {
+    int marker = g_bptmap.bpmap[pc];
+    if ( marker == BREAKPOINT_TYPE_NONE ) return;
+
+    /* Temporary BP (run-to-cursor / step-over): pause + show debugger,
+     * žádná condition / action. */
+    if ( marker == BREAKPOINT_TYPE_TEMPORARY ) {
+        breakpoints_stop_at_temporary ( pc );
+        return;
+    };
+
+    breakpoints_enforce_pc_exec_user ( marker, pc );
+
+    /* Na adrese je i dočasný BP: bptmap_set_temporary_event() značku
+     * TEMPORARY nad uživatelský BP nezapíše, takže rozhoduje tahle kontrola.
+     * Pokud uživatelský BP nezastavil (nesplněná podmínka, skip_count, akce
+     * s pokračováním, vypnutý BP), zastaví dočasný; jinak by run-to cílovou
+     * adresu přejel. Zastavil-li uživatelský BP, druhá událost nevznikne. */
+    if ( !EMULATOR_TEST_PAUSED && g_bptmap.temporary_bpt_addr == (int) pc ) {
+        breakpoints_stop_at_temporary ( pc );
+    };
 }
 
 

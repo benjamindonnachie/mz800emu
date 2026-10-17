@@ -90,7 +90,13 @@ Sémantika `%s`:
 
 Bank-specific lookup není v action DSL exposed.
 
-Výstup jde na stdout.
+Výstup jde na stdout. V režimu `--mcp-pipe` nese stdout zprávy MCP,
+emulátor proto svůj textový výstup (včetně řádků `[BP-LOG]`) přesměruje
+na stderr; MCP klient ho přes MCP nepřečte.
+
+V MEM_R / MEM_W / IORQ breakpointech je `PC` už za instrukcí, která
+přístup dělá; adresu instrukce vypíše `InsnPC` (viz
+[expression-syntax.md](expression-syntax.md#cpu-registry-z80)).
 
 ### `continue`
 
@@ -328,7 +334,7 @@ cdl_export "cdl-%d.json", $id
 ### `trace_start <kanál>`, `trace_stop <kanál>`
 
 Start / stop binárního trace kanálu trace-suite. `<kanál>` je jeden z
-`cputrack` / `iorqlog` / `intlog` / `hwlog` (case-sensitive, bez
+`cputrack` / `iorqlog` / `intlog` / `hwlog` / `marklog` (case-sensitive, bez
 uvozovek).
 
 ```
