@@ -1,4 +1,10 @@
 
+	- BUGFIX: Snapshot - also saves and restores further peripheral state that affects the running program: the scheduled step of the CTC0 counter (8253), the MZ-800 hardware scroll registers, the VRAM wait state flag of the MZ-700 mode on the MZ-700, and the transient end-of-track state of the floppy controller with the sector list for track reads. Before, these values stayed from the machine being overwritten by the load. A snapshot from an older version sets them as after reset (CTC0 continues from the nearest edge of its clock).
+
+	- BUGFIX: Snapshot - a snapshot saved with a different RAMdisk or IDE8 configuration loads safely. A RAMdisk larger than the one configured in the emulator was copied past the end of its memory (the load hung or corrupted memory); now the RAMdisk memory adapts to the size from the snapshot. An IDE8 disk connected in the snapshot stays disconnected when no disk image is open in the emulator; before, it looked connected and every read failed.
+
+	- BUGFIX: Snapshot - also saves and restores the hidden state of the Z80 CPU: the MEMPTR (WZ) register, pending INT and NMI interrupts with the vector, the interrupt delay after EI and the T-state counter. Before, these values stayed from the machine being overwritten by the load, so the state after the load did not match the saved one. A snapshot from an older version sets the hidden state to the values after reset.
+
 	- BUGFIX: Trace Suite - cputrack records the instruction bytes as the processor fetched them. An instruction that overwrote its own bytes or switched the memory banking under itself used to be recorded with the bytes found in memory after it ran (e.g. LD (nn),A as NOP). cputrack recording is about 12 % slower because of this (measured in MAX SPEED).
 
 	- BUGFIX: MCP - emu_event_poll with timeout_ms above 30 000 no longer fails with a wrapper error (response timeout); the wrapper waits as long as the emulator may wait (up to 60 s).

@@ -4,6 +4,8 @@
  *
  * Čekající GDG událost (g_gdg.event) se do snapshotu neukládá - při loadu
  * se dopočítá z obnovené pozice paprsku, viz snap_gdg_event_resync().
+ * Na MZ-800 ukládá i registry HW scrollu (g_hwscroll); snapshot bez nich
+ * načte HW scroll ve stavu po resetu.
  */
 
 #include <stdio.h>
@@ -13,6 +15,9 @@
 #include "snapshot/snapshot_xml.h"
 #include "hw-generic/gdg/gdg.h"
 #include "hw-generic/gdg/video.h"
+#if MZARCH == 800
+#include "mzarch/mz800/gdg/mz800_hwscroll.h"
+#endif
 
 static en_SNAPSHOT_RESULT snap_gdg_save(st_SNAPSHOT_CONTEXT *ctx)
 {
@@ -98,6 +103,17 @@ static en_SNAPSHOT_RESULT snap_gdg_save(st_SNAPSHOT_CONTEXT *ctx)
     snapshot_xml_write_int(w, "mode700_color_6", g_gdg.mode700_color[6]);
     snapshot_xml_write_int(w, "mode700_color_7", g_gdg.mode700_color[7]);
     snapshot_xml_close_element(w); /* mode700_colors */
+#endif
+
+#if MZARCH == 800
+    /* HW scroll: registry překládají adresy CPU přístupů do VRAM. */
+    snapshot_xml_open_element(w, "hwscroll");
+    snapshot_xml_write_uint(w, "regSSA", g_hwscroll.regSSA);
+    snapshot_xml_write_uint(w, "regSEA", g_hwscroll.regSEA);
+    snapshot_xml_write_uint(w, "regSW", g_hwscroll.regSW);
+    snapshot_xml_write_uint(w, "regSOF", g_hwscroll.regSOF);
+    snapshot_xml_write_uint(w, "enabled", g_hwscroll.enabled);
+    snapshot_xml_close_element(w); /* hwscroll */
 #endif
 
     snapshot_xml_close_element(w); /* gdg_state */
@@ -278,6 +294,19 @@ static en_SNAPSHOT_RESULT snap_gdg_load(st_SNAPSHOT_CONTEXT *ctx)
         snapshot_xml_read_int(r, "mode700_color_5", &g_gdg.mode700_color[5]);
         snapshot_xml_read_int(r, "mode700_color_6", &g_gdg.mode700_color[6]);
         snapshot_xml_read_int(r, "mode700_color_7", &g_gdg.mode700_color[7]);
+        snapshot_xml_leave_element(r);
+    }
+#endif
+
+#if MZARCH == 800
+    /* HW scroll; snapshot bez něj (starší verze) = stav po resetu. */
+    hwscroll_reset();
+    if (snapshot_xml_enter_element(r, "hwscroll")) {
+        snapshot_xml_read_uint(r, "regSSA", &g_hwscroll.regSSA);
+        snapshot_xml_read_uint(r, "regSEA", &g_hwscroll.regSEA);
+        snapshot_xml_read_uint(r, "regSW", &g_hwscroll.regSW);
+        snapshot_xml_read_uint(r, "regSOF", &g_hwscroll.regSOF);
+        snapshot_xml_read_uint(r, "enabled", &g_hwscroll.enabled);
         snapshot_xml_leave_element(r);
     }
 #endif

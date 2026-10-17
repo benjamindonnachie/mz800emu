@@ -1,4 +1,10 @@
 
+	- BUGFIX: Snapshot - uloží a obnoví i další stav periferií, který ovlivňuje běh programu: naplánovaný krok čítače CTC0 (8253), registry hardwarového scrollu MZ-800, příznak čekacích stavů přístupu do VRAM v režimu MZ-700 na MZ-700 a přechodný stav řadiče disket na konci stopy a seznam sektorů pro čtení stopy. Dřív tyto hodnoty po načtení zůstaly ze stroje, který se načtením přepisoval. Snapshot ze starší verze je nastaví jako po resetu (CTC0 pokračuje od nejbližší hrany svých hodin).
+
+	- BUGFIX: Snapshot - snapshot uložený s jinou konfigurací RAMdisku nebo IDE8 se načte bezpečně. RAMdisk větší, než je nastavený v emulátoru, se dřív kopíroval za konec paměti (načtení se zaseklo nebo poškodilo paměť), nově se paměť RAMdisku přizpůsobí velikosti ze snapshotu. Disk IDE8 připojený ve snapshotu zůstane odpojený, pokud v emulátoru není otevřený obraz disku; dřív se tvářil jako připojený a každé čtení skončilo chybou.
+
+	- BUGFIX: Snapshot - uloží a obnoví i skrytý stav procesoru Z80: registr MEMPTR (WZ), čekající přerušení INT a NMI s vektorem, odložení přerušení po EI a čítač T-stavů. Dřív po načtení snapshotu zůstaly tyto hodnoty ze stroje, který se načtením přepisoval, takže stav po načtení neodpovídal uloženému. Snapshot ze starší verze nastaví skrytý stav na hodnoty po resetu.
+
 	- BUGFIX: Trace Suite - cputrack zapisuje bajty instrukce tak, jak je procesor načetl. Instrukce, která přepsala vlastní bajty nebo pod sebou přepnula banking paměti, se dřív zapsala s bajty z paměti po vykonání (např. LD (nn),A jako NOP). Nahrávání cputrack je tím asi o 12 % pomalejší (měřeno v MAX SPEED).
 
 	- BUGFIX: MCP - emu_event_poll s timeout_ms nad 30 000 už neskončí chybou wrapperu (timeout odpovědi); wrapper čeká tak dlouho, jak dlouho smí čekat emulátor (až 60 s).

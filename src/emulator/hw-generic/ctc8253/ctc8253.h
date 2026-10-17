@@ -199,6 +199,21 @@ extern "C"
 #ifdef MZ800EMU_CFG_CLK1M1_FAST
     extern void ctc8253_ctc1m1_event(unsigned event_ticks);
     extern void ctc8253_sync_ctc0(void);
+
+    /**
+     * @brief Naplánuje událost CTC0 rychlé cesty na nejbližší hranu CLK0.
+     *
+     * Pro snapshot bez uložené události CTC0 (starší verze): událost
+     * `clk1m1_event` se nastaví na nejbližší sestupnou hranu CLK0 od
+     * aktuálního času GDG a báze `clk1m1_last_event_total_ticks` na
+     * aktuální čas, takže ctc8253_ctc1m1_event() zpracuje jedinou hranu
+     * a další událost naplánuje podle stavu čítače. Je-li nová událost
+     * dřív než `g_mzarch_main.event`, převezme ji plánovač.
+     *
+     * @pre g_gdg.total_elapsed je už obnovený (GDG se načítá před CTC).
+     * @post Průběh CTC0 po loadu nezávisí na stavu stroje před loadem.
+     */
+    extern void ctc8253_ctc0_restart_event(void);
 #define ctc8253_get_ctc1m1_event_pointer() (&g_ctc8253[CTC_CS0].clk1m1_event)
 #endif
 

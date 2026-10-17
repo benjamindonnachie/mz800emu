@@ -296,6 +296,19 @@ static inline void ctc8253_update_ctc0_by_totalticks(unsigned event_total_ticks)
     ctc0->clk1m1_last_event_total_ticks += decremented * GDGCLK_CTC0_DIVIDER;
 }
 
+void ctc8253_ctc0_restart_event(void)
+{
+    st_CTC8253 *ctc0 = &g_ctc8253[CTC_CS0];
+    ctc0->clk1m1_event.event_name = MZEVENT_CTC0;
+    ctc0->clk1m1_event.ticks = gdg_proximate_clk1m1_event(g_gdg.total_elapsed.ticks);
+    ctc0->clk1m1_last_event_total_ticks = (unsigned)gdg_get_total_ticks();
+    if (ctc0->clk1m1_event.ticks <= g_mzarch_main.event.ticks)
+    {
+        g_mzarch_main.event.ticks = ctc0->clk1m1_event.ticks;
+        g_mzarch_main.event.event_name = MZEVENT_CTC0;
+    };
+}
+
 void ctc8253_sync_ctc0(void)
 {
     if (!(g_ctc8253[CTC_CS0].latch_op == 1))

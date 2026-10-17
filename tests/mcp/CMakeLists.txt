@@ -468,6 +468,58 @@ if(Python3_FOUND)
     message(STATUS "  tests/mcp: registered mcp_snapshot_gdg_event "
                    "(Python ${Python3_VERSION})")
 
+    # Snapshot uloží a obnoví skrytý stav Z80 (WZ, čekající INT/NMI,
+    # total_cycles); starý snapshot bez hidden_state nastaví výchozí
+    # hodnoty resetu; snapshot hned po EI s aktivní linkou INT dá stejný
+    # běh jako souvislý běh. Všechny 4 binárky, pipe. Bez binárek 77.
+    add_test(
+        NAME    mcp_snapshot_z80_hidden
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_snapshot_z80_hidden.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_snapshot_z80_hidden PROPERTIES
+        LABELS  "e2e;mcp;pipe;snapshot"
+        TIMEOUT 300
+        SKIP_RETURN_CODE 77
+    )
+    message(STATUS "  tests/mcp: registered mcp_snapshot_z80_hidden "
+                   "(Python ${Python3_VERSION})")
+
+    # Snapshot z jiné HW konfigurace se načte bezpečně: RAMdisk 1 MB do
+    # procesu s 64 kB (dřív přetečení bufferu, load se zasekl), IDE8
+    # připojený bez otevřeného obrazu zůstane odpojený. MZ-800, pipe.
+    add_test(
+        NAME    mcp_snapshot_load_safety
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_snapshot_load_safety.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_snapshot_load_safety PROPERTIES
+        LABELS  "e2e;mcp;pipe;snapshot"
+        TIMEOUT 180
+        SKIP_RETURN_CODE 77
+    )
+    message(STATUS "  tests/mcp: registered mcp_snapshot_load_safety "
+                   "(Python ${Python3_VERSION})")
+
+    # Snapshot obnoví latch WAIT VRAM režimu MZ-700: druhý zápis do VRAM
+    # ve viditelné části řádku po načtení má stejný WAIT jako v souvislém
+    # běhu (dřív build MZ-700 latch neukládal). Všechny 4 binárky, pipe.
+    add_test(
+        NAME    mcp_snapshot_vram_latch
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_snapshot_vram_latch.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_snapshot_vram_latch PROPERTIES
+        LABELS  "e2e;mcp;pipe;snapshot"
+        TIMEOUT 180
+        SKIP_RETURN_CODE 77
+    )
+    message(STATUS "  tests/mcp: registered mcp_snapshot_vram_latch "
+                   "(Python ${Python3_VERSION})")
+
     # -----------------------------------------------------------
     # MZT s hlavičkou CMTSPEED (UniCMT) a vlastní délky pulzů (pipe)
     # -----------------------------------------------------------

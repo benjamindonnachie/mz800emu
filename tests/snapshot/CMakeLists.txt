@@ -28,3 +28,20 @@ mz_add_test(snapshot-config
     SOURCES  test_snapshot_config.c
     LABELS   "emu;snapshot"
 )
+
+# Snapshot uloží a obnoví skrytý stav Z80 (WZ, Q, EI delay, čekající
+# INT/NMI, vektor, LD A,I/R, total_cycles) - round-trip přes buffer API.
+mz_add_test(snapshot-z80-hidden
+    TYPE     EMU
+    SOURCES  test_snapshot_z80_hidden.c
+    LABELS   "emu;snapshot"
+)
+
+# Snapshot uloží a obnoví stav periferií, který dřív vynechával: CTC0
+# rychlá cesta (událost + báze), HW scroll MZ-800, FDC pending_rnf_end
+# a rt_sinfo - round-trip přes buffer API.
+mz_add_test(snapshot-periph-hidden
+    TYPE     EMU
+    SOURCES  test_snapshot_periph_hidden.c
+    LABELS   "emu;snapshot"
+)
