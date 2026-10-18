@@ -368,6 +368,16 @@ void imgui_menu_debugger(en_DBG_MENU_CALLER caller)
             g_gui->showMemoryBrowserWindow = !g_gui->showMemoryBrowserWindow;
         };
         /*
+         * Memory Search - postupné hledání proměnných (životy, skóre):
+         * kandidáti, filtry, akce nad kandidátem. Toggle přes
+         * g_gui->showMemorySearchWindow + globální zkratka Alt+Shift+E.
+         */
+        if (ImGui::MenuItem(_L("Memory Search"), "Alt+Shift+E",
+                            g_gui->showMemorySearchWindow))
+        {
+            g_gui->showMemorySearchWindow = !g_gui->showMemorySearchWindow;
+        };
+        /*
          * V3 multi-view: submenu "Other memory browsers" - 4 sekundarni
          * Memory Browser okna (#2 - #5). Kazde je nezavisla instance s
          * vlastnim regionem/encodingem/cursorem; sdileji pouze freeze

@@ -140,3 +140,4 @@ Annotations + Freeze bytes have their own file persistence:
 - [Bookmarks](bookmarks.md) - bookmark editor (= shared store)
 - [Symbols](symbols.md) - symbol browser (= shared sym_db)
 - [RAM Write Log](../ram-write-log.md) - who wrote a byte (also "Who wrote this byte?" in the context menu)
+- [Memory Search](../memory-search.md) - find a variable (lives, score, timer) by narrowing candidates

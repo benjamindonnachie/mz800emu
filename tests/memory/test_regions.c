@@ -8,7 +8,8 @@
  *   - read_rom_no_se: ROM_LOWER region vrací data z g_memory.ROM[0..]
  *   - memext_not_connected: Memext disconnected = žádné MEMEXT_RAM/FLASH
  *     regiony v enumerate
- *   - memext_connected_pehu: PEHU connected = 128 RAM banks, 0 FLASH
+ *   - memext_pehu_bank_count: PEHU connected = 128 raw 4 KB kusů (64 bank
+ *     po 8 KB), 0 FLASH; horní půlka banky 3Fh = raw kus 7Fh
  *   - memext_connected_luftner: LUFTNER connected = 128 RAM + 128 FLASH
  *   - prohibited_shadow: aktivace flagu = region s 0x1A bajty
  *   - ramdisk_pezik_e8: PEZIK E8 connected = jeden RAMDISK_PEZIK region
@@ -492,7 +493,13 @@ void test_regions_ramdisk_pezik_e8(void)
 
 
 /* ================================================================
- * Test 8b: Memext PEHU emit 64 banks (NE 128 jako Luftner)
+ * Test 8b: Memext PEHU emit 128 raw 4 KB kusů = celých 512 KB
+ *
+ * PEHU má 64 bank po 8 KB (MEMEXT_PEHU_BANKS x MEMEXT_PEHU_BANK_SIZE
+ * = 512 KB). Region MEMEXT_RAM je ale raw 4 KB kus (sub_id = raw
+ * index, čtení přes memext_get_ram_read_pointer_by_rawbank), takže
+ * PEHU potřebuje 2 * MEMEXT_PEHU_BANKS regionů. Dřív se emitovalo jen
+ * MEMEXT_PEHU_BANKS = 64 kusů a PEHU banky 20h-3Fh nebyly vidět (N34).
  * ================================================================ */
 
 void test_regions_memext_pehu_bank_count(void)
@@ -504,13 +511,29 @@ void test_regions_memext_pehu_bank_count(void)
     static st_REGION_DESC regs[512];
     int count = dbgapi_regions_enumerate(regs, 512);
 
-    /* PEHU má 64 RAM banek (MEMEXT_PEHU_BANKS = 0x40). */
+    /* 64 PEHU bank po 8 KB = 128 raw kusů po 4 KB. */
     int ram_n = count_regions(regs, count, REGION_KIND_MEMEXT_RAM);
-    TEST_ASSERT_EQUAL_INT(MEMEXT_PEHU_BANKS, ram_n);
+    TEST_ASSERT_EQUAL_INT(MEMEXT_PEHU_BANKS * 2, ram_n);
 
     /* PEHU NEMÁ FLASH. */
     int flash_n = count_regions(regs, count, REGION_KIND_MEMEXT_FLASH);
     TEST_ASSERT_EQUAL_INT(0, flash_n);
+
+    /* Poslední PEHU banka 3Fh namapovaná na 0x2000-0x3FFF (addr point
+     * 2 a 3): horní půlka je raw kus 7Fh a region se sub_id 7Fh musí
+     * číst tutéž buňku, kterou vidí CPU. */
+    memext_map_pwrite(2, MEMEXT_PEHU_MASK);
+    uint8_t *cpu_upper = memext_get_ram_read_pointer_by_addr_point(3);
+    TEST_ASSERT_NOT_NULL(cpu_upper);
+    cpu_upper[0x123] = 0xA5;
+
+    int idx = find_region_sub(regs, count, REGION_KIND_MEMEXT_RAM, 0x7F);
+    TEST_ASSERT_NOT_EQUAL_INT(-1, idx);
+    TEST_ASSERT_EQUAL_UINT32(MEMEXT_RAW_BANK_SIZE, regs[idx].size);
+
+    uint8_t b = 0;
+    TEST_ASSERT_EQUAL_INT(1, dbgapi_regions_read(regs[idx].id, 0x123, &b, 1));
+    TEST_ASSERT_EQUAL_HEX8(0xA5, b);
 }
 
 

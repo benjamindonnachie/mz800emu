@@ -565,6 +565,20 @@ bool dbg_ui_freeze_remove(int region_kind, int sub_id, uint32_t offset)
 }
 
 
+bool dbg_ui_memsearch_sample(const void *spans, uint32_t span_count,
+                             void *sample)
+{
+    if (!spans || span_count == 0 || !sample) return false;
+    st_DBGAPI_MEMSEARCH_SAMPLE_PARAM p;
+    p.spans = spans;
+    p.span_count = span_count;
+    p.sample = sample;
+    return dbgapi_ui_submit_cmd_sync(&g_dbgapi_cmdrq_queue,
+                                     DBGAPI_CMD_MEMSEARCH_SAMPLE, &p, NULL,
+                                     DBG_UI_MEMSEARCH_SAMPLE_TIMEOUT_MS);
+}
+
+
 bool dbg_ui_callstack_set_active(bool active, bool *out_active)
 {
     st_DBGAPI_CALLSTACK_SET_ACTIVE_PARAM p;

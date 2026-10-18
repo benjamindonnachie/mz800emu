@@ -83,7 +83,7 @@ typedef enum en_REGION_KIND
     REGION_KIND_VRAM_700_ATTR,          /**< Atributová VRAM MZ-700 (1 KB v 0xD800-0xDBFF). */
     REGION_KIND_VRAM_PHYS_PLANE,        /**< MZ-800 fyzická plane I-IV (8 KB raw), sub_id = 0..3. */
     REGION_KIND_PCG_1500,               /**< MZ-1500 PCG bank 1..3 (8 KB), sub_id = 0..2. */
-    REGION_KIND_MEMEXT_RAM,             /**< Memext RAM bank (4 KB), sub_id = raw bank index 0..0x7F (Luftner) nebo 0..0x3F (PEHU). */
+    REGION_KIND_MEMEXT_RAM,             /**< Memext RAM bank (4 KB), sub_id = raw 4 KB index 0..0x7F (Luftner i PEHU; PEHU 8 KB banka b = raw 2*b a 2*b + 1). */
     REGION_KIND_MEMEXT_FLASH,           /**< Memext Luftner FLASH bank (4 KB), sub_id = raw bank index 0x80..0xFF. */
     REGION_KIND_RAMDISK_STD,            /**< Ramdisk STD bank (64 KB), sub_id = bank index 0..255. */
     REGION_KIND_RAMDISK_PEZIK,          /**< Ramdisk PEZIK bank (64 KB), sub_id = pezik_instance * 8 + bank_idx (0..7 = port 0x68 banks 0..7, 8..15 = port 0xE8 banks 0..7). */

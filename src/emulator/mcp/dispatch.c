@@ -63,6 +63,7 @@
 #include "../audio_capture.h"
 #include "../audio_analysis.h"
 #include "../debugger/trace/ramlog_hook.h"
+#include "../debugger/memsearch/memsearch.h"
 #include <math.h>
 /* CMTSPEED_CUSTOM pro cmt_tape_block_speed s vlastními pulzy */
 #include "libs/cmtspeed/cmtspeed.h"
@@ -488,6 +489,20 @@ static en_MCP_DISPATCH_RESULT _handle_ramlog_clear(const st_JSONL_MESSAGE *req, 
 static en_MCP_DISPATCH_RESULT _handle_ramlog_status(const st_JSONL_MESSAGE *req, char **out_response);
 static en_MCP_DISPATCH_RESULT _handle_ramlog_who_wrote(const st_JSONL_MESSAGE *req, char **out_response);
 static en_MCP_DISPATCH_RESULT _handle_ramlog_writers(const st_JSONL_MESSAGE *req, char **out_response);
+
+/* memsearch (M3 debug-gaps) - Freeze Bytes a Memory Search fwd decls */
+static en_MCP_DISPATCH_RESULT _handle_freeze_add(const st_JSONL_MESSAGE *req, char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_freeze_remove(const st_JSONL_MESSAGE *req, char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_freeze_list(const st_JSONL_MESSAGE *req, char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_memsearch_start(const st_JSONL_MESSAGE *req, char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_memsearch_filter(const st_JSONL_MESSAGE *req, char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_memsearch_sample(const st_JSONL_MESSAGE *req, char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_memsearch_undo(const st_JSONL_MESSAGE *req, char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_memsearch_redo(const st_JSONL_MESSAGE *req, char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_memsearch_list(const st_JSONL_MESSAGE *req, char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_memsearch_eliminate(const st_JSONL_MESSAGE *req, char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_memsearch_close(const st_JSONL_MESSAGE *req, char **out_response);
+static void _ms_close_all(void);
 
 /* video-capture Task 15 - video záznam fwd decls */
 static en_MCP_DISPATCH_RESULT _handle_videorec_start(const st_JSONL_MESSAGE *req,
@@ -1181,6 +1196,20 @@ static const st_MCP_CMD_MAP_ENTRY g_cmd_map[] = {
      * na KONEC tabulky kvůli stabilitě pozičního indexu v hello
      * supported_commands. */
     { "profiler_pc_bitmap",       DBGAPI_CMD_PROFILER_PC,             _handle_profiler_pc_bitmap       },
+    /* memsearch (M3 debug-gaps) - Freeze Bytes přes MCP a postupné hledání
+     * proměnných. Přidáno na KONEC tabulky kvůli stabilitě pozičního indexu
+     * v hello supported_commands. */
+    { "freeze_add",               DBGAPI_CMD_FREEZE_ADD,              _handle_freeze_add               },
+    { "freeze_remove",            DBGAPI_CMD_FREEZE_REMOVE,           _handle_freeze_remove            },
+    { "freeze_list",              DBGAPI_CMD_FREEZE_LIST,             _handle_freeze_list              },
+    { "memsearch_start",          DBGAPI_CMD_MEMSEARCH_SAMPLE,        _handle_memsearch_start          },
+    { "memsearch_filter",         DBGAPI_CMD_MEMSEARCH_SAMPLE,        _handle_memsearch_filter         },
+    { "memsearch_sample",         DBGAPI_CMD_MEMSEARCH_SAMPLE,        _handle_memsearch_sample         },
+    { "memsearch_undo",           DBGAPI_CMD_NONE,                    _handle_memsearch_undo           },
+    { "memsearch_redo",           DBGAPI_CMD_NONE,                    _handle_memsearch_redo           },
+    { "memsearch_list",           DBGAPI_CMD_NONE,                    _handle_memsearch_list           },
+    { "memsearch_eliminate",      DBGAPI_CMD_NONE,                    _handle_memsearch_eliminate      },
+    { "memsearch_close",          DBGAPI_CMD_NONE,                    _handle_memsearch_close          },
     /* sentinel */
     { NULL,              DBGAPI_CMD_NONE,              NULL                  },
 };
@@ -13990,6 +14019,7 @@ void mcp_dispatch_init(void) {
 
 
 void mcp_dispatch_shutdown(void) {
+    _ms_close_all();
     if (g_supported_cmd_names == NULL) {
         return;
     }
@@ -16225,6 +16255,942 @@ static en_MCP_DISPATCH_RESULT _handle_ramlog_writers(const st_JSONL_MESSAGE *req
     json_object_set_array_member(resp, "writers", wa);
     g_free(p.out_writers);
     return _ok_response(req_id, resp, out_response);
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Freeze Bytes a Memory Search (memsearch, M3 debug-gaps)             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * @brief Druh regionu podle názvu z `regions_list` (`_region_kind_to_str`).
+ * @param s Název ("ram", "memext_ram", ...).
+ * @return en_REGION_KIND, nebo -1 pro neznámý název.
+ */
+static int _region_kind_from_str(const char *s) {
+    if (!s) return -1;
+    for (int k = 0; k < (int)REGION_KIND_COUNT; k++) {
+        if (strcmp(_region_kind_to_str(k), s) == 0) return k;
+    }
+    return -1;
+}
+
+/**
+ * @brief Plný výčet regionů přes DBGAPI_CMD_REGIONS_ENUMERATE.
+ * @param[out] out_count Počet regionů.
+ * @return Kopie výčtu (uvolnit g_free), NULL = prázdný výčet nebo chyba.
+ */
+static st_REGION_DESC *_ms_regions(int *out_count) {
+    st_DBGAPI_REGIONS_ENUM_PARAM param = {
+        .out = NULL, .max_count = 0, .out_count = 0, .out_dup = NULL,
+    };
+    *out_count = 0;
+    if (!_submit_dbgapi(DBGAPI_CMD_REGIONS_ENUMERATE, &param, NULL)) {
+        g_free(param.out_dup);
+        return NULL;
+    }
+    if (!param.out_dup) return NULL;
+    *out_count = param.out_count;
+    return (st_REGION_DESC *)param.out_dup;
+}
+
+/**
+ * @brief Najde region ve výčtu podle (kind, sub_id).
+ * @return Ukazatel do @p regs, nebo NULL.
+ */
+static const st_REGION_DESC *_ms_find_region(const st_REGION_DESC *regs, int count,
+                                             int kind, int sub_id) {
+    for (int i = 0; i < count; i++) {
+        if ((int)regs[i].kind == kind && regs[i].sub_id == sub_id) return &regs[i];
+    }
+    return NULL;
+}
+
+/**
+ * @brief Načte klíč bajtu (`kind`, `sub_id`, `offset`) z parametrů freeze_*.
+ * @return NULL OK, jinak statická chybová zpráva.
+ */
+static const char *_freeze_parse_key(JsonObject *obj, int *kind, int *sub_id, uint32_t *offset) {
+    int hk = _videorec_member(obj, "kind", G_TYPE_STRING);
+    int hs = _videorec_member(obj, "sub_id", G_TYPE_INT64);
+    int ho = _videorec_member(obj, "offset", G_TYPE_INT64);
+    if (hk <= 0 || hs < 0 || ho <= 0) {
+        return "Invalid parameters: kind (string from regions_list), offset (integer) and optional sub_id (integer) are required";
+    }
+    *kind = _region_kind_from_str(json_object_get_string_member(obj, "kind"));
+    if (*kind < 0) return "Invalid parameters: unknown region kind (see regions_list)";
+    gint64 s = hs ? json_object_get_int_member(obj, "sub_id") : 0;
+    gint64 o = json_object_get_int_member(obj, "offset");
+    if (s < 0 || s > G_MAXINT || o < 0 || o > 0xFFFFFFFFLL) {
+        return "Invalid parameters: sub_id and offset must not be negative";
+    }
+    *sub_id = (int)s;
+    *offset = (uint32_t)o;
+    return NULL;
+}
+
+/**
+ * @brief `freeze_add` handler - zafrozí bajt nebo souvislý úsek bajtů regionu.
+ *
+ * Parametry: `kind` (název z `regions_list`), `sub_id` (výchozí 0),
+ * `offset`, a buď `value` (0-255), nebo `bytes` (pole 1-64 hodnot 0-255
+ * od `offset`). Bajty se přepisují jednou za snímek emulace (Freeze
+ * Bytes, tabulka nejvýš 256 bajtů); existující záznam se jen aktualizuje.
+ * Region musí v sestavě existovat a být zapisovatelný.
+ *
+ * Odpověď `{added, frozen}` (frozen = počet zafrozených bajtů celkem).
+ */
+static en_MCP_DISPATCH_RESULT _handle_freeze_add(const st_JSONL_MESSAGE *req, char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _videorec_data_obj(req);
+    int kind, sub_id;
+    uint32_t offset;
+    const char *e = _freeze_parse_key(obj, &kind, &sub_id, &offset);
+    if (e) return _err_response(req_id, e, MCP_DISPATCH_INVALID_PARAMS, out_response);
+
+    uint8_t bytes[64];
+    guint n = 0;
+    int hv = _videorec_member(obj, "value", G_TYPE_INT64);
+    bool has_bytes = json_object_has_member(obj, "bytes")
+                     && !json_node_is_null(json_object_get_member(obj, "bytes"));
+    if (hv < 0 || (hv > 0) == has_bytes) {
+        return _err_response(req_id, "Invalid parameters: give either value (0-255) or bytes (array of 0-255)",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    if (hv > 0) {
+        gint64 v = json_object_get_int_member(obj, "value");
+        if (v < 0 || v > 255) {
+            return _err_response(req_id, "Invalid parameters: value must be 0-255",
+                                 MCP_DISPATCH_INVALID_PARAMS, out_response);
+        }
+        bytes[0] = (uint8_t)v;
+        n = 1;
+    } else {
+        JsonNode *bn = json_object_get_member(obj, "bytes");
+        if (json_node_get_node_type(bn) != JSON_NODE_ARRAY) {
+            return _err_response(req_id, "Invalid parameters: bytes must be an array",
+                                 MCP_DISPATCH_INVALID_PARAMS, out_response);
+        }
+        JsonArray *ba = json_node_get_array(bn);
+        n = json_array_get_length(ba);
+        if (n < 1 || n > G_N_ELEMENTS(bytes)) {
+            return _err_response(req_id, "Invalid parameters: bytes must have 1-64 items",
+                                 MCP_DISPATCH_INVALID_PARAMS, out_response);
+        }
+        for (guint i = 0; i < n; i++) {
+            JsonNode *it = json_array_get_element(ba, i);
+            if (json_node_get_node_type(it) != JSON_NODE_VALUE
+                || json_node_get_value_type(it) != G_TYPE_INT64
+                || json_node_get_int(it) < 0 || json_node_get_int(it) > 255) {
+                return _err_response(req_id, "Invalid parameters: bytes items must be integers 0-255",
+                                     MCP_DISPATCH_INVALID_PARAMS, out_response);
+            }
+            bytes[i] = (uint8_t)json_node_get_int(it);
+        }
+    }
+
+    int rcount = 0;
+    st_REGION_DESC *regs = _ms_regions(&rcount);
+    const st_REGION_DESC *r = regs ? _ms_find_region(regs, rcount, kind, sub_id) : NULL;
+    const char *re = NULL;
+    if (!r) re = "freeze_add: region not present in this configuration (see regions_list)";
+    else if (!r->writable) re = "freeze_add: region is read-only";
+    else if (offset >= r->size || n > r->size - offset) re = "freeze_add: offset outside the region";
+    g_free(regs);
+    if (re) return _err_response(req_id, re, MCP_DISPATCH_INVALID_PARAMS, out_response);
+
+    guint added = 0;
+    for (guint i = 0; i < n; i++) {
+        st_DBGAPI_FREEZE_PARAM p;
+        memset(&p, 0, sizeof(p));
+        p.region_kind = kind;
+        p.sub_id = sub_id;
+        p.offset = offset + i;
+        p.value = bytes[i];
+        if (!_submit_dbgapi(DBGAPI_CMD_FREEZE_ADD, &p, NULL)) break;
+        added++;
+    }
+    if (added < n) {
+        char msg[128];
+        g_snprintf(msg, sizeof(msg), "freeze_add: freeze table full (256 bytes) or emulator unavailable: %u of %u bytes frozen",
+                   added, n);
+        return _err_response(req_id, msg, MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    st_DBGAPI_FREEZE_LIST_PARAM *lp = g_new0(st_DBGAPI_FREEZE_LIST_PARAM, 1);
+    bool lok = _submit_dbgapi(DBGAPI_CMD_FREEZE_LIST, lp, NULL);
+    JsonObject *data = json_object_new();
+    json_object_set_int_member(data, "added", added);
+    json_object_set_int_member(data, "frozen", lok ? (gint64)lp->out_count : -1);
+    g_free(lp);
+    return _ok_response(req_id, data, out_response);
+}
+
+/**
+ * @brief `freeze_remove` handler - uvolní zafrozené bajty.
+ *
+ * Parametry: buď `all: true`, nebo `kind`, `sub_id` (výchozí 0), `offset`
+ * a `length` (výchozí 1, nejvýš 256). Odpověď `{removed}`.
+ */
+static en_MCP_DISPATCH_RESULT _handle_freeze_remove(const st_JSONL_MESSAGE *req, char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _videorec_data_obj(req);
+    int ha = _videorec_member(obj, "all", G_TYPE_BOOLEAN);
+    if (ha < 0) {
+        return _err_response(req_id, "Invalid parameters: all must be a boolean",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    guint removed = 0;
+    if (ha > 0 && json_object_get_boolean_member(obj, "all")) {
+        st_DBGAPI_FREEZE_LIST_PARAM *lp = g_new0(st_DBGAPI_FREEZE_LIST_PARAM, 1);
+        if (!_submit_dbgapi(DBGAPI_CMD_FREEZE_LIST, lp, NULL)) {
+            g_free(lp);
+            return _err_response(req_id, "freeze_remove: emulator unavailable",
+                                 MCP_DISPATCH_EMU_ERROR, out_response);
+        }
+        for (uint32_t i = 0; i < lp->out_count; i++) {
+            st_DBGAPI_FREEZE_PARAM p;
+            memset(&p, 0, sizeof(p));
+            p.region_kind = lp->items[i].region_kind;
+            p.sub_id = lp->items[i].sub_id;
+            p.offset = lp->items[i].offset;
+            if (_submit_dbgapi(DBGAPI_CMD_FREEZE_REMOVE, &p, NULL)) removed++;
+        }
+        g_free(lp);
+    } else {
+        int kind, sub_id;
+        uint32_t offset;
+        const char *e = _freeze_parse_key(obj, &kind, &sub_id, &offset);
+        if (e) return _err_response(req_id, e, MCP_DISPATCH_INVALID_PARAMS, out_response);
+        int hl = _videorec_member(obj, "length", G_TYPE_INT64);
+        gint64 len = (hl > 0) ? json_object_get_int_member(obj, "length") : 1;
+        if (hl < 0 || len < 1 || len > 256) {
+            return _err_response(req_id, "Invalid parameters: length must be 1-256",
+                                 MCP_DISPATCH_INVALID_PARAMS, out_response);
+        }
+        for (gint64 i = 0; i < len; i++) {
+            st_DBGAPI_FREEZE_PARAM p;
+            memset(&p, 0, sizeof(p));
+            p.region_kind = kind;
+            p.sub_id = sub_id;
+            p.offset = offset + (uint32_t)i;
+            if (_submit_dbgapi(DBGAPI_CMD_FREEZE_REMOVE, &p, NULL)) removed++;
+        }
+    }
+    JsonObject *data = json_object_new();
+    json_object_set_int_member(data, "removed", removed);
+    return _ok_response(req_id, data, out_response);
+}
+
+/**
+ * @brief `freeze_list` handler - zafrozené bajty.
+ *
+ * Bez parametrů. Odpověď `{count, max, entries: [{kind, sub_id, offset, value}]}`.
+ */
+static en_MCP_DISPATCH_RESULT _handle_freeze_list(const st_JSONL_MESSAGE *req, char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    st_DBGAPI_FREEZE_LIST_PARAM *lp = g_new0(st_DBGAPI_FREEZE_LIST_PARAM, 1);
+    if (!_submit_dbgapi(DBGAPI_CMD_FREEZE_LIST, lp, NULL)) {
+        g_free(lp);
+        return _err_response(req_id, "freeze_list: emulator unavailable",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    JsonObject *data = json_object_new();
+    JsonArray *arr = json_array_new();
+    for (uint32_t i = 0; i < lp->out_count; i++) {
+        JsonObject *o = json_object_new();
+        json_object_set_string_member(o, "kind", _region_kind_to_str(lp->items[i].region_kind));
+        json_object_set_int_member(o, "sub_id", lp->items[i].sub_id);
+        json_object_set_int_member(o, "offset", (gint64)lp->items[i].offset);
+        json_object_set_int_member(o, "value", lp->items[i].value);
+        json_array_add_object_element(arr, o);
+    }
+    json_object_set_array_member(data, "entries", arr);
+    json_object_set_int_member(data, "count", (gint64)lp->out_count);
+    json_object_set_int_member(data, "max", (gint64)G_N_ELEMENTS(lp->items));
+    g_free(lp);
+    return _ok_response(req_id, data, out_response);
+}
+
+
+/** @brief Nejvyšší počet současně otevřených sezení memsearch přes MCP. */
+#define MCP_MEMSEARCH_MAX_SESSIONS 8
+
+/** @brief Výchozí a nejvyšší počet položek jedné stránky memsearch_list. */
+#define MCP_MEMSEARCH_LIST_DEFAULT 100
+#define MCP_MEMSEARCH_LIST_MAX     1000
+
+/**
+ * @brief Slot sezení memsearch otevřeného přes MCP.
+ *
+ * @invariant id > 0 právě když sess != NULL.
+ */
+typedef struct st_MCP_MEMSEARCH_SLOT {
+    int                   id;    /**< ID sezení pro klienta (0 = volný slot). */
+    st_MEMSEARCH_SESSION *sess;  /**< Sezení (vlastní slot). */
+} st_MCP_MEMSEARCH_SLOT;
+
+/**
+ * @brief Sezení memsearch otevřená přes MCP (oddělená od okna GUI).
+ *
+ * Chráněno s_ms_lock po celou dobu handleru (sezení nemá vlastní zámek,
+ * MCP TCP může obsluhovat více klientů). Statický GMutex nepotřebuje init.
+ */
+static st_MCP_MEMSEARCH_SLOT s_ms_slots[MCP_MEMSEARCH_MAX_SESSIONS];
+static int    s_ms_next_id = 1;
+static GMutex s_ms_lock;
+
+/**
+ * @brief Najde sezení podle ID z parametru `session_id`.
+ * @pre Drží s_ms_lock.
+ * @return Slot, nebo NULL.
+ */
+static st_MCP_MEMSEARCH_SLOT *_ms_slot(JsonObject *obj) {
+    if (_videorec_member(obj, "session_id", G_TYPE_INT64) <= 0) return NULL;
+    gint64 id = json_object_get_int_member(obj, "session_id");
+    for (int i = 0; i < MCP_MEMSEARCH_MAX_SESSIONS; i++) {
+        if (s_ms_slots[i].sess && s_ms_slots[i].id == id) return &s_ms_slots[i];
+    }
+    return NULL;
+}
+
+/**
+ * @brief Uvolní všechna sezení memsearch (konec MCP dispatch).
+ */
+static void _ms_close_all(void) {
+    g_mutex_lock(&s_ms_lock);
+    for (int i = 0; i < MCP_MEMSEARCH_MAX_SESSIONS; i++) {
+        memsearch_session_free(s_ms_slots[i].sess);
+        s_ms_slots[i].sess = NULL;
+        s_ms_slots[i].id = 0;
+    }
+    g_mutex_unlock(&s_ms_lock);
+}
+
+/**
+ * @brief Pořídí nový vzorek prostoru sezení (DBGAPI_CMD_MEMSEARCH_SAMPLE).
+ * @return Vzorek s refcount 1 (uvolnit memsearch_sample_unref), NULL = chyba.
+ */
+static st_MEMSEARCH_SAMPLE *_ms_take_sample(st_MEMSEARCH_SESSION *s) {
+    st_MEMSEARCH_SAMPLE *smp = memsearch_sample_new(memsearch_space_size(s),
+                                                    memsearch_span_count(s));
+    if (!smp) return NULL;
+    st_DBGAPI_MEMSEARCH_SAMPLE_PARAM p;
+    p.spans = memsearch_span(s, 0);   /* spany sezení jsou souvislé pole */
+    p.span_count = memsearch_span_count(s);
+    p.sample = smp;
+    if (!_submit_dbgapi(DBGAPI_CMD_MEMSEARCH_SAMPLE, &p, NULL)) {
+        memsearch_sample_unref(smp);
+        return NULL;
+    }
+    return smp;
+}
+
+/** @brief Společná pole stavu sezení do odpovědi. */
+static void _ms_state_json(JsonObject *o, const st_MEMSEARCH_SESSION *s) {
+    json_object_set_int_member(o, "candidates", (gint64)memsearch_candidate_count(s));
+    json_object_set_int_member(o, "step", memsearch_step(s));
+    json_object_set_int_member(o, "sample_frame", (gint64)memsearch_sample_frame(s));
+    json_object_set_int_member(o, "undo_depth", memsearch_undo_depth(s));
+    json_object_set_int_member(o, "redo_depth", memsearch_redo_depth(s));
+}
+
+/**
+ * @brief Načte formát hodnoty z parametrů memsearch_start.
+ *
+ * `type` (u8 výchozí, s8, u16, s16, u24, s24, u32, s32, bcd, digits),
+ * `width` (bcd 1-4, výchozí 2; digits 1-8, výchozí 4), `endian` ("le"
+ * výchozí u čísel a BCD, "be" výchozí u číslic = pořadí tisku),
+ * `aligned`, `digit_encoding` (raw, ascii, display výchozí),
+ * `leading_space` (výchozí true).
+ *
+ * @return NULL OK, jinak statická chybová zpráva.
+ */
+static const char *_ms_parse_fmt(JsonObject *obj, st_MEMSEARCH_FMT *f) {
+    memset(f, 0, sizeof(*f));
+    int ht = _videorec_member(obj, "type", G_TYPE_STRING);
+    int hw = _videorec_member(obj, "width", G_TYPE_INT64);
+    int he = _videorec_member(obj, "endian", G_TYPE_STRING);
+    int ha = _videorec_member(obj, "aligned", G_TYPE_BOOLEAN);
+    int hd = _videorec_member(obj, "digit_encoding", G_TYPE_STRING);
+    int hl = _videorec_member(obj, "leading_space", G_TYPE_BOOLEAN);
+    if (ht < 0 || hw < 0 || he < 0 || ha < 0 || hd < 0 || hl < 0) {
+        return "Invalid parameters: type, endian, digit_encoding must be strings, width an integer, aligned and leading_space booleans";
+    }
+    unsigned width = 1;
+    f->type = MEMSEARCH_TYPE_UINT;
+    if (ht && !memsearch_type_from_name(json_object_get_string_member(obj, "type"), &f->type, &width)) {
+        return "Invalid parameters: type must be u8, s8, u16, s16, u24, s24, u32, s32, bcd or digits";
+    }
+    if (f->type == MEMSEARCH_TYPE_BCD || f->type == MEMSEARCH_TYPE_DIGITS) {
+        width = (f->type == MEMSEARCH_TYPE_BCD) ? 2 : 4;
+        if (hw) {
+            gint64 w = json_object_get_int_member(obj, "width");
+            width = (w < 0 || w > 64) ? 0 : (unsigned)w;
+        }
+    } else if (hw) {
+        return "Invalid parameters: width applies only to bcd and digits (the integer width is in the type name)";
+    }
+    f->width = width;
+    f->big_endian = (f->type == MEMSEARCH_TYPE_DIGITS);
+    if (he) {
+        const char *e = json_object_get_string_member(obj, "endian");
+        if (g_strcmp0(e, "le") == 0) f->big_endian = false;
+        else if (g_strcmp0(e, "be") == 0) f->big_endian = true;
+        else return "Invalid parameters: endian must be le or be";
+    }
+    f->aligned = ha ? json_object_get_boolean_member(obj, "aligned") : false;
+    f->digit_enc = MEMSEARCH_DIGITS_DISPLAY;
+    if (hd) {
+        int d = memsearch_digit_enc_from_name(json_object_get_string_member(obj, "digit_encoding"));
+        if (d < 0) return "Invalid parameters: digit_encoding must be raw, ascii or display";
+        f->digit_enc = (en_MEMSEARCH_DIGIT_ENC)d;
+    }
+    f->leading_space = hl ? json_object_get_boolean_member(obj, "leading_space") : true;
+    const char *err = NULL;
+    if (!memsearch_fmt_validate(f, &err)) return err;
+    return NULL;
+}
+
+/**
+ * @brief Načte filtr (`op`, `compare_to`, `value`, `value2`, `mask`, `negate`).
+ *
+ * Výchozí `compare_to`: "previous" u operací se vzorkem (inc, dec, ...),
+ * jinak "value", když je zadané `value`, jinak "previous".
+ *
+ * @param obj     Parametry.
+ * @param fmt     Formát sezení.
+ * @param[out] f  Filtr.
+ * @param[out] present false = `op` chybí (žádný filtr).
+ * @return NULL OK, jinak chybová zpráva (statická nebo z memsearch).
+ */
+static const char *_ms_parse_filter(JsonObject *obj, const st_MEMSEARCH_FMT *fmt,
+                                    st_MEMSEARCH_FILTER *f, bool *present) {
+    memset(f, 0, sizeof(*f));
+    *present = false;
+    int ho = _videorec_member(obj, "op", G_TYPE_STRING);
+    int hc = _videorec_member(obj, "compare_to", G_TYPE_STRING);
+    int hv = _videorec_member(obj, "value", G_TYPE_INT64);
+    int hv2 = _videorec_member(obj, "value2", G_TYPE_INT64);
+    int hm = _videorec_member(obj, "mask", G_TYPE_INT64);
+    int hn = _videorec_member(obj, "negate", G_TYPE_BOOLEAN);
+    if (ho < 0 || hc < 0 || hv < 0 || hv2 < 0 || hm < 0 || hn < 0) {
+        return "Invalid parameters: op and compare_to must be strings, value, value2 and mask integers, negate a boolean";
+    }
+    if (!ho) return NULL;
+    int op = memsearch_op_from_name(json_object_get_string_member(obj, "op"));
+    if (op < 0) {
+        return "Invalid parameters: op must be eq, ne, lt, le, gt, ge, between, inc, dec, inc_by, dec_by, changed, unchanged, changed_by or mask_eq";
+    }
+    f->op = (en_MEMSEARCH_OP)op;
+    f->value = hv ? json_object_get_int_member(obj, "value") : 0;
+    f->value2 = hv2 ? json_object_get_int_member(obj, "value2") : 0;
+    gint64 mask = hm ? json_object_get_int_member(obj, "mask") : 0xFFFFFFFFLL;
+    if (mask < 0 || mask > 0xFFFFFFFFLL) return "Invalid parameters: mask must be 0..FFFFFFFFh";
+    f->mask = (uint32_t)mask;
+    f->negate = hn ? json_object_get_boolean_member(obj, "negate") : false;
+    bool needs_ref = (f->op == MEMSEARCH_OP_INC || f->op == MEMSEARCH_OP_DEC
+                      || f->op == MEMSEARCH_OP_INC_BY || f->op == MEMSEARCH_OP_DEC_BY
+                      || f->op == MEMSEARCH_OP_CHANGED || f->op == MEMSEARCH_OP_UNCHANGED
+                      || f->op == MEMSEARCH_OP_CHANGED_BY);
+    f->compare_to = (!needs_ref && hv) ? MEMSEARCH_CMP_VALUE : MEMSEARCH_CMP_PREVIOUS;
+    if (f->op == MEMSEARCH_OP_BETWEEN) f->compare_to = MEMSEARCH_CMP_VALUE;
+    if (hc) {
+        int c = memsearch_cmp_from_name(json_object_get_string_member(obj, "compare_to"));
+        if (c < 0) return "Invalid parameters: compare_to must be value, previous or first";
+        f->compare_to = (en_MEMSEARCH_CMP)c;
+    }
+    if (f->compare_to == MEMSEARCH_CMP_VALUE && !hv) {
+        return "Invalid parameters: compare_to value needs value";
+    }
+    if (f->op == MEMSEARCH_OP_BETWEEN && !hv2) return "Invalid parameters: between needs value and value2";
+    const char *err = NULL;
+    if (!memsearch_filter_validate(f, fmt, &err)) return err;
+    *present = true;
+    return NULL;
+}
+
+/**
+ * @brief Sestaví spany z parametru `space` (název předvolby nebo pole).
+ *
+ * Pole: `[{kind, sub_id, offset, length}]`, `sub_id` a `offset` výchozí 0,
+ * `length` výchozí do konce regionu. Region musí v sestavě existovat.
+ *
+ * @param obj Parametry.
+ * @param regs, count Výčet regionů.
+ * @param[out] out Spany (alokuje se, uvolnit g_free).
+ * @param[out] n Počet spanů.
+ * @return NULL OK, jinak statická chybová zpráva.
+ */
+static const char *_ms_parse_space(JsonObject *obj, const st_REGION_DESC *regs, int count,
+                                   st_MEMSEARCH_SPAN **out, unsigned *n) {
+    *out = NULL;
+    *n = 0;
+    JsonNode *sn = (obj && json_object_has_member(obj, "space")) ? json_object_get_member(obj, "space") : NULL;
+    if (!sn || json_node_is_null(sn)
+        || (json_node_get_node_type(sn) == JSON_NODE_VALUE && json_node_get_value_type(sn) == G_TYPE_STRING)) {
+        const char *name = sn && !json_node_is_null(sn) ? json_node_get_string(sn) : "ram";
+        int p = memsearch_preset_from_name(name);
+        if (p < 0) return "Invalid parameters: space must be ram, logical, vram, memext, ramdisk, all_writable or an array of {kind, sub_id, offset, length}";
+        *out = g_new0(st_MEMSEARCH_SPAN, count > 0 ? count : 1);
+        *n = memsearch_spans_from_preset((en_MEMSEARCH_PRESET)p, regs, count, *out);
+        if (*n == 0) return "memsearch_start: the space preset has no connected region in this configuration";
+        return NULL;
+    }
+    if (json_node_get_node_type(sn) != JSON_NODE_ARRAY) return "Invalid parameters: space must be a preset name or an array";
+    JsonArray *a = json_node_get_array(sn);
+    guint len = json_array_get_length(a);
+    if (len < 1 || len > 1024) return "Invalid parameters: space array must have 1-1024 items";
+    *out = g_new0(st_MEMSEARCH_SPAN, len);
+    for (guint i = 0; i < len; i++) {
+        JsonNode *it = json_array_get_element(a, i);
+        if (json_node_get_node_type(it) != JSON_NODE_OBJECT) return "Invalid parameters: space items must be objects";
+        JsonObject *io = json_node_get_object(it);
+        int kind, sub_id;
+        uint32_t offset = 0;
+        if (_videorec_member(io, "offset", G_TYPE_INT64) <= 0) json_object_set_int_member(io, "offset", 0);
+        const char *e = _freeze_parse_key(io, &kind, &sub_id, &offset);
+        if (e) return e;
+        const st_REGION_DESC *r = _ms_find_region(regs, count, kind, sub_id);
+        if (!r) return "memsearch_start: a space region is not present in this configuration (see regions_list)";
+        if (offset >= r->size) return "memsearch_start: span offset outside the region";
+        int hl = _videorec_member(io, "length", G_TYPE_INT64);
+        gint64 l = (hl > 0) ? json_object_get_int_member(io, "length") : (gint64)(r->size - offset);
+        if (hl < 0 || l < 1 || l > (gint64)(r->size - offset)) return "memsearch_start: span length outside the region";
+        (*out)[i].region_kind = kind;
+        (*out)[i].sub_id = sub_id;
+        (*out)[i].offset = offset;
+        (*out)[i].length = (uint32_t)l;
+    }
+    *n = len;
+    return NULL;
+}
+
+/**
+ * @brief `memsearch_start` handler - založí sezení a pořídí první vzorek.
+ *
+ * Parametry: `space`, formát (`_ms_parse_fmt`), `allow_large` (strop
+ * prostoru 32 MiB místo 4 MiB) a volitelný první filtr (`op`, `value`, ...,
+ * jen proti hodnotě). Odpověď `{session_id, space_size, spans, candidates,
+ * step, sample_frame, undo_depth, redo_depth}`.
+ */
+static en_MCP_DISPATCH_RESULT _handle_memsearch_start(const st_JSONL_MESSAGE *req, char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _videorec_data_obj(req);
+    st_MEMSEARCH_FMT fmt;
+    const char *e = _ms_parse_fmt(obj, &fmt);
+    if (e) return _err_response(req_id, e, MCP_DISPATCH_INVALID_PARAMS, out_response);
+    st_MEMSEARCH_FILTER f;
+    bool has_filter = false;
+    e = _ms_parse_filter(obj, &fmt, &f, &has_filter);
+    if (e) return _err_response(req_id, e, MCP_DISPATCH_INVALID_PARAMS, out_response);
+    if (has_filter && f.compare_to != MEMSEARCH_CMP_VALUE) {
+        return _err_response(req_id, "Invalid parameters: the first filter can only compare with a value",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    int hal = _videorec_member(obj, "allow_large", G_TYPE_BOOLEAN);
+    if (hal < 0) {
+        return _err_response(req_id, "Invalid parameters: allow_large must be a boolean",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    bool allow_large = hal ? json_object_get_boolean_member(obj, "allow_large") : false;
+
+    int rcount = 0;
+    st_REGION_DESC *regs = _ms_regions(&rcount);
+    if (!regs) {
+        return _err_response(req_id, "memsearch_start: region list unavailable",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    st_MEMSEARCH_SPAN *spans = NULL;
+    unsigned n = 0;
+    e = _ms_parse_space(obj, regs, rcount, &spans, &n);
+    g_free(regs);
+    if (e) {
+        g_free(spans);
+        return _err_response(req_id, e, MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+
+    st_MEMSEARCH_SESSION *s = memsearch_session_new(spans, n, &fmt,
+        allow_large ? MEMSEARCH_HARD_MAX_SPACE : MEMSEARCH_DEFAULT_MAX_SPACE, &e);
+    g_free(spans);
+    if (!s) return _err_response(req_id, e ? e : "memsearch_start failed", MCP_DISPATCH_INVALID_PARAMS, out_response);
+
+    st_MEMSEARCH_SAMPLE *smp = _ms_take_sample(s);
+    if (!smp) {
+        memsearch_session_free(s);
+        return _err_response(req_id, "memsearch_start: memory sample failed (emulator unavailable)",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    bool ok = memsearch_start(s, smp, has_filter ? &f : NULL, &e);
+    if (!ok) {
+        memsearch_sample_unref(smp);
+        memsearch_session_free(s);
+        return _err_response(req_id, e ? e : "memsearch_start failed", MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+
+    g_mutex_lock(&s_ms_lock);
+    st_MCP_MEMSEARCH_SLOT *slot = NULL;
+    for (int i = 0; i < MCP_MEMSEARCH_MAX_SESSIONS && !slot; i++) {
+        if (!s_ms_slots[i].sess) slot = &s_ms_slots[i];
+    }
+    if (!slot) {
+        g_mutex_unlock(&s_ms_lock);
+        memsearch_sample_unref(smp);
+        memsearch_session_free(s);
+        return _err_response(req_id, "memsearch_start: too many open sessions (8), close one with memsearch_close",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    slot->sess = s;
+    slot->id = s_ms_next_id++;
+
+    JsonObject *data = json_object_new();
+    json_object_set_int_member(data, "session_id", slot->id);
+    json_object_set_int_member(data, "space_size", (gint64)memsearch_space_size(s));
+    JsonArray *sa = json_array_new();
+    for (unsigned i = 0; i < memsearch_span_count(s); i++) {
+        const st_MEMSEARCH_SPAN *sp = memsearch_span(s, i);
+        JsonObject *so = json_object_new();
+        json_object_set_string_member(so, "kind", _region_kind_to_str(sp->region_kind));
+        json_object_set_int_member(so, "sub_id", sp->sub_id);
+        json_object_set_int_member(so, "offset", (gint64)sp->offset);
+        json_object_set_int_member(so, "length", (gint64)sp->length);
+        json_object_set_boolean_member(so, "connected", smp->span_connected[i] != 0);
+        json_array_add_object_element(sa, so);
+    }
+    json_object_set_array_member(data, "spans", sa);
+    _ms_state_json(data, s);
+    g_mutex_unlock(&s_ms_lock);
+    memsearch_sample_unref(smp);
+    return _ok_response(req_id, data, out_response);
+}
+
+/** @brief Chyba "neznámé sezení". */
+static en_MCP_DISPATCH_RESULT _ms_err_session(int64_t req_id, char **out_response) {
+    return _err_response(req_id, "unknown memsearch session_id (start one with memsearch_start)",
+                         MCP_DISPATCH_INVALID_PARAMS, out_response);
+}
+
+/**
+ * @brief `memsearch_filter` handler - zúží kandidáty.
+ *
+ * Parametry: `session_id`, filtr (`_ms_parse_filter`, `op` povinný) a
+ * `sample` (výchozí true = nejdřív nový vzorek; false = porovná poslední
+ * vzorek s předchozím). Odpověď `{removed, candidates, step, ...}`.
+ */
+static en_MCP_DISPATCH_RESULT _handle_memsearch_filter(const st_JSONL_MESSAGE *req, char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _videorec_data_obj(req);
+    int hs = _videorec_member(obj, "sample", G_TYPE_BOOLEAN);
+    if (hs < 0) {
+        return _err_response(req_id, "Invalid parameters: sample must be a boolean",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    bool take = hs ? json_object_get_boolean_member(obj, "sample") : true;
+
+    g_mutex_lock(&s_ms_lock);
+    st_MCP_MEMSEARCH_SLOT *slot = _ms_slot(obj);
+    if (!slot) {
+        g_mutex_unlock(&s_ms_lock);
+        return _ms_err_session(req_id, out_response);
+    }
+    st_MEMSEARCH_FILTER f;
+    bool present = false;
+    const char *e = _ms_parse_filter(obj, memsearch_fmt(slot->sess), &f, &present);
+    if (!e && !present) e = "Invalid parameters: op is required";
+    if (e) {
+        g_mutex_unlock(&s_ms_lock);
+        return _err_response(req_id, e, MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    st_MEMSEARCH_SAMPLE *smp = NULL;
+    if (take) {
+        smp = _ms_take_sample(slot->sess);
+        if (!smp) {
+            g_mutex_unlock(&s_ms_lock);
+            return _err_response(req_id, "memsearch_filter: memory sample failed (emulator unavailable)",
+                                 MCP_DISPATCH_EMU_ERROR, out_response);
+        }
+    }
+    uint64_t removed = 0;
+    bool ok = memsearch_filter(slot->sess, smp, &f, &removed, &e);
+    memsearch_sample_unref(smp);
+    if (!ok) {
+        g_mutex_unlock(&s_ms_lock);
+        return _err_response(req_id, e ? e : "memsearch_filter failed", MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    JsonObject *data = json_object_new();
+    json_object_set_int_member(data, "removed", (gint64)removed);
+    _ms_state_json(data, slot->sess);
+    g_mutex_unlock(&s_ms_lock);
+    return _ok_response(req_id, data, out_response);
+}
+
+/**
+ * @brief `memsearch_sample` handler - nový vzorek bez filtrace.
+ *
+ * Parametr `session_id`. Předchozí vzorek se stane referencí pro další
+ * filtr s `sample: false`. Odpověď stav sezení.
+ */
+static en_MCP_DISPATCH_RESULT _handle_memsearch_sample(const st_JSONL_MESSAGE *req, char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _videorec_data_obj(req);
+    g_mutex_lock(&s_ms_lock);
+    st_MCP_MEMSEARCH_SLOT *slot = _ms_slot(obj);
+    if (!slot) {
+        g_mutex_unlock(&s_ms_lock);
+        return _ms_err_session(req_id, out_response);
+    }
+    st_MEMSEARCH_SAMPLE *smp = _ms_take_sample(slot->sess);
+    const char *e = smp ? NULL : "memsearch_sample: memory sample failed (emulator unavailable)";
+    if (smp && !memsearch_sample(slot->sess, smp, &e) && !e) e = "memsearch_sample failed";
+    memsearch_sample_unref(smp);
+    if (e) {
+        g_mutex_unlock(&s_ms_lock);
+        return _err_response(req_id, e, MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    JsonObject *data = json_object_new();
+    _ms_state_json(data, slot->sess);
+    g_mutex_unlock(&s_ms_lock);
+    return _ok_response(req_id, data, out_response);
+}
+
+/**
+ * @brief Společné tělo memsearch_undo / memsearch_redo.
+ * @param redo false = undo, true = redo.
+ */
+static en_MCP_DISPATCH_RESULT _ms_undo_redo(const st_JSONL_MESSAGE *req, char **out_response, bool redo) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _videorec_data_obj(req);
+    g_mutex_lock(&s_ms_lock);
+    st_MCP_MEMSEARCH_SLOT *slot = _ms_slot(obj);
+    if (!slot) {
+        g_mutex_unlock(&s_ms_lock);
+        return _ms_err_session(req_id, out_response);
+    }
+    bool ok = redo ? memsearch_redo(slot->sess) : memsearch_undo(slot->sess);
+    if (!ok) {
+        g_mutex_unlock(&s_ms_lock);
+        return _err_response(req_id, redo ? "nothing to redo" : "nothing to undo",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    JsonObject *data = json_object_new();
+    json_object_set_boolean_member(data, "started", memsearch_started(slot->sess));
+    _ms_state_json(data, slot->sess);
+    g_mutex_unlock(&s_ms_lock);
+    return _ok_response(req_id, data, out_response);
+}
+
+/** @brief `memsearch_undo` handler - vrátí poslední krok (kandidáty i referenční vzorky). */
+static en_MCP_DISPATCH_RESULT _handle_memsearch_undo(const st_JSONL_MESSAGE *req, char **out_response) {
+    return _ms_undo_redo(req, out_response, false);
+}
+
+/** @brief `memsearch_redo` handler - znovu provede vrácený krok. */
+static en_MCP_DISPATCH_RESULT _handle_memsearch_redo(const st_JSONL_MESSAGE *req, char **out_response) {
+    return _ms_undo_redo(req, out_response, true);
+}
+
+/** @brief Hodnota kandidáta do JSON (číslo, nebo null u neplatné hodnoty). */
+static void _ms_set_value(JsonObject *o, const char *key, const st_MEMSEARCH_VALUE *v) {
+    if (v->valid) json_object_set_int_member(o, key, v->value);
+    else json_object_set_null_member(o, key);
+}
+
+/**
+ * @brief Adresa Z80 a parametry write breakpointu pro kandidáta.
+ *
+ * Převod dělá memsearch_target() (stejný jako v okně Memory Search).
+ * `bp_hint` = parametry pro emu_bp_create_with_init (MEM_W, zóna, u PEHU
+ * bank_id + bp_addr_space bank_offset, u šířky > 1 rozsah), null = buňku
+ * write breakpoint nezachytí.
+ *
+ * @param o     Položka výpisu.
+ * @param it    Kandidát.
+ * @param width Šířka hodnoty.
+ * @param mi    Stav MemExt (NULL = nezjištěn).
+ */
+static void _ms_set_addr_hint(JsonObject *o, const st_MEMSEARCH_ITEM *it, unsigned width,
+                              const st_DBGAPI_MEMEXT_INFO_PARAM *mi) {
+    st_MEMSEARCH_MEMEXT mx;
+    memset(&mx, 0, sizeof(mx));
+    if (mi) {
+        mx.connected = mi->connected != 0;
+        mx.pehu = strcmp(mi->type, "pehu") == 0;
+        mx.map_valid = mi->map_available != 0;
+        memcpy(mx.map, mi->current_map, sizeof(mx.map));
+    }
+    st_MEMSEARCH_TARGET t;
+    (void)memsearch_target(it->region_kind, it->sub_id, it->region_offset, width,
+                           mi ? &mx : NULL, &t);
+    if (t.has_z80) json_object_set_int_member(o, "z80_addr", t.z80_addr);
+    else json_object_set_null_member(o, "z80_addr");
+    if (t.bp_zone == MEMSEARCH_BPZONE_NONE) {
+        json_object_set_null_member(o, "bp_hint");
+        return;
+    }
+    JsonObject *h = json_object_new();
+    JsonArray *fa = json_array_new();
+    JsonObject *va = json_object_new();
+    json_object_set_int_member(h, "addr", t.bp_addr);
+    json_array_add_string_element(fa, "type");
+    json_object_set_string_member(va, "type", "MEM_W");
+    json_array_add_string_element(fa, "zone");
+    json_object_set_string_member(va, "zone", memsearch_bpzone_name(t.bp_zone));
+    if (t.bp_bank >= 0) {
+        json_array_add_string_element(fa, "bank_id");
+        json_object_set_int_member(va, "bank_id", t.bp_bank);
+        json_array_add_string_element(fa, "bp_addr_space");
+        json_object_set_string_member(va, "bp_addr_space", "bank_offset");
+    }
+    if (width > 1) {
+        json_array_add_string_element(fa, "addr_end");
+        json_object_set_int_member(va, "addr_end", t.bp_addr_end);
+        json_array_add_string_element(fa, "addr_match_mode");
+        json_object_set_string_member(va, "addr_match_mode", "RANGE");
+    }
+    json_object_set_array_member(h, "fields", fa);
+    json_object_set_object_member(h, "values", va);
+    json_object_set_object_member(o, "bp_hint", h);
+}
+
+/**
+ * @brief `memsearch_list` handler - stránka kandidátů.
+ *
+ * Parametry: `session_id`, `offset` (pořadí prvního kandidáta, výchozí 0),
+ * `limit` (výchozí 100, nejvýš 1000). Položka: `index`, `space_offset`,
+ * `kind`, `sub_id`, `region_offset`, `connected`, `cur`, `prev`, `first`
+ * (čísla, null u neplatné hodnoty), `cur_hex` (bajty v pořadí adres),
+ * `z80_addr` a `bp_hint` (parametry pro emu_bp_create_with_init, nebo null).
+ */
+static en_MCP_DISPATCH_RESULT _handle_memsearch_list(const st_JSONL_MESSAGE *req, char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _videorec_data_obj(req);
+    int ho = _videorec_member(obj, "offset", G_TYPE_INT64);
+    int hl = _videorec_member(obj, "limit", G_TYPE_INT64);
+    gint64 off = ho > 0 ? json_object_get_int_member(obj, "offset") : 0;
+    gint64 lim = hl > 0 ? json_object_get_int_member(obj, "limit") : MCP_MEMSEARCH_LIST_DEFAULT;
+    if (ho < 0 || hl < 0 || off < 0 || lim < 1 || lim > MCP_MEMSEARCH_LIST_MAX) {
+        return _err_response(req_id, "Invalid parameters: offset >= 0, limit 1-1000",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    st_DBGAPI_MEMEXT_INFO_PARAM mi;
+    memset(&mi, 0, sizeof(mi));
+    bool have_mi = false;
+
+    g_mutex_lock(&s_ms_lock);
+    st_MCP_MEMSEARCH_SLOT *slot = _ms_slot(obj);
+    if (!slot) {
+        g_mutex_unlock(&s_ms_lock);
+        return _ms_err_session(req_id, out_response);
+    }
+    st_MEMSEARCH_SESSION *s = slot->sess;
+    for (unsigned i = 0; i < memsearch_span_count(s) && !have_mi; i++) {
+        if (memsearch_span(s, i)->region_kind == REGION_KIND_MEMEXT_RAM) {
+            have_mi = _submit_dbgapi(DBGAPI_CMD_GET_MEMEXT_INFO, &mi, NULL);
+            break;
+        }
+    }
+    unsigned width = memsearch_fmt(s)->width;
+    uint64_t total = memsearch_candidate_count(s);
+    JsonObject *data = json_object_new();
+    JsonArray *arr = json_array_new();
+    for (uint64_t n = (uint64_t)off; n < total && n < (uint64_t)(off + lim); n++) {
+        uint32_t so = 0;
+        st_MEMSEARCH_ITEM it;
+        if (!memsearch_nth_candidate(s, n, &so) || !memsearch_item(s, so, &it)) break;
+        JsonObject *o = json_object_new();
+        json_object_set_int_member(o, "index", (gint64)n);
+        json_object_set_int_member(o, "space_offset", (gint64)so);
+        json_object_set_string_member(o, "kind", _region_kind_to_str(it.region_kind));
+        json_object_set_int_member(o, "sub_id", it.sub_id);
+        json_object_set_int_member(o, "region_offset", (gint64)it.region_offset);
+        json_object_set_boolean_member(o, "connected", it.connected);
+        _ms_set_value(o, "cur", &it.cur);
+        _ms_set_value(o, "prev", &it.prev);
+        _ms_set_value(o, "first", &it.first);
+        char hex[2 * MEMSEARCH_MAX_WIDTH + 1];
+        for (unsigned b = 0; b < width; b++) g_snprintf(&hex[2 * b], 3, "%02X", it.cur.raw[b]);
+        hex[2 * width] = '\0';
+        json_object_set_string_member(o, "cur_hex", hex);
+        _ms_set_addr_hint(o, &it, width, have_mi ? &mi : NULL);
+        json_array_add_object_element(arr, o);
+    }
+    json_object_set_array_member(data, "items", arr);
+    json_object_set_int_member(data, "total", (gint64)total);
+    json_object_set_int_member(data, "offset", off);
+    _ms_state_json(data, s);
+    g_mutex_unlock(&s_ms_lock);
+    return _ok_response(req_id, data, out_response);
+}
+
+/**
+ * @brief `memsearch_eliminate` handler - ručně vyřadí kandidáty.
+ *
+ * Parametry: `session_id`, `space_offsets` (pole hodnot `space_offset`
+ * z memsearch_list, nejvýš 1000). Odpověď `{removed, candidates, ...}`.
+ */
+static en_MCP_DISPATCH_RESULT _handle_memsearch_eliminate(const st_JSONL_MESSAGE *req, char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _videorec_data_obj(req);
+    JsonNode *an = (obj && json_object_has_member(obj, "space_offsets"))
+                   ? json_object_get_member(obj, "space_offsets") : NULL;
+    if (!an || json_node_get_node_type(an) != JSON_NODE_ARRAY) {
+        return _err_response(req_id, "Invalid parameters: space_offsets must be an array of integers",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    JsonArray *a = json_node_get_array(an);
+    guint n = json_array_get_length(a);
+    if (n > MCP_MEMSEARCH_LIST_MAX) {
+        return _err_response(req_id, "Invalid parameters: at most 1000 space_offsets",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    uint32_t *offs = g_new0(uint32_t, n ? n : 1);
+    for (guint i = 0; i < n; i++) {
+        JsonNode *it = json_array_get_element(a, i);
+        if (json_node_get_node_type(it) != JSON_NODE_VALUE
+            || json_node_get_value_type(it) != G_TYPE_INT64
+            || json_node_get_int(it) < 0 || json_node_get_int(it) > 0xFFFFFFFFLL) {
+            g_free(offs);
+            return _err_response(req_id, "Invalid parameters: space_offsets items must be non-negative integers",
+                                 MCP_DISPATCH_INVALID_PARAMS, out_response);
+        }
+        offs[i] = (uint32_t)json_node_get_int(it);
+    }
+    g_mutex_lock(&s_ms_lock);
+    st_MCP_MEMSEARCH_SLOT *slot = _ms_slot(obj);
+    if (!slot) {
+        g_mutex_unlock(&s_ms_lock);
+        g_free(offs);
+        return _ms_err_session(req_id, out_response);
+    }
+    uint64_t removed = memsearch_eliminate(slot->sess, offs, n);
+    g_free(offs);
+    JsonObject *data = json_object_new();
+    json_object_set_int_member(data, "removed", (gint64)removed);
+    _ms_state_json(data, slot->sess);
+    g_mutex_unlock(&s_ms_lock);
+    return _ok_response(req_id, data, out_response);
+}
+
+/**
+ * @brief `memsearch_close` handler - zavře sezení a uvolní jeho paměť.
+ *
+ * Parametr `session_id`. Odpověď `{closed: true}`.
+ */
+static en_MCP_DISPATCH_RESULT _handle_memsearch_close(const st_JSONL_MESSAGE *req, char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _videorec_data_obj(req);
+    g_mutex_lock(&s_ms_lock);
+    st_MCP_MEMSEARCH_SLOT *slot = _ms_slot(obj);
+    if (!slot) {
+        g_mutex_unlock(&s_ms_lock);
+        return _ms_err_session(req_id, out_response);
+    }
+    memsearch_session_free(slot->sess);
+    slot->sess = NULL;
+    slot->id = 0;
+    g_mutex_unlock(&s_ms_lock);
+    JsonObject *data = json_object_new();
+    json_object_set_boolean_member(data, "closed", TRUE);
+    return _ok_response(req_id, data, out_response);
 }
 
 

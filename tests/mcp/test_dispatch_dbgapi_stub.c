@@ -36,6 +36,8 @@
 #include <glib.h>
 
 #include "emulator/debugger/dbgapi_cmdrq.h"
+#include "emulator/debugger/dbgapi_regions.h"
+#include "emulator/debugger/memsearch/memsearch.h"
 #include "emulator/audio_capture.h"
 /* Pozn.: dbgapi_ui.h NEincludujeme - viz komentář ve stub headeru. */
 /* F015a - dispatch.c v _handle_bp_list volá bpt_type_to_string /
@@ -496,6 +498,81 @@ bool dbgapi_ui_submit_cmd_sync_with_origin(st_DBGAPI_CMDRQ_QUEUE *queue,
                     }
                     p->out_total_writers = 2;
                 }
+            }
+            break;
+
+        case DBGAPI_CMD_REGIONS_ENUMERATE:
+            /* memsearch: s ms_regions vrátí User RAM 64 KB, MemExt RAM kus 41h
+             * (4 KB) a ROM_LOWER (4 KB, jen pro čtení); jinak prázdný výčet. */
+            if (data_ptr && g_stub_state.ms_regions) {
+                st_DBGAPI_REGIONS_ENUM_PARAM *p = (st_DBGAPI_REGIONS_ENUM_PARAM *)data_ptr;
+                st_REGION_DESC *r = g_new0(st_REGION_DESC, 3);
+                r[0].id = 0; r[0].kind = REGION_KIND_RAM; r[0].size = 0x10000;
+                r[0].writable = 1; r[0].connected = 1; r[0].mapped_now = 1;
+                r[1].id = 1; r[1].kind = REGION_KIND_MEMEXT_RAM; r[1].sub_id = 0x41;
+                r[1].size = 0x1000; r[1].writable = 1; r[1].connected = 1;
+                r[2].id = 2; r[2].kind = REGION_KIND_ROM_LOWER; r[2].size = 0x1000;
+                r[2].writable = 0; r[2].connected = 1;
+                p->out_dup = r;
+                p->out_count = 3;
+            }
+            break;
+
+        case DBGAPI_CMD_MEMSEARCH_SAMPLE:
+            /* memsearch: User RAM z ms_ram (prvních 256 B, zbytek 0), ostatní
+             * spany vynulované a připojené; snímek = počet vzorků. */
+            if (data_ptr) {
+                st_DBGAPI_MEMSEARCH_SAMPLE_PARAM *p = (st_DBGAPI_MEMSEARCH_SAMPLE_PARAM *)data_ptr;
+                const st_MEMSEARCH_SPAN *sp = (const st_MEMSEARCH_SPAN *)p->spans;
+                st_MEMSEARCH_SAMPLE *smp = (st_MEMSEARCH_SAMPLE *)p->sample;
+                uint32_t pos = 0;
+                g_stub_state.ms_sample_calls++;
+                for (uint32_t i = 0; i < p->span_count; i++) {
+                    for (uint32_t b = 0; b < sp[i].length; b++) {
+                        uint32_t ro = sp[i].offset + b;
+                        smp->data[pos + b] = (sp[i].region_kind == REGION_KIND_RAM && ro < 256)
+                                             ? g_stub_state.ms_ram[ro] : 0;
+                    }
+                    smp->span_connected[i] = 1;
+                    pos += sp[i].length;
+                }
+                smp->frame = (uint64_t)g_stub_state.ms_sample_calls;
+            }
+            break;
+
+        case DBGAPI_CMD_FREEZE_ADD:
+        case DBGAPI_CMD_FREEZE_REMOVE:
+            /* Freeze Bytes: tabulka frz_items, ADD aktualizuje existující klíč. */
+            if (data_ptr) {
+                st_DBGAPI_FREEZE_PARAM *p = (st_DBGAPI_FREEZE_PARAM *)data_ptr;
+                uint32_t i;
+                for (i = 0; i < g_stub_state.frz_count; i++) {
+                    const st_DBGAPI_FREEZE_LIST_ITEM *e = &g_stub_state.frz_items[i];
+                    if (e->region_kind == p->region_kind && e->sub_id == p->sub_id
+                        && e->offset == p->offset) break;
+                }
+                if (cmd == DBGAPI_CMD_FREEZE_ADD) {
+                    if (i == g_stub_state.frz_count) {
+                        if (i >= 256) return false;
+                        g_stub_state.frz_count++;
+                    }
+                    g_stub_state.frz_items[i].region_kind = p->region_kind;
+                    g_stub_state.frz_items[i].sub_id = p->sub_id;
+                    g_stub_state.frz_items[i].offset = p->offset;
+                    g_stub_state.frz_items[i].value = p->value;
+                } else {
+                    if (i == g_stub_state.frz_count) return false;
+                    g_stub_state.frz_items[i] = g_stub_state.frz_items[--g_stub_state.frz_count];
+                }
+                p->result = true;
+            }
+            break;
+
+        case DBGAPI_CMD_FREEZE_LIST:
+            if (data_ptr) {
+                st_DBGAPI_FREEZE_LIST_PARAM *p = (st_DBGAPI_FREEZE_LIST_PARAM *)data_ptr;
+                memcpy(p->items, g_stub_state.frz_items, sizeof(p->items));
+                p->out_count = g_stub_state.frz_count;
             }
             break;
 
@@ -1599,6 +1676,13 @@ bool dbgapi_ui_submit_cmd_sync_with_origin(st_DBGAPI_CMDRQ_QUEUE *queue,
                 snprintf(p->type, sizeof(p->type), "none");
                 p->connected     = 0;
                 p->map_available = 0;
+                if (g_stub_state.ms_pehu) {
+                    snprintf(p->type, sizeof(p->type), "pehu");
+                    p->connected = 1;
+                    p->map_available = 1;
+                    for (int s = 0; s < 16; s++) p->current_map[s] = (uint32_t)s;
+                    p->current_map[4] = 0x41;
+                }
             }
             break;
 

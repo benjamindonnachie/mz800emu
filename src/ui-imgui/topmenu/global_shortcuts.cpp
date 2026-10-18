@@ -494,11 +494,20 @@ void imgui_global_shortcuts(void)
         /*
          * Memory Browser window: Alt + E (membrowser mutant V0).
          * Toggle viditelnosti Memory Browser hex MVP okna.
+         * Memory Search: Alt + Shift + E. Shift se kontroluje uvnitř
+         * (pattern Alt+S / Alt+Shift+S).
          */
         if (ImGui::IsKeyPressed(ImGuiKey_E, false))
         {
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
-            g_gui->showMemoryBrowserWindow = !g_gui->showMemoryBrowserWindow;
+            if (io.KeyShift)
+            {
+                g_gui->showMemorySearchWindow = !g_gui->showMemorySearchWindow;
+            }
+            else
+            {
+                g_gui->showMemoryBrowserWindow = !g_gui->showMemoryBrowserWindow;
+            };
 #endif
         };
 

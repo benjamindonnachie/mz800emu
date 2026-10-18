@@ -80,6 +80,12 @@ typedef struct st_DISPATCH_STUB_STATE {
     int                  aud_copy_calls;            /**< Počet audio_capture_stream_copy. */
     st_DBGAPI_RAMLOG_PARAM rl_last;                 /**< Kopie vstupu posledního DBGAPI_CMD_RAMLOG (výstupní ukazatele neplatné). */
     int                  rl_calls;                  /**< Počet DBGAPI_CMD_RAMLOG. */
+    uint8_t              ms_ram[ 256 ];             /**< memsearch: prvních 256 B User RAM pro DBGAPI_CMD_MEMSEARCH_SAMPLE (zbytek 0). */
+    int                  ms_sample_calls;           /**< Počet DBGAPI_CMD_MEMSEARCH_SAMPLE. */
+    bool                 ms_regions;                /**< true = REGIONS_ENUMERATE vrátí RAM, MemExt RAM kus 41h a ROM_LOWER (jen pro čtení). */
+    bool                 ms_pehu;                   /**< true = GET_MEMEXT_INFO hlásí připojený PEHU, slot 4 = raw kus 41h. */
+    st_DBGAPI_FREEZE_LIST_ITEM frz_items[ 256 ];    /**< Tabulka Freeze Bytes stubu (FREEZE_ADD / _REMOVE / _LIST). */
+    uint32_t             frz_count;                 /**< Počet záznamů frz_items. */
     void                *last_result;  /**< result_ptr poslední call. */
     int                  call_count;   /**< Počet volání mocku. */
     bool                 fail_next;    /**< Pokud true, příští call vrátí false. */

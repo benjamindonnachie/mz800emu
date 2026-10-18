@@ -172,6 +172,17 @@ dokumentu [Resources overview](resources-overview.md).
 | `emu_region_write` | **ANO** | Raw zápis do fyzického regionu paměti (mimo banking Z80), max 65536 bajtů |
 | `emu_file_load_to_region` | **ANO** | Nahraje soubor (nebo jeho část) do regionu paměti, max 65536 bajtů |
 | `emu_file_save_from_region` | ano (vytvoří / přepíše soubor) | Uloží část regionu paměti do souboru, max 65536 bajtů |
+| `emu_freeze_add` | **ANO** | Zafrozí bajt / bajty regionu (zpětný zápis jednou za snímek) |
+| `emu_freeze_remove` | ne | Uvolní zafrozené bajty (úsek nebo vše) |
+| `emu_freeze_list` | ne | Zafrozené bajty (i ty z GUI) |
+| `emu_memsearch_start` | ne | Spustí hledání proměnné (cheat search) nad prostorem, první vzorek |
+| `emu_memsearch_filter` | ne | Zúží kandidáty (eq, dec_by, changed, ... proti hodnotě / předchozímu / prvnímu) |
+| `emu_memsearch_sample` | ne | Nový vzorek bez filtrace |
+| `emu_memsearch_undo` | ne | Vrátí poslední krok hledání (kandidáty i referenční vzorky) |
+| `emu_memsearch_redo` | ne | Znovu provede vrácený krok |
+| `emu_memsearch_list` | ne | Stránka kandidátů s hodnotami, CPU adresou a nápovědou pro write breakpoint |
+| `emu_memsearch_eliminate` | ne | Ručně vyřadí vybrané kandidáty |
+| `emu_memsearch_close` | ne | Zavře sezení hledání |
 
 ## Sensitive operace
 
@@ -183,7 +194,7 @@ permission per tool category).
 Mezi sensitive tools patří:
 
 - **Zápis do paměti / I/O / interrupts** - `emu_mem_write`,
-  `emu_mem_write_force`, `emu_io_read`, `emu_io_write`,
+  `emu_mem_write_force`, `emu_freeze_add`, `emu_io_read`, `emu_io_write`,
   `emu_irq_inject`, `emu_nmi_inject`
 - **Snapshot operace** - `emu_snapshot_save` (přepíše soubor),
   `emu_snapshot_load` a `emu_snapshot_load_buffer` (přepíší stav emu)
@@ -2366,6 +2377,111 @@ Args: `path` (přepíše se), `region_id`, `src_offset` (výchozí 0),
 
 Vrací `{"region_id", "src_offset", "length", "dest_file"}`; `length` je
 počet skutečně uložených bajtů (na konci regionu se zkrátí).
+
+## Memory search a Freeze Bytes tools
+
+Hledání proměnných (cheat search, RAM search) v paměťových regionech:
+životy, skóre, časovače nebo souřadnice se najdou zužováním množiny
+kandidátních pozic ([Memory Search](../debugger/memory-search.md)).
+Postup je v MCP dokumentu `emulator://docs/memsearch_workflow`.
+
+Sezení drží kandidáty a tři vzorky prostoru: první vzorek hledání,
+poslední a ten před ním. Vzorek pořizuje vlákno emulátoru - za běhu na
+nejbližší hranici snímku, v pauze hned - pro celý prostor najednou.
+Sezení MCP jsou oddělená od okna GUI; otevřených jich je nejvýš 8,
+MCP server je při ukončení zavře.
+
+### `emu_memsearch_start`
+
+Argumenty:
+
+- `space` (výchozí `"ram"`) - předvolba `ram` (User RAM 64 KB),
+  `logical` (co CPU vidí teď, včetně ROM a VRAM), `vram` (VRAM 700 text
+  / atributy a VRAM roviny MZ-800), `memext` (RAM banky MemExt),
+  `ramdisk` (banky RAM disku STD a PEZIK), `all_writable` (vše z toho bez
+  `logical`); nebo seznam `{"kind", "sub_id", "offset", "length"}` (druhy
+  jako v `emu_regions_list`, `length` výchozí do konce regionu). ROM,
+  CG-ROM ani FLASH se neprohledávají nikdy.
+- `type` (výchozí `u8`) - `u8`, `s8`, `u16`, `s16`, `u24`, `s24`, `u32`,
+  `s32`, `bcd` (packed, 2 číslice na bajt), `digits` (číslice na bajt).
+- `width` - bajty pro `bcd` (1-4, výchozí 2) a `digits` (1-8, výchozí 4).
+- `endian` - `le` (výchozí u čísel a BCD) nebo `be` (výchozí u číslic =
+  pořadí tisku).
+- `aligned` - jen offsety dělitelné šířkou.
+- `digit_encoding` - `raw` (00h-09h), `ascii` (30h-39h), `display`
+  (display kód Sharp MZ 20h-29h, výchozí); `leading_space` (výchozí true)
+  čte mezery zleva (ASCII 20h, display kód 00h) jako nuly.
+- `op`, `value`, ... - volitelný první filtr, jen porovnání s hodnotou.
+- `allow_large` - povolí prostor nad 4 MiB (až 32 MiB).
+
+Vrací `{"session_id", "space_size", "spans": [{"kind", "sub_id",
+"offset", "length", "connected"}], "candidates", "step", "sample_frame",
+"undo_depth", "redo_depth"}`.
+
+### `emu_memsearch_filter`
+
+Argumenty: `session_id`, `op`, `value`, `compare_to`, `value2`, `mask`,
+`negate`, `sample` (výchozí true).
+
+| `op` | Kandidát zůstane, když |
+|------|------------------------|
+| `eq`, `ne`, `lt`, `le`, `gt`, `ge` | hodnota je vůči referenci v daném vztahu |
+| `between` | `value` <= hodnota <= `value2` |
+| `inc`, `dec` | hodnota vůči referenci vzrostla / klesla |
+| `inc_by`, `dec_by`, `changed_by` | změnila se přesně o `value` |
+| `changed`, `unchanged` | změnila / nezměnila se |
+| `mask_eq` | bity pod `mask` jsou stejné (jen celočíselné typy) |
+
+`compare_to`: `value`, `previous` (výchozí u inc/dec/changed/...) nebo
+`first`. Se `sample: true` se nový vzorek porovná s posledním, se
+`sample: false` se poslední vzorek porovná s tím před ním. `negate`
+podmínku obrátí; neplatná hodnota BCD nebo číslic vypadne vždy.
+Aritmetika je bez přetečení (u8 z 00h na FFh není `dec_by 1`). Kandidáti
+v regionu, který se odpojil, zůstávají beze změny.
+
+Vrací `{"removed", "candidates", "step", "sample_frame", ...}`.
+
+### `emu_memsearch_sample`, `emu_memsearch_undo`, `emu_memsearch_redo`
+
+Nový vzorek bez filtrace / vrácení / znovuprovedení posledního kroku.
+Undo vrací i referenční vzorky (filtr po undo porovná se správnou
+předchozí hodnotou); vrácení startu nechá sezení bez vzorku
+(`"started": false`).
+
+### `emu_memsearch_list`
+
+Argumenty: `session_id`, `offset` (pořadí prvního kandidáta), `limit`
+(1-1000, výchozí 100). Položka:
+
+| Pole | Význam |
+|------|--------|
+| `index`, `space_offset` | Pořadí kandidáta, pozice v prostoru hledání (pro `emu_memsearch_eliminate`) |
+| `kind`, `sub_id`, `region_offset` | Buňka (pro `emu_freeze_add`, `emu_region_read`) |
+| `cur`, `prev`, `first` | Dekódované hodnoty (null = neplatné BCD / číslice nebo odpojený region) |
+| `cur_hex` | Bajty v pořadí adres |
+| `connected` | Region byl při posledním vzorku připojený |
+| `z80_addr` | CPU adresa (pro `emu_watch_add`), null u VRAM roviny, CG-RAM, PCG, RAM disku a nenamapované části MemExt |
+| `bp_hint` | `{"addr", "fields", "values"}` pro `emu_bp_create_with_init`: MEM_W breakpoint v zóně `RAM` (User RAM), `VRAM_FB` (VRAM 700), `CPU_VIEW` (Logical, namapovaná část Luftner) nebo `MMEXT_BANK` s `bp_addr_space: "bank_offset"` (PEHU, banka = část / 2); u hodnoty širší než 1 bajt rozsah; null tam, kde write breakpoint buňku nezachytí |
+
+### `emu_memsearch_eliminate`, `emu_memsearch_close`
+
+`emu_memsearch_eliminate(session_id, space_offsets)` ručně vyřadí
+vybrané kandidáty (jde vrátit). `emu_memsearch_close(session_id)`
+uvolní sezení.
+
+### `emu_freeze_add` (citlivý)
+
+Argumenty: `kind`, `sub_id` (výchozí 0), `offset` a buď `value` (0-255),
+nebo `bytes` (1-64 hodnot od `offset`). Bajty se zapisují zpět jednou za
+emulovaný snímek (Freeze Bytes, nejvýš 256 bajtů): program svůj zápis
+vidí až do konce snímku. Vrací `{"added", "frozen"}`.
+
+### `emu_freeze_remove`, `emu_freeze_list`
+
+`emu_freeze_remove(kind, offset, length, sub_id)` nebo
+`emu_freeze_remove(all=True)` vrací `{"removed"}`; `emu_freeze_list`
+vrací `{"count", "max": 256, "entries": [{"kind", "sub_id", "offset",
+"value"}]}`, včetně bajtů zafrozených v GUI.
 
 ## Speed control tools
 

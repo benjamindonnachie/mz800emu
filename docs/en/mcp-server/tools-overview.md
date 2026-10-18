@@ -172,6 +172,17 @@ documented separately in [Resources overview](resources-overview.md).
 | `emu_region_write` | **YES** | Raw write into a physical memory region (bypass Z80 banking), max 65536 bytes |
 | `emu_file_load_to_region` | **YES** | Load a file (or a part of it) into a memory region, max 65536 bytes |
 | `emu_file_save_from_region` | yes (creates / overwrites a file) | Save a part of a memory region to a file, max 65536 bytes |
+| `emu_freeze_add` | **YES** | Freeze a byte / bytes of a region (written back once per frame) |
+| `emu_freeze_remove` | no | Unfreeze bytes (a range or all) |
+| `emu_freeze_list` | no | Frozen bytes (also those frozen in the GUI) |
+| `emu_memsearch_start` | no | Start a variable search (cheat search) over a space, first sample |
+| `emu_memsearch_filter` | no | Narrow the candidates (eq, dec_by, changed, ... vs value / previous / first) |
+| `emu_memsearch_sample` | no | New sample without filtering |
+| `emu_memsearch_undo` | no | Undo the last search step (candidates and reference samples) |
+| `emu_memsearch_redo` | no | Redo an undone search step |
+| `emu_memsearch_list` | no | Page of candidates with values, CPU address and write-breakpoint hint |
+| `emu_memsearch_eliminate` | no | Remove chosen candidates by hand |
+| `emu_memsearch_close` | no | Close a search session |
 
 ## Sensitive operations
 
@@ -183,6 +194,7 @@ handles permission per tool category by default).
 Sensitive tools include:
 
 - **Memory / I/O / interrupts** - `emu_mem_write`, `emu_mem_write_force`,
+  `emu_freeze_add`,
   `emu_io_read`, `emu_io_write`, `emu_irq_inject`, `emu_nmi_inject`
 - **Snapshot operations** - `emu_snapshot_save` (overwrites a file),
   `emu_snapshot_load` and `emu_snapshot_load_buffer` (replace emu
@@ -2413,6 +2425,113 @@ Args: `path` (overwritten), `region_id`, `src_offset` (default 0),
 
 Returns `{"region_id", "src_offset", "length", "dest_file"}`; `length` is
 the number of bytes actually saved (clamped at the end of the region).
+
+## Memory search and Freeze Bytes tools
+
+Variable search (cheat search, RAM search) over memory regions: find
+lives, score, timers or coordinates by narrowing a set of candidate
+positions ([Memory Search](../debugger/memory-search.md)). The recipe is
+in the MCP document `emulator://docs/memsearch_workflow`.
+
+A session holds the candidates and three samples of the space: the
+first sample of the search, the last one and the one before it. A sample
+is taken by the emulator thread - while the emulation runs at the next
+frame boundary, when paused at once - consistently for the whole space.
+MCP sessions are separate from the GUI window; at most 8 are open, the
+MCP server closes them when it stops.
+
+### `emu_memsearch_start`
+
+Arguments:
+
+- `space` (default `"ram"`) - preset `ram` (User RAM 64 KB), `logical`
+  (what the CPU sees now, incl. ROM and VRAM), `vram` (VRAM 700 text /
+  attributes and the MZ-800 VRAM planes), `memext` (MemExt RAM banks),
+  `ramdisk` (RAM disk STD and PEZIK banks), `all_writable` (all of these
+  without `logical`); or a list of `{"kind", "sub_id", "offset",
+  "length"}` (kinds as in `emu_regions_list`, `length` defaults to the
+  end of the region). ROM, CG-ROM and FLASH are never searched.
+- `type` (default `u8`) - `u8`, `s8`, `u16`, `s16`, `u24`, `s24`, `u32`,
+  `s32`, `bcd` (packed, 2 digits per byte), `digits` (one digit per byte).
+- `width` - bytes for `bcd` (1-4, default 2) and `digits` (1-8, default 4).
+- `endian` - `le` (default for integers and BCD) or `be` (default for
+  digits = print order).
+- `aligned` - only offsets divisible by the width.
+- `digit_encoding` - `raw` (00h-09h), `ascii` (30h-39h), `display`
+  (Sharp MZ display code 20h-29h, default); `leading_space` (default
+  true) reads leading spaces (ASCII 20h, display code 00h) as zeros.
+- `op`, `value`, ... - optional first filter, value comparison only.
+- `allow_large` - allow a space over 4 MiB (up to 32 MiB).
+
+Returns `{"session_id", "space_size", "spans": [{"kind", "sub_id",
+"offset", "length", "connected"}], "candidates", "step", "sample_frame",
+"undo_depth", "redo_depth"}`.
+
+### `emu_memsearch_filter`
+
+Arguments: `session_id`, `op`, `value`, `compare_to`, `value2`, `mask`,
+`negate`, `sample` (default true).
+
+| `op` | Keeps the candidate when |
+|------|---------------------------|
+| `eq`, `ne`, `lt`, `le`, `gt`, `ge` | the value compares so with the reference |
+| `between` | `value` <= value <= `value2` |
+| `inc`, `dec` | the value grew / dropped against the reference |
+| `inc_by`, `dec_by`, `changed_by` | it changed by exactly `value` |
+| `changed`, `unchanged` | it changed / did not change |
+| `mask_eq` | the bits under `mask` are equal (integer types) |
+
+`compare_to`: `value`, `previous` (default for inc/dec/changed/...) or
+`first`. With `sample: true` a new sample is compared with the last one;
+with `sample: false` the last sample is compared with the one before it.
+`negate` inverts the condition; an invalid BCD or digit value is removed
+anyway. Arithmetic has no wrap-around (an u8 going 00h -> FFh is not
+`dec_by 1`). Candidates in a region that was disconnected stay unchanged.
+
+Returns `{"removed", "candidates", "step", "sample_frame", ...}`.
+
+### `emu_memsearch_sample`, `emu_memsearch_undo`, `emu_memsearch_redo`
+
+New sample without filtering / undo / redo the last step. Undo also
+returns the reference samples (a filter after an undo compares with the
+right previous value); undoing the start leaves the session without a
+sample (`"started": false`).
+
+### `emu_memsearch_list`
+
+Arguments: `session_id`, `offset` (index of the first candidate),
+`limit` (1-1000, default 100). Each item:
+
+| Field | Meaning |
+|-------|---------|
+| `index`, `space_offset` | Order of the candidate, position in the search space (for `emu_memsearch_eliminate`) |
+| `kind`, `sub_id`, `region_offset` | The cell (for `emu_freeze_add`, `emu_region_read`) |
+| `cur`, `prev`, `first` | Decoded values (null = invalid BCD / digits or disconnected region) |
+| `cur_hex` | Bytes in address order |
+| `connected` | The region was connected at the last sample |
+| `z80_addr` | CPU address (for `emu_watch_add`), null for a VRAM plane, CG-RAM, PCG, RAM disk or an unmapped MemExt part |
+| `bp_hint` | `{"addr", "fields", "values"}` for `emu_bp_create_with_init`: a MEM_W breakpoint in zone `RAM` (User RAM), `VRAM_FB` (VRAM 700), `CPU_VIEW` (Logical, mapped Luftner part) or `MMEXT_BANK` with `bp_addr_space: "bank_offset"` (PEHU, bank = part / 2); a range for a value wider than 1 byte; null where a write breakpoint cannot match the cell |
+
+### `emu_memsearch_eliminate`, `emu_memsearch_close`
+
+`emu_memsearch_eliminate(session_id, space_offsets)` removes chosen
+candidates (undoable). `emu_memsearch_close(session_id)` frees the
+session.
+
+### `emu_freeze_add` (sensitive)
+
+Arguments: `kind`, `sub_id` (default 0), `offset` and either `value`
+(0-255) or `bytes` (1-64 values from `offset` on). The bytes are written
+back once per emulated frame (Freeze Bytes, at most 256 bytes): the
+program sees its own write until the end of the frame. Returns
+`{"added", "frozen"}`.
+
+### `emu_freeze_remove`, `emu_freeze_list`
+
+`emu_freeze_remove(kind, offset, length, sub_id)` or
+`emu_freeze_remove(all=True)` returns `{"removed"}`; `emu_freeze_list`
+returns `{"count", "max": 256, "entries": [{"kind", "sub_id", "offset",
+"value"}]}`, including bytes frozen in the GUI.
 
 ## Speed control tools
 

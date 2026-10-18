@@ -228,6 +228,9 @@ Další debugger dokumenty:
 - [`debugger/ram-write-log.md`](debugger/ram-write-log.md) - RAM Write Log:
   kdo zapsal bajt, historie zápisů buňky, nejnovější zápisy
   (`--ramlog-*`, `[RAMLOG]`)
+- [`debugger/memory-search.md`](debugger/memory-search.md) - Memory Search:
+  hledání proměnné (životy, skóre, časovač) zužováním kandidátů, pak
+  Watch, breakpoint na zápis nebo Freeze (`[MEMSEARCH_WINDOW]`)
 - [`debugger/disassembler-window.md`](debugger/disassembler-window.md) -
   samostatné Disassembler okno V1 (range disasm, auto-labely S/L/D/W,
   sym_db/CDL gating, export .asm/.s pro pasmo/sjasmplus/sdcc-asz80)

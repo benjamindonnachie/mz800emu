@@ -737,6 +737,37 @@ bool dbg_ui_freeze_add(int region_kind, int sub_id, uint32_t offset,
 bool dbg_ui_freeze_remove(int region_kind, int sub_id, uint32_t offset);
 
 /* ============================================================================
+ * Memory Search - vzorek prostoru hledání
+ *
+ * Vzorek (kopii všech spanů) pořizuje emu vlákno v drainu fronty, za běhu
+ * na nejbližší hranici snímku, v pauze hned. Filtr pak běží na UI vlákně
+ * nad vzorkem (memsearch/memsearch.h).
+ * ============================================================================ */
+
+/**
+ * @brief Timeout vzorku Memory Search [ms].
+ *
+ * Kopie je nejvýš 32 MiB (MEMSEARCH_HARD_MAX_SPACE); za běhu se čeká na
+ * nejbližší hranici snímku.
+ */
+#define DBG_UI_MEMSEARCH_SAMPLE_TIMEOUT_MS 2000
+
+/**
+ * @brief Pořídí vzorek prostoru hledání přes DBGAPI_CMD_MEMSEARCH_SAMPLE.
+ *
+ * @param spans      Spany prostoru (st_MEMSEARCH_SPAN, platné po dobu volání).
+ * @param span_count Počet spanů.
+ * @param sample     Vzorek z memsearch_sample_new() se stejným rozměrem
+ *                   (st_MEMSEARCH_SAMPLE*); emu vlákno ho naplní.
+ * @return true = vzorek naplněný; false = timeout (příkaz neproveden,
+ *         vzorek nepoužívat) nebo neplatné parametry.
+ *
+ * @pre Volat z UI vlákna; blokuje až do dokončení příkazu.
+ */
+bool dbg_ui_memsearch_sample(const void *spans, uint32_t span_count,
+                             void *sample);
+
+/* ============================================================================
  * Callstack - zapnutí / vypnutí a vyprázdnění (panel Callstack)
  *
  * Shadow stack a statistiky mění emu vlákno v Z80 CALL/RET hoocích.

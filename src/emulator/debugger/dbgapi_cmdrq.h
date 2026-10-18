@@ -725,6 +725,17 @@ typedef enum en_DBGAPI_CMD
     /* ramlog (M2 debug-gaps) - záznam zápisů do paměti */
     DBGAPI_CMD_RAMLOG,               /* Start/stop/clear/stav a dotazy kdo zapsal - data_ptr: st_DBGAPI_RAMLOG_PARAM* */
 
+    /* memsearch (M3 debug-gaps) - postupné hledání proměnných
+     *
+     * MEMSEARCH_SAMPLE zkopíruje všechny spany prostoru hledání v jednom
+     * okamžiku (drain fronty = hranice snímku nebo pauza), filtr pak běží
+     * na vlákně žadatele (memsearch/memsearch.h). FREEZE_LIST zkopíruje
+     * tabulku zafrozených bajtů, kterou mění jen emu vlákno (MCP
+     * freeze_list). Přidáno na KONEC enumu kvůli stabilitě číselných
+     * hodnot. */
+    DBGAPI_CMD_MEMSEARCH_SAMPLE,     /* Vzorek prostoru hledání - data_ptr: st_DBGAPI_MEMSEARCH_SAMPLE_PARAM* */
+    DBGAPI_CMD_FREEZE_LIST,          /* Kopie tabulky Freeze Bytes - data_ptr: st_DBGAPI_FREEZE_LIST_PARAM* */
+
 } en_DBGAPI_CMD;
 
 /* ============================================================================
@@ -2127,6 +2138,58 @@ typedef struct st_DBGAPI_FREEZE_PARAM
     uint8_t  value;
     bool     result;
 } st_DBGAPI_FREEZE_PARAM;
+
+/**
+ * @brief Jeden záznam výpisu DBGAPI_CMD_FREEZE_LIST.
+ *
+ * Kopie klíče a hodnoty st_FREEZE_ENTRY (freeze/freeze.h) bez závislosti
+ * na hlavičce freeze.
+ */
+typedef struct st_DBGAPI_FREEZE_LIST_ITEM
+{
+    int32_t  region_kind;   /**< en_REGION_KIND. */
+    int32_t  sub_id;        /**< Disambiguator banku / plane. */
+    uint32_t offset;        /**< Offset v regionu. */
+    uint8_t  value;         /**< Zafrozená hodnota. */
+} st_DBGAPI_FREEZE_LIST_ITEM;
+
+/**
+ * @brief Parametr pro DBGAPI_CMD_FREEZE_LIST.
+ *
+ * Emu vlákno zkopíruje obsazené sloty tabulky v pořadí slotů. Struktura
+ * žije u odesílatele (synchronní submit).
+ *
+ * @field items     (OUT) Záznamy, platných je @c out_count.
+ * @field out_count (OUT) Počet záznamů (0..256).
+ */
+typedef struct st_DBGAPI_FREEZE_LIST_PARAM
+{
+    st_DBGAPI_FREEZE_LIST_ITEM items[256];
+    uint32_t                   out_count;
+} st_DBGAPI_FREEZE_LIST_PARAM;
+
+/**
+ * @brief Parametr pro DBGAPI_CMD_MEMSEARCH_SAMPLE.
+ *
+ * Emu vlákno naplní @c sample přes memsearch_sample_fill(): každý span
+ * dohledá podle (kind, sub_id) a zkopíruje bez vedlejšího efektu, číslo
+ * snímku zapíše do sample->frame. Spany i vzorek alokuje odesílatel;
+ * vzorek musí mít velikost rovnou součtu délek a @c span_count položek
+ * příznaků.
+ *
+ * @field spans      (IN)  Pole st_MEMSEARCH_SPAN (memsearch/memsearch.h).
+ * @field span_count (IN)  Počet spanů.
+ * @field sample     (IN/OUT) st_MEMSEARCH_SAMPLE z memsearch_sample_new().
+ *
+ * Příkaz uspěje (rq->success), když parametry sedí; odpojený span je
+ * úspěch s span_connected 0.
+ */
+typedef struct st_DBGAPI_MEMSEARCH_SAMPLE_PARAM
+{
+    const void *spans;
+    uint32_t    span_count;
+    void       *sample;
+} st_DBGAPI_MEMSEARCH_SAMPLE_PARAM;
 
 /**
  * @brief Parametr pro DBGAPI_CMD_CALLSTACK_SET_ACTIVE.

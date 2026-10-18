@@ -422,6 +422,10 @@ gboolean myimgui_init_cb(SdlAppWindow *win, gpointer user_data)
     /* RAM Write Log - default closed; menu Debugger -> RAM Write Log nebo
      * "Who wrote this byte?" v Memory Browseru. Viditelnost se neukládá. */
     gui->showRamlogWindow = false;
+    /* Memory Search - default closed; menu Debugger -> Memory Search nebo
+     * Alt+Shift+E. Viditelnost se neukládá (nastavení okna ano, sekce
+     * [MEMSEARCH_WINDOW]). */
+    gui->showMemorySearchWindow = false;
     /* Callstack (mutant callstack Fáze 2C): samostatné plovoucí okno se
      * shadow stackem volání. Default closed, user otevírá přes menu
      * Debugger -> Callstack. */

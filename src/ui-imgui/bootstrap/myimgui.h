@@ -117,6 +117,7 @@ typedef struct MyImGui
     bool showStackRegionsWindow;    /**< V8: Stack Regions - samostatné okno s tabulkou regionů (1 řádek per region) */
     bool showStackHistoryWindow;    /**< V9: Stack History - samostatné okno s SP history sparkline (plot resize s velikostí okna) */
     bool showRamlogWindow;          /**< RAM Write Log - záznam zápisů do paměti (ovládání, kdo zapsal, nejnovější zápisy) */
+    bool showMemorySearchWindow;    /**< Memory Search - postupné hledání proměnných (kandidáti, filtry, akce nad kandidátem) */
     bool showCallstackWindow;       /**< Callstack - samostatné plovoucí okno se shadow stackem (CALL/RET/IRQ/NMI frames) */
     bool showProfilerWindow;        /**< CPU Profiler - per-function CPU profilace (mutant profiler V1) */
     bool showEventViewerWindow;     /**< Events - real-time pohled na eventlog ring (Log + Strip tab) */

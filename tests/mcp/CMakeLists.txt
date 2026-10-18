@@ -63,6 +63,7 @@ mz_add_test(mcp_dispatch
         ${CMAKE_SOURCE_DIR}/src/emulator/debugger/trace/trace_reader.c
         ${CMAKE_SOURCE_DIR}/src/emulator/audio_analysis.c
         ${CMAKE_SOURCE_DIR}/src/emulator/debugger/trace/ramlog.c
+        ${CMAKE_SOURCE_DIR}/src/emulator/debugger/memsearch/memsearch.c
     LABELS   "standalone;mcp"
 )
 
@@ -526,6 +527,23 @@ if(Python3_FOUND)
         SKIP_RETURN_CODE 77
     )
     message(STATUS "  tests/mcp: registered mcp_ramlog "
+                   "(Python ${Python3_VERSION})")
+
+    # Postupné hledání proměnných (memsearch) a Freeze Bytes přes MCP:
+    # pauza i běžící program, undo/redo, ruční vyřazení, MemExt PEHU (128
+    # kusů, bp_hint MMEXT_BANK), VRAM plane bez adresy, BCD, MZ-700/1500.
+    add_test(
+        NAME    mcp_memsearch
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_memsearch.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_memsearch PROPERTIES
+        LABELS  "e2e;mcp;pipe;memsearch"
+        TIMEOUT 300
+        SKIP_RETURN_CODE 77
+    )
+    message(STATUS "  tests/mcp: registered mcp_memsearch "
                    "(Python ${Python3_VERSION})")
 
     # Běh ukončený podmínkou (headless): návratové kódy, result.json,

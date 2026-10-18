@@ -110,8 +110,12 @@
  *
  * ramlog doplnil ramlog_start/stop/clear/status/who_wrote/writers (záznam
  * zápisů do paměti, za trace_read) = 185 + 6 = 191.
+ *
+ * memsearch doplnil freeze_add/remove/list a memsearch_start/filter/sample/
+ * undo/redo/list/eliminate/close (Freeze Bytes a postupné hledání proměnných,
+ * na KONEC cmd_map[]) = 191 + 11 = 202.
  */
-#define MCP_EXPECTED_CMD_COUNT 191
+#define MCP_EXPECTED_CMD_COUNT 202
 
 
 /* ====================================================================== */
@@ -7768,6 +7772,228 @@ void test_audio_capture_errors(void) {
     free(resp);
 }
 
+
+/* ------------------------------------------------------------------ */
+/* memsearch (M3 debug-gaps): freeze_* a memsearch_* přes MCP          */
+/* ------------------------------------------------------------------ */
+
+/** @brief Celé číslo z datového objektu odpovědi (uvolní odpověď). */
+static gint64 _ms_int(char *resp, const char *key) {
+    JsonParser *parser = NULL;
+    JsonObject *data = _tr_data(resp, &parser);
+    gint64 v = json_object_get_int_member(data, key);
+    g_object_unref(parser);
+    free(resp);
+    return v;
+}
+
+/** @brief freeze_add (value, bytes), freeze_list, freeze_remove (úsek, all) a validace. */
+void test_freeze_mcp(void) {
+    dispatch_stub_reset();
+    g_stub_state.ms_regions = true;
+    char *resp = NULL;
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("freeze_add",
+        "{\"kind\":\"ram\",\"offset\":4096,\"value\":7}", &resp));
+    TEST_ASSERT_EQUAL_INT64(1, _ms_int(resp, "frozen"));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("freeze_add",
+        "{\"kind\":\"memext_ram\",\"sub_id\":65,\"offset\":16,\"bytes\":[1,2,3]}", &resp));
+    TEST_ASSERT_EQUAL_INT64(3, _ms_int(resp, "added"));
+    TEST_ASSERT_EQUAL_UINT32(4, g_stub_state.frz_count);
+    TEST_ASSERT_EQUAL_UINT8(3, g_stub_state.frz_items[3].value);
+    TEST_ASSERT_EQUAL_INT(0x41, g_stub_state.frz_items[3].sub_id);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("freeze_list", "{}", &resp));
+    JsonParser *parser = NULL;
+    JsonObject *data = _tr_data(resp, &parser);
+    TEST_ASSERT_EQUAL_INT64(4, json_object_get_int_member(data, "count"));
+    JsonObject *e0 = json_array_get_object_element(json_object_get_array_member(data, "entries"), 0);
+    TEST_ASSERT_EQUAL_STRING("ram", json_object_get_string_member(e0, "kind"));
+    TEST_ASSERT_EQUAL_INT64(4096, json_object_get_int_member(e0, "offset"));
+    TEST_ASSERT_EQUAL_INT64(7, json_object_get_int_member(e0, "value"));
+    g_object_unref(parser);
+    free(resp);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("freeze_remove",
+        "{\"kind\":\"memext_ram\",\"sub_id\":65,\"offset\":16,\"length\":2}", &resp));
+    TEST_ASSERT_EQUAL_INT64(2, _ms_int(resp, "removed"));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("freeze_remove", "{\"all\":true}", &resp));
+    TEST_ASSERT_EQUAL_INT64(2, _ms_int(resp, "removed"));
+    TEST_ASSERT_EQUAL_UINT32(0, g_stub_state.frz_count);
+
+    const char *bad[] = {
+        "{\"offset\":1,\"value\":1}",                                   /* chybí kind */
+        "{\"kind\":\"rom\",\"offset\":1,\"value\":1}",                  /* neznámý kind */
+        "{\"kind\":\"ram\",\"offset\":1}",                              /* chybí value i bytes */
+        "{\"kind\":\"ram\",\"offset\":1,\"value\":256}",
+        "{\"kind\":\"ram\",\"offset\":1,\"value\":1,\"bytes\":[1]}",
+        "{\"kind\":\"ram\",\"offset\":65535,\"bytes\":[1,2]}",          /* za konec regionu */
+        "{\"kind\":\"rom_lower\",\"offset\":1,\"value\":1}",            /* jen pro čtení */
+        "{\"kind\":\"ramdisk_std\",\"offset\":1,\"value\":1}",          /* v sestavě není */
+    };
+    for (size_t i = 0; i < G_N_ELEMENTS(bad); i++) {
+        TEST_ASSERT_EQUAL_INT_MESSAGE(MCP_DISPATCH_INVALID_PARAMS, _ss_request("freeze_add", bad[i], NULL), bad[i]);
+    }
+    TEST_ASSERT_EQUAL_UINT32(0, g_stub_state.frz_count);
+}
+
+/** @brief Průběh start eq -> filter dec_by -> list -> undo/redo -> close. */
+void test_memsearch_mcp_flow(void) {
+    dispatch_stub_reset();
+    g_stub_state.ms_regions = true;
+    g_stub_state.ms_ram[0x20] = 5;
+    g_stub_state.ms_ram[0x21] = 5;
+    char *resp = NULL;
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("memsearch_start",
+        "{\"space\":\"ram\",\"type\":\"u8\",\"op\":\"eq\",\"value\":5}", &resp));
+    JsonParser *parser = NULL;
+    JsonObject *data = _tr_data(resp, &parser);
+    gint64 sid = json_object_get_int_member(data, "session_id");
+    TEST_ASSERT_TRUE(sid > 0);
+    TEST_ASSERT_EQUAL_INT64(2, json_object_get_int_member(data, "candidates"));
+    TEST_ASSERT_EQUAL_INT64(65536, json_object_get_int_member(data, "space_size"));
+    TEST_ASSERT_EQUAL_INT64(1, json_object_get_int_member(data, "sample_frame"));
+    JsonObject *sp0 = json_array_get_object_element(json_object_get_array_member(data, "spans"), 0);
+    TEST_ASSERT_EQUAL_STRING("ram", json_object_get_string_member(sp0, "kind"));
+    g_object_unref(parser);
+    free(resp);
+
+    /* Ztráta života: 5 -> 4 na 20h. */
+    g_stub_state.ms_ram[0x20] = 4;
+    char req[256];
+    g_snprintf(req, sizeof(req), "{\"session_id\":%" G_GINT64_FORMAT ",\"op\":\"dec_by\",\"value\":1}", sid);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("memsearch_filter", req, &resp));
+    data = _tr_data(resp, &parser);
+    TEST_ASSERT_EQUAL_INT64(1, json_object_get_int_member(data, "candidates"));
+    TEST_ASSERT_EQUAL_INT64(1, json_object_get_int_member(data, "removed"));
+    TEST_ASSERT_EQUAL_INT64(2, json_object_get_int_member(data, "step"));
+    g_object_unref(parser);
+    free(resp);
+    TEST_ASSERT_EQUAL_INT(2, g_stub_state.ms_sample_calls);
+
+    g_snprintf(req, sizeof(req), "{\"session_id\":%" G_GINT64_FORMAT "}", sid);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("memsearch_list", req, &resp));
+    data = _tr_data(resp, &parser);
+    TEST_ASSERT_EQUAL_INT64(1, json_object_get_int_member(data, "total"));
+    JsonObject *it = json_array_get_object_element(json_object_get_array_member(data, "items"), 0);
+    TEST_ASSERT_EQUAL_INT64(0x20, json_object_get_int_member(it, "region_offset"));
+    TEST_ASSERT_EQUAL_INT64(0x20, json_object_get_int_member(it, "z80_addr"));
+    TEST_ASSERT_EQUAL_INT64(4, json_object_get_int_member(it, "cur"));
+    TEST_ASSERT_EQUAL_INT64(5, json_object_get_int_member(it, "prev"));
+    TEST_ASSERT_EQUAL_STRING("04", json_object_get_string_member(it, "cur_hex"));
+    JsonObject *hint = json_object_get_object_member(it, "bp_hint");
+    TEST_ASSERT_EQUAL_INT64(0x20, json_object_get_int_member(hint, "addr"));
+    JsonObject *hv = json_object_get_object_member(hint, "values");
+    TEST_ASSERT_EQUAL_STRING("MEM_W", json_object_get_string_member(hv, "type"));
+    TEST_ASSERT_EQUAL_STRING("RAM", json_object_get_string_member(hv, "zone"));
+    g_object_unref(parser);
+    free(resp);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("memsearch_undo", req, &resp));
+    TEST_ASSERT_EQUAL_INT64(2, _ms_int(resp, "candidates"));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("memsearch_redo", req, &resp));
+    TEST_ASSERT_EQUAL_INT64(1, _ms_int(resp, "candidates"));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("memsearch_redo", req, NULL));
+
+    /* Vzorek bez filtrace, pak filtr bez nového vzorku (cur proti prev). */
+    g_stub_state.ms_ram[0x20] = 3;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("memsearch_sample", req, &resp));
+    TEST_ASSERT_EQUAL_INT64(3, _ms_int(resp, "step"));
+    g_snprintf(req, sizeof(req), "{\"session_id\":%" G_GINT64_FORMAT ",\"op\":\"dec\",\"sample\":false}", sid);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("memsearch_filter", req, &resp));
+    TEST_ASSERT_EQUAL_INT64(1, _ms_int(resp, "candidates"));
+    TEST_ASSERT_EQUAL_INT(3, g_stub_state.ms_sample_calls);
+
+    g_snprintf(req, sizeof(req), "{\"session_id\":%" G_GINT64_FORMAT ",\"space_offsets\":[32]}", sid);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("memsearch_eliminate", req, &resp));
+    TEST_ASSERT_EQUAL_INT64(0, _ms_int(resp, "candidates"));
+
+    g_snprintf(req, sizeof(req), "{\"session_id\":%" G_GINT64_FORMAT "}", sid);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("memsearch_close", req, NULL));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("memsearch_list", req, NULL));
+}
+
+/** @brief Kandidát v MemExt PEHU: adresa okna a write BP v zóně MMEXT_BANK. */
+void test_memsearch_mcp_pehu_hint(void) {
+    dispatch_stub_reset();
+    g_stub_state.ms_regions = true;
+    g_stub_state.ms_pehu = true;
+    char *resp = NULL;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("memsearch_start",
+        "{\"space\":[{\"kind\":\"memext_ram\",\"sub_id\":65,\"offset\":256,\"length\":4}],\"type\":\"u16\"}", &resp));
+    gint64 sid = _ms_int(resp, "session_id");
+    char req[128];
+    g_snprintf(req, sizeof(req), "{\"session_id\":%" G_GINT64_FORMAT ",\"limit\":1}", sid);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("memsearch_list", req, &resp));
+    JsonParser *parser = NULL;
+    JsonObject *data = _tr_data(resp, &parser);
+    TEST_ASSERT_EQUAL_INT64(3, json_object_get_int_member(data, "total"));   /* u16 ve 4 B */
+    JsonObject *it = json_array_get_object_element(json_object_get_array_member(data, "items"), 0);
+    TEST_ASSERT_EQUAL_STRING("memext_ram", json_object_get_string_member(it, "kind"));
+    TEST_ASSERT_EQUAL_INT64(0x100, json_object_get_int_member(it, "region_offset"));
+    TEST_ASSERT_EQUAL_INT64(0x4100, json_object_get_int_member(it, "z80_addr"));   /* slot 4 = kus 41h */
+    JsonObject *hint = json_object_get_object_member(it, "bp_hint");
+    TEST_ASSERT_EQUAL_INT64(0x1100, json_object_get_int_member(hint, "addr"));     /* horní půlka banky */
+    JsonObject *hv = json_object_get_object_member(hint, "values");
+    TEST_ASSERT_EQUAL_STRING("MMEXT_BANK", json_object_get_string_member(hv, "zone"));
+    TEST_ASSERT_EQUAL_INT64(0x20, json_object_get_int_member(hv, "bank_id"));
+    TEST_ASSERT_EQUAL_STRING("bank_offset", json_object_get_string_member(hv, "bp_addr_space"));
+    TEST_ASSERT_EQUAL_INT64(0x1101, json_object_get_int_member(hv, "addr_end"));
+    TEST_ASSERT_EQUAL_STRING("RANGE", json_object_get_string_member(hv, "addr_match_mode"));
+    g_object_unref(parser);
+    free(resp);
+    g_snprintf(req, sizeof(req), "{\"session_id\":%" G_GINT64_FORMAT "}", sid);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("memsearch_close", req, NULL));
+}
+
+/** @brief Neplatné parametry, neznámé sezení a strop počtu sezení. */
+void test_memsearch_mcp_errors(void) {
+    dispatch_stub_reset();
+    g_stub_state.ms_regions = true;
+    const char *bad_start[] = {
+        "{\"type\":\"u64\"}",
+        "{\"type\":\"u16\",\"width\":2}",
+        "{\"type\":\"bcd\",\"width\":5}",
+        "{\"type\":\"digits\",\"digit_encoding\":\"ebcdic\"}",
+        "{\"endian\":\"middle\"}",
+        "{\"space\":\"rom\"}",
+        "{\"space\":\"ramdisk\"}",                                  /* v sestavě není */
+        "{\"space\":[{\"kind\":\"ram\",\"offset\":65536}]}",
+        "{\"op\":\"dec\"}",                                          /* první filtr jen s hodnotou */
+        "{\"op\":\"eq\"}",                                           /* chybí value */
+        "{\"op\":\"between\",\"value\":5}",
+        "{\"op\":\"teleport\",\"value\":1}",
+    };
+    for (size_t i = 0; i < G_N_ELEMENTS(bad_start); i++) {
+        TEST_ASSERT_EQUAL_INT_MESSAGE(MCP_DISPATCH_INVALID_PARAMS,
+                                      _ss_request("memsearch_start", bad_start[i], NULL), bad_start[i]);
+    }
+    TEST_ASSERT_EQUAL_INT(0, g_stub_state.ms_sample_calls);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("memsearch_filter",
+        "{\"session_id\":999,\"op\":\"eq\",\"value\":1}", NULL));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("memsearch_undo", "{}", NULL));
+
+    /* 8 sezení projde, deváté ne; filtr bez op selže. */
+    gint64 ids[8];
+    char *resp = NULL;
+    for (int i = 0; i < 8; i++) {
+        TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("memsearch_start", "{}", &resp));
+        ids[i] = _ms_int(resp, "session_id");
+    }
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_EMU_ERROR, _ss_request("memsearch_start", "{}", NULL));
+    char req[96];
+    g_snprintf(req, sizeof(req), "{\"session_id\":%" G_GINT64_FORMAT "}", ids[0]);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("memsearch_filter", req, NULL));
+    g_snprintf(req, sizeof(req), "{\"session_id\":%" G_GINT64_FORMAT ",\"op\":\"inc\",\"compare_to\":\"value\",\"value\":1}", ids[0]);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("memsearch_filter", req, NULL));
+    for (int i = 0; i < 8; i++) {
+        g_snprintf(req, sizeof(req), "{\"session_id\":%" G_GINT64_FORMAT "}", ids[i]);
+        TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("memsearch_close", req, NULL));
+    }
+}
+
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -8074,6 +8300,10 @@ int main(void) {
     RUN_TEST(test_trace_read_audio_channels);
     RUN_TEST(test_ramlog_start_params);
     RUN_TEST(test_ramlog_queries);
+    RUN_TEST(test_freeze_mcp);
+    RUN_TEST(test_memsearch_mcp_flow);
+    RUN_TEST(test_memsearch_mcp_pehu_hint);
+    RUN_TEST(test_memsearch_mcp_errors);
     RUN_TEST(test_trace_read_ramlog);
     RUN_TEST(test_trace_read_eventlog);
     RUN_TEST(test_audio_capture_start_params);

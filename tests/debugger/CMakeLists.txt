@@ -402,3 +402,22 @@ mz_add_test(ramlog_hook
     SOURCES  test_ramlog_hook.c
     LABELS   "emu;debugger;ramlog"
 )
+
+# Postupné hledání proměnných (memsearch): čisté jádro nad syntetickými
+# vzorky - dekódování, filtry, undo/redo s referencí, odpojený span,
+# předvolby prostoru; informativně čas filtru nad 16 MiB.
+mz_add_test(memsearch
+    TYPE     EMU
+    SOURCES  test_memsearch.c
+    LABELS   "emu;debugger"
+)
+
+# Memory Search: vzorek prostoru hledání pořizuje emu vlákno přes CMDRQ
+# frontu (DBGAPI_CMD_MEMSEARCH_SAMPLE, UI helper dbg_ui_memsearch_sample
+# v dbgapi_helpers.cpp), odpojený span se označí.
+mz_add_test(memsearch_window_queue
+    TYPE     EMU
+    SOURCES  test_memsearch_window_queue.c
+             ${CMAKE_SOURCE_DIR}/src/ui-imgui/debugger/dbgapi_helpers.cpp
+    LABELS   "emu;debugger"
+)

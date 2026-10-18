@@ -34,6 +34,7 @@ paragraph is the description.
 | `emulator://docs/trace_read` | `trace_read.md` |
 | `emulator://docs/audio_capture_read` | `audio_capture_read.md` |
 | `emulator://docs/ramlog` | `ramlog.md` |
+| `emulator://docs/memsearch_workflow` | `memsearch_workflow.md` |
 | `emulator://docs/unattended_runs` | `unattended_runs.md` |
 
 This table is informative only - the actual resource list is built by

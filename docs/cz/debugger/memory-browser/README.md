@@ -139,3 +139,4 @@ Annotations + Freeze bytes mají vlastní persist souborové:
 - [Bookmarks](bookmarks.md) - bookmark editor (= shared store)
 - [Symbols](symbols.md) - symbol browser (= shared sym_db)
 - [RAM Write Log](../ram-write-log.md) - kdo zapsal bajt (i "Who wrote this byte?" v kontextovém menu)
+- [Memory Search](../memory-search.md) - hledání proměnné (životy, skóre, časovač) zužováním kandidátů

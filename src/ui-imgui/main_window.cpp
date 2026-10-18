@@ -23,6 +23,7 @@
 #include "ui-imgui/debugger/sections/dbg_inline_asm.h"
 #include "ui-imgui/debugger/profiler/profiler_window.h"
 #include "ui-imgui/debugger/ramlog_window/ramlog_window.h"
+#include "ui-imgui/debugger/memsearch_window/memsearch_window.h"
 /* Per-chip-panels F1 scaffold: per-chip detail okna pro CTC/PPI/PIO/PSG. */
 #include "ui-imgui/debugger/ctc_window.h"
 #include "ui-imgui/debugger/ppi_window.h"
@@ -553,6 +554,11 @@ void imgui_main_window(GLuint texture)
      * Browseru. */
     if (g_gui->showRamlogWindow)
         ramlog_window_render(&g_gui->showRamlogWindow);
+
+    /* Memory Search - postupné hledání proměnných. Otevírá se přes menu
+     * Debugger -> Memory Search nebo Alt+Shift+E. */
+    if (g_gui->showMemorySearchWindow)
+        memsearch_window_render(&g_gui->showMemorySearchWindow);
 
     /* Callstack (mutant callstack, Fáze 2C) - samostatné plovoucí okno
      * se shadow stackem volání (CALL/RST/IRQ/NMI). Toggle přes menu

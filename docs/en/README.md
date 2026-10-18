@@ -221,6 +221,9 @@ Other debugger documents:
 - [`debugger/ram-write-log.md`](debugger/ram-write-log.md) - RAM Write Log:
   who wrote a byte, write history of a cell, newest writes
   (`--ramlog-*`, `[RAMLOG]`)
+- [`debugger/memory-search.md`](debugger/memory-search.md) - Memory Search:
+  find a variable (lives, score, timer) by narrowing candidates, then
+  Watch, write breakpoint or Freeze (`[MEMSEARCH_WINDOW]`)
 - [`debugger/disassembler-window.md`](debugger/disassembler-window.md) -
   standalone Disassembler window V1 (range disasm, S/L/D/W auto-labels,
   sym_db/CDL gating, export .asm/.s for pasmo/sjasmplus/sdcc-asz80)

@@ -8085,6 +8085,308 @@ async def resource_periph_beeper() -> str:
     return json.dumps(_data_or_error(resp))
 
 
+# === memsearch - Freeze Bytes a postupné hledání proměnných ============
+# Freeze Bytes přes MCP (dřív jen GUI) a stavový vyhledávač proměnných:
+# sezení drží kandidáty a vzorky paměti, filtr je zužuje. Kandidát se pak
+# řeší existujícími nástroji (emu_watch_add, emu_bp_create_with_init,
+# emu_freeze_add) podle polí z emu_memsearch_list.
+
+
+@mcp.tool()
+async def emu_freeze_add(kind: str, offset: int, value: int = -1,
+                         bytes: list[int] | None = None, sub_id: int = 0) -> str:
+    """Freeze a byte (or consecutive bytes) of a memory region.
+
+    WARNING: This is a destructive operation (it writes into emulated
+    memory). The frozen value is written back once per emulated frame
+    (Freeze Bytes, at most 256 bytes in total), so the program can see its
+    own write until the end of the frame: a game that decrements lives and
+    tests them in the same frame still sees the change. An existing entry
+    only gets the new value.
+
+    Args:
+        kind: Region kind as in ``emu_regions_list`` (``"ram"``,
+            ``"memext_ram"``, ``"vram_phys_plane"``, ...). The region must be
+            present and writable.
+        offset: Offset inside the region (the ``region_offset`` of an
+            ``emu_memsearch_list`` item).
+        value: Byte value 0-255 (give either ``value`` or ``bytes``).
+        bytes: Values 0-255 from ``offset`` on (1-64 items), e.g. both bytes
+            of a 16-bit counter in address order.
+        sub_id: Region disambiguator (bank, plane), default 0.
+
+    Returns:
+        JSON ``{"added": n, "frozen": total}`` or ``{"error": ...}``.
+    """
+    data: dict[str, Any] = {"kind": kind, "sub_id": sub_id, "offset": offset}
+    if bytes is not None:
+        data["bytes"] = list(bytes)
+    else:
+        data["value"] = value
+    resp = await _send_request("freeze_add", data)
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_freeze_remove(kind: str = "", offset: int = -1, length: int = 1,
+                            sub_id: int = 0, all: bool = False) -> str:
+    """Unfreeze bytes frozen by ``emu_freeze_add`` or the GUI.
+
+    Args:
+        kind: Region kind as in ``emu_regions_list``.
+        offset: First offset inside the region.
+        length: Number of consecutive bytes (1-256).
+        sub_id: Region disambiguator, default 0.
+        all: True = unfreeze everything (other arguments are ignored).
+
+    Returns:
+        JSON ``{"removed": n}`` or ``{"error": ...}``.
+    """
+    if all:
+        data: dict[str, Any] = {"all": True}
+    else:
+        data = {"kind": kind, "sub_id": sub_id, "offset": offset, "length": length}
+    resp = await _send_request("freeze_remove", data)
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_freeze_list() -> str:
+    """List the frozen bytes (also those frozen in the GUI Memory Browser).
+
+    Returns:
+        JSON ``{"count", "max": 256, "entries": [{"kind", "sub_id",
+        "offset", "value"}]}``.
+    """
+    resp = await _send_request("freeze_list", {})
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_memsearch_start(space: str | list[dict[str, Any]] = "ram",
+                              type: str = "u8", width: int = 0,
+                              endian: str = "", aligned: bool = False,
+                              digit_encoding: str = "display",
+                              leading_space: bool = True,
+                              op: str = "", value: int | None = None,
+                              value2: int | None = None, mask: int | None = None,
+                              negate: bool = False,
+                              allow_large: bool = False) -> str:
+    """Start a variable search (cheat search): take a memory sample, every
+    position is a candidate, optionally keep only those equal to a value.
+
+    The search finds lives, score, timers and coordinates by narrowing:
+    change the value in the game (``emu_input_send_keys``, ``emu_run``),
+    then ``emu_memsearch_filter`` (e.g. ``op="dec_by", value=1`` after
+    losing a life) until few candidates remain, then ``emu_memsearch_list``.
+    Samples are taken by the emulator thread at the next frame boundary
+    (or at once when paused), consistently for the whole space. Sessions
+    are separate from the GUI Memory Search window; at most 8 are open.
+
+    Args:
+        space: Preset ``"ram"`` (User RAM 64 KB, default), ``"logical"``
+            (what the CPU sees now, incl. ROM and VRAM), ``"vram"`` (VRAM
+            700 text/attributes and MZ-800 VRAM planes), ``"memext"``,
+            ``"ramdisk"``, ``"all_writable"``; or a list of
+            ``{"kind", "sub_id", "offset", "length"}`` (kinds as in
+            ``emu_regions_list``, length defaults to the region end).
+            With a MemExt that switches banks, User RAM shows whatever is
+            mapped at sample time - search the ``memext`` banks instead.
+        type: ``u8`` (default), ``s8``, ``u16``, ``s16``, ``u24``, ``s24``,
+            ``u32``, ``s32``, ``bcd`` (packed, 2 digits per byte, a nibble
+            above 9 = not a candidate) or ``digits`` (one digit per byte).
+        width: Bytes for ``bcd`` (1-4, default 2) and ``digits`` (1-8,
+            default 4); integers take the width from the type name.
+        endian: ``"le"`` (default for integers and BCD, Z80 order) or
+            ``"be"`` (default for digits = print order, highest first).
+        aligned: Only offsets divisible by the width.
+        digit_encoding: ``"raw"`` (00h-09h), ``"ascii"`` (30h-39h) or
+            ``"display"`` (Sharp MZ display code 20h-29h, default).
+        leading_space: Digits: leading spaces count as zeros (ASCII 20h,
+            display code 00h).
+        op, value, value2, mask, negate: Optional first filter, it can only
+            compare with a value (e.g. ``op="eq", value=3``). See
+            ``emu_memsearch_filter``.
+        allow_large: Allow a space over 4 MiB (up to 32 MiB; the session
+            keeps three samples plus undo history).
+
+    Returns:
+        JSON ``{"session_id", "space_size", "spans": [{"kind", "sub_id",
+        "offset", "length", "connected"}], "candidates", "step",
+        "sample_frame", "undo_depth", "redo_depth"}`` or ``{"error": ...}``.
+    """
+    data: dict[str, Any] = {"space": space, "type": type, "aligned": aligned,
+                            "digit_encoding": digit_encoding,
+                            "leading_space": leading_space,
+                            "allow_large": allow_large}
+    if width:
+        data["width"] = width
+    if endian:
+        data["endian"] = endian
+    if op:
+        data["op"] = op
+        data["negate"] = negate
+        for k, v in (("value", value), ("value2", value2), ("mask", mask)):
+            if v is not None:
+                data[k] = v
+    resp = await _send_request("memsearch_start", data)
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_memsearch_filter(session_id: int, op: str, value: int | None = None,
+                               compare_to: str = "", value2: int | None = None,
+                               mask: int | None = None, negate: bool = False,
+                               sample: bool = True) -> str:
+    """Narrow the candidates of a search session.
+
+    By default a new sample is taken first and compared with the previous
+    sample (``compare_to="previous"``), with the first sample of the search
+    (``"first"``) or with ``value`` (``"value"``). ``sample=False`` compares
+    the last sample with the one before it (e.g. after
+    ``emu_memsearch_sample``). Arithmetic is on the decoded values without
+    wrap-around: an u8 going 00h -> FFh is not ``dec_by 1``. Candidates in a
+    region that got disconnected stay unchanged.
+
+    Args:
+        session_id: From ``emu_memsearch_start``.
+        op: ``eq``, ``ne``, ``lt``, ``le``, ``gt``, ``ge``, ``between``
+            (``value`` <= x <= ``value2``), ``inc``, ``dec``, ``inc_by``,
+            ``dec_by``, ``changed``, ``unchanged``, ``changed_by``
+            (difference ``value``), ``mask_eq`` (bits under ``mask``,
+            integer types only).
+        value: Value, difference or lower bound.
+        compare_to: ``"value"``, ``"previous"`` or ``"first"``. Default:
+            ``"previous"`` for inc/dec/changed/..., otherwise ``"value"``
+            when ``value`` is given.
+        value2: Upper bound for ``between``.
+        mask: Bit mask for ``mask_eq``.
+        negate: Invert the condition (an invalid BCD / digit value is
+            removed anyway).
+        sample: Take a new sample first (default True).
+
+    Returns:
+        JSON ``{"removed", "candidates", "step", "sample_frame",
+        "undo_depth", "redo_depth"}`` or ``{"error": ...}``.
+    """
+    data: dict[str, Any] = {"session_id": session_id, "op": op,
+                            "negate": negate, "sample": sample}
+    if compare_to:
+        data["compare_to"] = compare_to
+    for k, v in (("value", value), ("value2", value2), ("mask", mask)):
+        if v is not None:
+            data[k] = v
+    resp = await _send_request("memsearch_filter", data)
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_memsearch_sample(session_id: int) -> str:
+    """Take a new sample without filtering (it becomes the "previous" value
+    for the next filter with ``sample=False``).
+
+    Args:
+        session_id: From ``emu_memsearch_start``.
+
+    Returns:
+        JSON session state (``candidates``, ``step``, ``sample_frame``, ...).
+    """
+    resp = await _send_request("memsearch_sample", {"session_id": session_id})
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_memsearch_undo(session_id: int) -> str:
+    """Undo the last step of a search session (candidates and the reference
+    samples; undoing the start leaves the session without a sample).
+
+    Args:
+        session_id: From ``emu_memsearch_start``.
+
+    Returns:
+        JSON session state with ``started`` or ``{"error": "nothing to undo"}``.
+    """
+    resp = await _send_request("memsearch_undo", {"session_id": session_id})
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_memsearch_redo(session_id: int) -> str:
+    """Redo a step undone by ``emu_memsearch_undo``.
+
+    Args:
+        session_id: From ``emu_memsearch_start``.
+
+    Returns:
+        JSON session state or ``{"error": "nothing to redo"}``.
+    """
+    resp = await _send_request("memsearch_redo", {"session_id": session_id})
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_memsearch_list(session_id: int, offset: int = 0, limit: int = 100) -> str:
+    """List candidates of a search session (one page).
+
+    Each item tells where the value lives and how to act on it:
+    ``kind`` / ``sub_id`` / ``region_offset`` (for ``emu_freeze_add`` and
+    ``emu_region_read``), ``z80_addr`` (CPU address for ``emu_watch_add``,
+    null when the cell is not mapped to the CPU or is a VRAM plane /
+    RAM disk) and ``bp_hint`` (``addr``, ``fields``, ``values`` ready for
+    ``emu_bp_create_with_init`` - a write breakpoint in the right zone:
+    ``RAM`` for User RAM, ``VRAM_FB`` for VRAM 700, ``MMEXT_BANK`` with
+    ``bank_offset`` for a PEHU bank; null where a write breakpoint cannot
+    match the cell). ``cur`` / ``prev`` / ``first`` are the decoded values
+    (null = invalid BCD / digits or disconnected region), ``cur_hex`` the
+    bytes in address order.
+
+    Args:
+        session_id: From ``emu_memsearch_start``.
+        offset: Index of the first candidate.
+        limit: Items per page (1-1000).
+
+    Returns:
+        JSON ``{"total", "offset", "items": [{"index", "space_offset",
+        "kind", "sub_id", "region_offset", "connected", "cur", "prev",
+        "first", "cur_hex", "z80_addr", "bp_hint"}], "candidates", "step",
+        ...}``.
+    """
+    resp = await _send_request("memsearch_list", {"session_id": session_id,
+                                                  "offset": offset, "limit": limit})
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_memsearch_eliminate(session_id: int, space_offsets: list[int]) -> str:
+    """Remove chosen candidates by hand (undoable).
+
+    Args:
+        session_id: From ``emu_memsearch_start``.
+        space_offsets: ``space_offset`` values from ``emu_memsearch_list``
+            (at most 1000).
+
+    Returns:
+        JSON ``{"removed", "candidates", "step", ...}``.
+    """
+    resp = await _send_request("memsearch_eliminate", {"session_id": session_id,
+                                                       "space_offsets": list(space_offsets)})
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_memsearch_close(session_id: int) -> str:
+    """Close a search session and free its memory.
+
+    Args:
+        session_id: From ``emu_memsearch_start``.
+
+    Returns:
+        JSON ``{"closed": true}`` or ``{"error": ...}``.
+    """
+    resp = await _send_request("memsearch_close", {"session_id": session_id})
+    return json.dumps(_data_or_error(resp))
+
+
 # === MCP docs Resources (autoregistrace) =============================
 # AI-reference dokumenty se registrují AUTOMATICKY ze složek - žádná
 # ruční ``@mcp.resource`` funkce per soubor (dříve to bylo duplikováno

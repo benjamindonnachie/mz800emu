@@ -87,6 +87,7 @@
 #include "ui-imgui/debugger/heatmap/mhmap_window.h"
 #include "ui-imgui/debugger/ioview/io_window.h"
 #include "ui-imgui/debugger/memmap/memmap_window.h"
+#include "ui-imgui/debugger/memsearch_window/memsearch_window.h"
 #include "ui-imgui/debugger/dasm_window/dasm_window.h"
 /* membrowser mutant V0 - Memory Browser hex MVP. */
 #include "ui-imgui/debugger/membrowser/membrowser_window.h"
@@ -608,6 +609,20 @@ void debugger_init ( void ) {
             memmap_window_register_persistence ( mmod );
             cfgmodule_parse ( mmod );
             cfgmodule_propagate ( mmod );
+        }
+    }
+
+    /* Memory Search okno persistence - samostatná sekce [MEMSEARCH_WINDOW].
+     * Klíče: space, type, width, big_endian, aligned, digit_encoding,
+     * leading_space, allow_large (nastavení hledání; kandidáti se
+     * neukládají). */
+    {
+        CFGMOD *smod = cfgroot_register_new_module ( g_cfgmain,
+                                                      "MEMSEARCH_WINDOW" );
+        if ( smod ) {
+            memsearch_window_register_persistence ( smod );
+            cfgmodule_parse ( smod );
+            cfgmodule_propagate ( smod );
         }
     }
 

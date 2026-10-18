@@ -57,6 +57,7 @@
 #include "bp_expr.h"
 #include "mhmap.h"
 #include "freeze/freeze.h"
+#include "memsearch/memsearch.h"
 #include "png_encode.h"
 #include "screenshot/screenshot_capture.h"
 #include "screenshot/screenshot_series.h"
@@ -983,6 +984,8 @@ const char *dbgapi_cmd_to_str(en_DBGAPI_CMD cmd)
         case DBGAPI_CMD_TRACE_SNAPSHOT:            return "trace_snapshot";
         case DBGAPI_CMD_TRACE_RESOLVE:             return "trace_resolve";
         case DBGAPI_CMD_RAMLOG:                    return "ramlog";
+        case DBGAPI_CMD_MEMSEARCH_SAMPLE:          return "memsearch_sample";
+        case DBGAPI_CMD_FREEZE_LIST:               return "freeze_list";
         /* V1.D.1 - Core + CPU extras Resources */
         case DBGAPI_CMD_GET_CPU_IM2_VECTOR:        return "get_cpu_im2_vector";
         case DBGAPI_CMD_GET_CPU_INTERRUPT_BUS:     return "get_cpu_interrupt_bus";
@@ -4548,6 +4551,47 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
                                             p->offset );
             };
             rq->success = p->result;
+            break;
+        }
+
+        /* --- Výpis Freeze Bytes (memsearch, MCP freeze_list) ---
+         * Tabulku mění jen emu vlákno (FREEZE_ADD / _REMOVE výše), kopie
+         * v drainu je proto konzistentní. */
+        case DBGAPI_CMD_FREEZE_LIST:
+        {
+            st_DBGAPI_FREEZE_LIST_PARAM *p = (st_DBGAPI_FREEZE_LIST_PARAM *) rq->data_ptr;
+            G_STATIC_ASSERT ( FREEZE_MAX_ENTRIES <= G_N_ELEMENTS ( p->items ) );
+            if ( !p )
+            {
+                rq->success = false;
+                break;
+            };
+            p->out_count = 0;
+            for ( size_t i = 0; i < FREEZE_MAX_ENTRIES; i++ )
+            {
+                const st_FREEZE_ENTRY *e = freeze_get_slot ( i );
+                if ( !e ) continue;
+                st_DBGAPI_FREEZE_LIST_ITEM *it = &p->items[ p->out_count++ ];
+                it->region_kind = e->region_kind;
+                it->sub_id = e->sub_id;
+                it->offset = e->offset;
+                it->value = e->value;
+            };
+            rq->success = true;
+            break;
+        }
+
+        /* --- Vzorek prostoru hledání (memsearch) ---
+         * Drain běží na hranici snímku nebo v pauze, všechny spany se tak
+         * zkopírují ve stejném okamžiku emulace. Čtení regionů je bez
+         * vedlejšího efektu (dbgapi_regions_read). */
+        case DBGAPI_CMD_MEMSEARCH_SAMPLE:
+        {
+            st_DBGAPI_MEMSEARCH_SAMPLE_PARAM *p = (st_DBGAPI_MEMSEARCH_SAMPLE_PARAM *) rq->data_ptr;
+            rq->success = ( p != NULL )
+                          && memsearch_sample_fill ( (const st_MEMSEARCH_SPAN *) p->spans,
+                                                     p->span_count,
+                                                     (st_MEMSEARCH_SAMPLE *) p->sample );
             break;
         }
 
