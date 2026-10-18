@@ -57,13 +57,13 @@ typedef enum en_DBGAPI_CMD
     DBGAPI_CMD_IS_DEBUGGER_ACTIVE,  /* Dotaz na stav debuggeru — result_ptr: bool* */
     DBGAPI_CMD_DEBUGGER_ACTIVATE,   /* Aktivovat debugger + přepočet CPU callbacků (WITH_WINDOW záznam začne) */
     DBGAPI_CMD_DEBUGGER_DEACTIVATE, /* Deaktivovat debugger + přepočet CPU callbacků */
-    DBGAPI_CMD_PAUSE,               /* Pozastavit emulaci */
+    DBGAPI_CMD_PAUSE,               /* Pozastavit emulaci — data_ptr: st_DBGAPI_PAUSE_PARAM* (podmínka if_run_seq) nebo NULL */
     DBGAPI_CMD_FORCE_PAUSE,         /* Vynuceně pozastavit (nepřeskočitelné) */
-    DBGAPI_CMD_RUN,                 /* Spustit emulaci */
+    DBGAPI_CMD_RUN,                 /* Spustit emulaci — result_ptr: st_DBGAPI_RUN_START_RESULT* nebo NULL */
     DBGAPI_CMD_IS_RUNNING,          /* Dotaz na stav emulace — result_ptr: bool* */
-    DBGAPI_CMD_STEP_INTO,           /* Jeden krok (Step Into) */
-    DBGAPI_CMD_STEP_OVER,           /* Step Over (přes CALL, blokové instrukce) */
-    DBGAPI_CMD_RUN_TO,              /* Běh do adresy — data_ptr: uint16_t* (cílová adresa), result_ptr: int* DBGAPI_RUN_TO_* nebo NULL */
+    DBGAPI_CMD_STEP_INTO,           /* Jeden krok (Step Into) — result_ptr: st_DBGAPI_RUN_START_RESULT* nebo NULL */
+    DBGAPI_CMD_STEP_OVER,           /* Step Over (přes CALL, blokové instrukce) — result_ptr: st_DBGAPI_RUN_START_RESULT* nebo NULL */
+    DBGAPI_CMD_RUN_TO,              /* Běh do adresy — data_ptr: uint16_t* (cílová adresa), result_ptr: st_DBGAPI_RUN_START_RESULT* nebo NULL */
     DBGAPI_CMD_RESET,               /* Reset CPU */
 
     /* --- CPU registry --- */
@@ -735,6 +735,12 @@ typedef enum en_DBGAPI_CMD
      * hodnot. */
     DBGAPI_CMD_MEMSEARCH_SAMPLE,     /* Vzorek prostoru hledání - data_ptr: st_DBGAPI_MEMSEARCH_SAMPLE_PARAM* */
     DBGAPI_CMD_FREEZE_LIST,          /* Kopie tabulky Freeze Bytes - data_ptr: st_DBGAPI_FREEZE_LIST_PARAM* */
+
+    /* run-control (M5 debug-gaps) - deadline běhu v emulovaném čase a hash
+     * obrazu/VRAM bez přenosu dat (run_control/run_control.h). Přidáno na
+     * KONEC enumu kvůli stabilitě číselných hodnot. */
+    DBGAPI_CMD_RUN_DEADLINE,         /* Nastavit / zrušit deadline běhu - data_ptr: st_DBGAPI_RUN_DEADLINE_PARAM* */
+    DBGAPI_CMD_FRAME_HASH,           /* SHA-256 obrazu (INDEX8 + paleta) a VRAM, pozice paprsku - data_ptr: st_DBGAPI_FRAME_HASH_PARAM* */
 
 } en_DBGAPI_CMD;
 
@@ -2534,6 +2540,8 @@ typedef struct st_DBGAPI_SYMBOL_PARAM
  * @field return_addr   (OUT) Adresa cílového RET (validní jen pokud
  *                            status == 0).
  * @field status        (OUT) Diagnostický kód (viz výše).
+ * @field run_seq       (OUT) Číslo spuštěného běhu (validní jen pokud
+ *                            status == 0, run_control/run_log.h).
  */
 typedef struct st_DBGAPI_STEP_OUT_PARAM
 {
@@ -2541,6 +2549,7 @@ typedef struct st_DBGAPI_STEP_OUT_PARAM
     uint16_t return_addr;
     uint8_t  status;
     uint8_t  _pad[ 1 ];
+    uint64_t run_seq;
 } st_DBGAPI_STEP_OUT_PARAM;
 
 
@@ -3506,17 +3515,102 @@ typedef struct st_DBGAPI_HID_JOY_PARAM
 
 
 /**
- * @brief Výsledek DBGAPI_CMD_RUN_TO (volitelný int* result_ptr): běh k cílové
- *        adrese spuštěn (emulace byla v pauze).
+ * @brief Výsledek rozběhu (st_DBGAPI_RUN_START_RESULT::status): běh nebo krok
+ *        spuštěn (emulace byla v pauze). U DBGAPI_CMD_RUN_TO běh k cílové adrese.
  */
 #define DBGAPI_RUN_TO_STARTED 0
 
 /**
- * @brief Výsledek DBGAPI_CMD_RUN_TO: emulace běžela, příkaz ji jen pauzl
- *        (UX "Run to cursor" v GUI: první klik zastaví) a běh k cíli
+ * @brief Výsledek rozběhu: emulace běžela, příkaz ji jen pauzl (UX "Run to
+ *        cursor" a "Step over" v GUI: první klik zastaví) a běh ani krok
  *        NESPUSTIL. rq->success je i tak true.
  */
 #define DBGAPI_RUN_TO_PAUSED_ONLY 1
+
+/**
+ * @brief Výsledek rozběhu: emulace běží a příkaz nic neudělal (STEP_INTO za
+ *        běhu; RUN, když emulace už běží - běh pokračuje se svým číslem).
+ */
+#define DBGAPI_RUN_START_NOT_PAUSED 2
+
+
+/**
+ * @brief Výsledek příkazů, které spouštějí běh nebo krok (volitelný result_ptr).
+ *
+ * Používají ho DBGAPI_CMD_RUN, DBGAPI_CMD_RUN_TO, DBGAPI_CMD_STEP_INTO
+ * a DBGAPI_CMD_STEP_OVER. NULL result_ptr = výsledek se nevrací (GUI).
+ *
+ * Invariant: `run_seq` je číslo běhu, kterého se výsledek týká: spuštěného
+ * běhu nebo kroku (STARTED), běžícího běhu (NOT_PAUSED), nebo právě
+ * zastaveného běhu (PAUSED_ONLY). Viz run_control/run_log.h.
+ */
+typedef struct st_DBGAPI_RUN_START_RESULT
+{
+    int status;        /* OUT: DBGAPI_RUN_TO_STARTED / DBGAPI_RUN_TO_PAUSED_ONLY / DBGAPI_RUN_START_NOT_PAUSED. */
+    bool step;         /* OUT: true = vyžádaný krok jedné instrukce (provede se před dalším
+                        *      příkazem fronty); false = běh (rozběh, dočasný BP). */
+    uint64_t run_seq;  /* OUT: číslo běhu (viz invariant). */
+} st_DBGAPI_RUN_START_RESULT;
+
+
+/**
+ * @brief Parametr pro DBGAPI_CMD_PAUSE (volitelný data_ptr).
+ *
+ * Bez parametru (NULL) pauza platí vždy. S `has_if_run_seq` zastaví jen
+ * běžící běh s číslem `if_run_seq`: agent tak nezastaví běh, který mezitím
+ * spustil člověk v GUI. Výstupy vyplní handler vždy.
+ */
+typedef struct st_DBGAPI_PAUSE_PARAM
+{
+    bool has_if_run_seq;   /* IN: true = pauza jen pro běh if_run_seq. */
+    uint64_t if_run_seq;   /* IN: číslo běhu, který se smí zastavit. */
+    bool was_running;      /* OUT: emulace před příkazem běžela. */
+    bool paused_now;       /* OUT: příkaz emulaci zastavil. */
+    uint64_t run_seq;      /* OUT: číslo běhu běžícího před příkazem (nebo posledního skončeného). */
+} st_DBGAPI_PAUSE_PARAM;
+
+
+/**
+ * @brief Parametr pro DBGAPI_CMD_RUN_DEADLINE.
+ *
+ * `arm` true nastaví deadline relativně k okamžiku zpracování příkazu
+ * (run_control_deadline_arm()), false ho zruší. Deadline platí do
+ * nejbližší pauzy; volající ho nastavuje v pauze těsně před příkazem,
+ * který spustí běh, a při selhání toho příkazu ho zruší.
+ */
+typedef struct st_DBGAPI_RUN_DEADLINE_PARAM
+{
+    bool arm;              /* IN: true = nastavit, false = zrušit. */
+    int kind;              /* IN: en_RUN_DEADLINE_KIND (frames / emulated_ms / ticks). */
+    uint64_t value;        /* IN: hodnota podle kind. */
+    uint64_t ticks;        /* OUT: délka deadlinu v taktech GDG od okamžiku příkazu. */
+    bool valid;            /* OUT: false = neplatná hodnota, deadline beze změny. */
+} st_DBGAPI_RUN_DEADLINE_PARAM;
+
+
+/**
+ * @brief Parametr pro DBGAPI_CMD_FRAME_HASH.
+ *
+ * `image_sha256` je SHA-256 obrazu ze stejného zdroje jako screenshot
+ * (SDL snímek nebo živý framebuffer GDG): W x H bajtů indexů palety
+ * (INDEX8 & 0Fh, po řádcích), za nimi 16 položek palety po 3 bajtech R, G, B.
+ * `vram_sha256` je state_hash části VRAM (state_hash.h). Pozice paprsku
+ * a čítač snímků jsou z okamžiku příkazu.
+ */
+typedef struct st_DBGAPI_FRAME_HASH_PARAM
+{
+    bool available;            /* OUT: false = obraz ještě nevznikl (image_sha256 prázdný). */
+    char image_sha256[65];     /* OUT: hex SHA-256 obrazu, malá písmena. */
+    char vram_sha256[65];      /* OUT: hex SHA-256 VRAM, malá písmena. */
+    uint8_t source;            /* OUT: SCREENSHOT_SRC_SDL_SNAPSHOT / SCREENSHOT_SRC_GDG_LIVE. */
+    uint32_t source_screen_id; /* OUT: fbsnapshot_screen_id zdroje obrazu. */
+    uint32_t width;            /* OUT: šířka obrazu. */
+    uint32_t height;           /* OUT: výška obrazu. */
+    uint32_t frame;            /* OUT: dokončené snímky od resetu (paprsek). */
+    uint16_t scanline;         /* OUT: řádek paprsku. */
+    uint16_t column;           /* OUT: sloupec paprsku (takt GDG v řádku). */
+    bool paused;               /* OUT: emulace v pauze (obraz i VRAM se mezi čteními nemění). */
+} st_DBGAPI_FRAME_HASH_PARAM;
 
 
 /**
@@ -4521,6 +4615,7 @@ typedef struct st_DBGAPI_FRAME_SCREENSHOT_RAW_PARAM
     size_t   buffer_capacity;     /**< IN: max bytů které buffer pojme. */
     size_t   buffer_size;         /**< OUT: kolik bytů handler skutečně zapsal. */
     uint8_t *buffer;              /**< IN: caller alokovaný buffer pro pixels. */
+    st_DBGAPI_FRAME_HASH_PARAM hash; /**< OUT: SHA-256 obrazu ze stejného zdroje jako pixely (plná velikost bez downscale), VRAM a pozice paprsku. */
 } st_DBGAPI_FRAME_SCREENSHOT_RAW_PARAM;
 
 
@@ -4554,6 +4649,7 @@ typedef struct st_DBGAPI_FRAME_SCREENSHOT_PNG_PARAM
     uint8_t *buffer;              /**< OUT: handlerem alokovaný PNG stream (g_free), NULL při chybě. */
     size_t   buffer_size;         /**< OUT: délka PNG streamu v bajtech. */
     char     reason[64];          /**< OUT: důvod proč není dostupný (jen při available=0). */
+    st_DBGAPI_FRAME_HASH_PARAM hash; /**< OUT: SHA-256 obrazu ze stejného zdroje jako PNG (celý framebuffer, bez ohledu na oblast a měřítko), VRAM a pozice paprsku. */
 } st_DBGAPI_FRAME_SCREENSHOT_PNG_PARAM;
 
 

@@ -12,14 +12,17 @@ dokumentu [Resources overview](resources-overview.md).
 |------|-----------|-------|
 | `emu_status` | ne | Stav emu (running / paused, connected) |
 | `emu_ping` | ne | Liveness check (`pong`) |
-| `emu_pause` | ne | Pauzne emulaci |
+| `emu_pause` | ne | Pauzne emulaci (volitelně jen běh `if_run_seq`) |
+| `emu_resume` | ne | Volný běh bez blokování, volitelně deadline v emulovaném čase |
+| `emu_wait_stop` | ne | Počká, až běh skončí (nejvýš 25 s na volání): důvod, PC, kdo běh spustil |
+| `emu_get_stop_history` | ne | Posledních 32 záznamů zastavení (i `emulator://run/history`) |
 | `emu_run` | ne | Blokující resume na N framů (1..1000) |
 | `emu_reset` | ne | Power-on reset CPU + periferií |
 | `emu_get_registers` | ne | 14 Z80 registrů (AF..IR) |
 | `emu_set_register` | **ANO** | Zápis 16-bit hodnoty do registru - **destruktivní** |
 | `emu_dasm` | ne | Disassembluje N instrukcí od adresy (banking-aware) |
 | `emu_history_get` | ne | 32 posledních provedených instrukcí (ring buffer) |
-| `emu_mem_read` | ne | Čte bajty z Z80 paměti (base64) |
+| `emu_mem_read` | ne | Čte bajty z Z80 paměti (base64 + SHA-256, nebo jen hash) |
 | `emu_mem_write` | **ANO** | Zápis bajtů do RAM - region check, **destruktivní** |
 | `emu_bp_add` | ne | Přidá breakpoint (exec, nebo typed memw/memr/ior/iow + condition) |
 | `emu_bp_list` | ne | Vypíše breakpointy (id/addr/addr_end/addr_match_mode/addr_mask/enabled + type/zone/bank_id/bank_id_end/bank_match_mode/bank_id_mask/hits/condition) |
@@ -29,7 +32,7 @@ dokumentu [Resources overview](resources-overview.md).
 | `emu_step_into` | ne | 1 instrukce krok (step INTO CALL/RST) |
 | `emu_step_over` | ne | 1 instrukce, CALL/RST jako atom |
 | `emu_step_n` | ne | N kroků jako sekvence step_into (1..1000) |
-| `emu_run_until_addr` | ne | Run dokud PC == addr (s temp BP) |
+| `emu_run_until_addr` | ne | Run dokud PC == addr (s temp BP), volitelně deadline |
 | `emu_snapshot_save` | **ANO** | Uloží .mzs snapshot na disk (přepíše soubor) |
 | `emu_snapshot_save_buffer` | ne | Uloží snapshot jako inline base64 (bez disk I/O) |
 | `emu_snapshot_load` | **ANO** | Načte .mzs ze souboru, **přepíše stav emu** |
@@ -41,11 +44,11 @@ dokumentu [Resources overview](resources-overview.md).
 | `emu_symbol_list` | ne | Vypíše symbols matching name prefix (max 1000) |
 | `emu_bookmark_add` | ne | Přidá pojmenovanou adresovou záložku (hex literál nebo symbol), owner mcp |
 | `emu_bookmark_remove` | ne | Odebere záložku podle ID |
-| `emu_step_out` | ne | Run dokud RET z aktuální subroutine (callstack pop) |
+| `emu_step_out` | ne | Run dokud RET z aktuální subroutine (callstack pop), volitelně deadline |
 | `emu_run_until_raster` | ne | Run do GDG raster pozice (line + optional col) |
 | `emu_run_until_tstate` | ne | Run do absolutního Z80 cycle target |
 | `emu_run_until_event` | ne | Run dokud event (`frame_done`, `breakpoint_hit`) |
-| `emu_event_subscribe` | ne | Subscribe na seznam topics (`breakpoint_hit`, `paused`, `step_done`, `io_write`) |
+| `emu_event_subscribe` | ne | Subscribe na seznam topics (`breakpoint_hit`, `paused`, `resumed`, `step_done`, `io_write`) |
 | `emu_event_unsubscribe` | ne | Unsubscribe topics (empty list = vše) |
 | `emu_event_poll` | ne | Vyzvedne pending eventy (timeout 0..60000 ms, max 1..100) |
 | `emu_trap_respond` | ne | Odpověz na TRAP z `breakpoint_hit` eventu (continue/step_into/step_over/abort) |
@@ -81,6 +84,7 @@ dokumentu [Resources overview](resources-overview.md).
 | `emu_videorec_marker` | ne | Marker (kapitola) na aktuální pozici nahrávky |
 | `emu_videorec_status` | ne | Stav nahrávání videa (stav, snímky, segment, velikost, cesta, poslední událost) |
 | `emu_videorec_timebase` | ne | Časová základna nahrávání: emulační čas nebo podle reality |
+| `emu_frame_hash` | ne | SHA-256 obrazu a VRAM, pozice paprsku (bez dat) |
 | `emu_screenshot_save_to_file` | ano (vytvoří / přepíše soubor) | PNG obrazovky do souboru: oblast (full / canvas), měřítko (framebuffer / nativní body / okno 1-4), ořez |
 | `emu_screenshot_series_start` | ano (vytváří soubory) | Série snímků: PNG každého změněného emulovaného snímku (oblast, měřítko, ořez, only_changed, frames, max_files) |
 | `emu_screenshot_series_stop` | ne | Ukončí sérii snímků, standardně počká na zápis všech snímků |
@@ -275,7 +279,61 @@ ještě?") bez závislosti na stavu emu.
 ### `emu_pause`
 
 Zapauzuje CPU emulaci. Tool se vrátí, až je pause potvrzená (= další
-volání čte konzistentní stav). Žádné argumenty.
+volání čte konzistentní stav). Argument:
+
+- `if_run_seq` (int, volitelný) - pauzni jen, když běží běh s tímto
+  číslem (viz `emu_wait_stop`); běh, který mezitím spustil někdo jiný
+  (uživatel v GUI), se nezastaví
+
+Vrací `{"paused": <bool>, "was_running": <bool>, "paused_now": <bool>,
+"run_seq": <int>}`, navíc `skipped` (`"run_seq_mismatch"` nebo
+`"not_running"`), když pauzu `if_run_seq` nepustil. Pauza už pozastavené
+emulace není nové zastavení: žádná událost `paused`.
+
+### `emu_resume`
+
+Spustí emulaci bez blokování a hned vrátí `{"running": true,
+"run_seq": <int>, "already_running": <bool>}`. Volitelně deadline
+v emulovaném čase, nejvýš jeden z:
+
+- `deadline_frames` (int, 1..1000000) - zastav přesně na N-té hranici
+  snímku
+- `deadline_ms` (int, 1..86400000) - zastav po N ms emulovaného času
+- `deadline_ticks` (int) - zastav po N taktech GDG
+
+Deadline je deterministický (emulovaný čas, ne čas hostitele); `ms`
+a `ticks` zastaví v prvním bodě událostí emulace na nebo za deadlinem,
+méně než snímek pozdě. Zastavení má důvod `"deadline"`, odpověď nese
+`deadline_ticks`. Deadline platí do nejbližší pauzy a přežije reset
+stroje během běhu. Na konec běhu se čeká přes `emu_wait_stop`.
+
+### `emu_wait_stop`
+
+Počká, až běh skončí, a vrátí proč a kde. Běh je úsek od opuštění
+pauzy do další pauzy; každý běh má číslo `run_seq` (vracejí ho nástroje,
+které běh spouštějí, a `emu_pause`, `emu_get_state`). Argumenty:
+
+- `run_seq` (int, volitelný) - běh, na který se čeká; bez něj aktuální
+  běh (v pauze poslední)
+- `timeout_ms` (int, 0..25000, default 5000)
+
+Vrací `{"done": true, "run_seq", "record": {...}}`, nebo po timeoutu
+`{"done": false, "running": true, ...}` - zavolat znovu. Záznam:
+`reason` (`run_to`, `breakpoint`, `deadline`, `frames`, `step`,
+`manual`, `exit`, `bp_action_saturation`, `event_trigger`), `pc`,
+`bp_id`, `started_by` / `start_cmd` (`mcp` = agent, `user` = GUI),
+`stopped_by` (u `manual`), `start_ticks` / `stop_ticks` (takty GDG od
+resetu), `elapsed_ticks`, `frame`, `step`; u `exit` navíc `exit_code`,
+`exit_reason`, `message`. `history_lost: true` = běh skončil, ale jeho
+záznam už mezi 32 posledními není. Stejná pole nese událost `paused`.
+Recept v `emulator://docs/run_control`.
+
+### `emu_get_stop_history`
+
+Poslední záznamy zastavení, od nejstaršího. Argument `limit` (int,
+1..32, default 32). Vrací `{"records": [...], "count",
+"current_run_seq", "running"}`; pole záznamu jako u `emu_wait_stop`.
+Také jako resource `emulator://run/history`.
 
 ### `emu_run`
 
@@ -353,8 +411,12 @@ Přečte N bajtů z Z80 paměti počínaje danou adresou. Argumenty:
 
 - `address` (int, 0..0xFFFF) - start adresa
 - `length` (int, 1..65536) - počet bajtů
+- `want_data` (bool, volitelný, default true) - false = jen hash
 
-Vrací base64-enkódovaná data. Region check NE - lze číst cokoliv
+Vrací base64-enkódovaná data (`data_b64`) a `sha256` (SHA-256 bajtů,
+64 hex znaků malými písmeny). S `want_data=false` jen hash: porovnáním
+s dřívějším čtením se pozná, jestli se paměť změnila, bez stahování
+dat. Region check NE - lze číst cokoliv
 (ROM, RAM, peripheral mapped, ...). Banking se respektuje (= čte
 se to, co by CPU vidělo na dané adrese).
 
@@ -443,17 +505,23 @@ si pamatovat adresu). Argumenty:
 
 Provede přesně jednu Z80 instrukci. Pro CALL/RST je další
 instrukce na cílové adrese (= step INTO subroutine, na rozdíl
-od `emu_step_over`). Vyžaduje pause stav - pokud emu běží,
-tool nejdřív zapauzuje a step se neprovede (klient musí
-zavolat znovu).
+od `emu_step_over`). Vyžaduje pause stav: tool se vrátí po
+provedení kroku (`completed: true`). Na běžícím emulátoru se nic
+nestane a emulace běží dál (`completed: false`, `running: true`).
+Vrací `{"stepped": true, "completed", "running", "run_seq"}`;
+`stepped` zůstává kvůli kompatibilitě a je vždy true.
 
 ### `emu_step_over`
 
 Jako `emu_step_into` pro běžné instrukce, ale pro CALL/RST/DJNZ
 a blokové instrukce nastaví dočasný BP na addr+length a run-to
-(= subroutine se vykoná jako jeden krok). Vyžaduje pause stav. Když
-run-to zastaví na svém dočasném BP, nese událost `paused` hodnotu
-`reason: "run_to"` (viz `emu_run_until_addr`).
+(= subroutine se vykoná jako jeden krok). Vyžaduje pause stav. Běžná
+instrukce: tool se vrátí po kroku (`completed: true`). Přes
+CALL/RST/DJNZ/blokové instrukce se vrátí hned (`completed: false`,
+`running: true`); když run-to zastaví na svém dočasném BP, nese událost
+`paused` hodnotu `reason: "run_to"` (viz `emu_run_until_addr`), čekat
+přes `emu_wait_stop(run_seq)`. Na běžícím emulátoru emulaci jen
+pauzne (`paused_only: true`).
 
 ### `emu_step_n`
 
@@ -464,7 +532,7 @@ Provede N instrukcí jako sekvenci `emu_step_into`. Argument:
 Pokud kterýkoliv step selže mid-loop (= BP trefený, jiný důvod
 pro pause), tool vrátí partial counter s `partial=true` flagem
 v odpovědi. Návrat: `{"count": <int>, "requested": <int>,
-"partial": <bool>}`.
+"partial": <bool>}`. Tool se vrátí po provedení posledního kroku.
 
 ### `emu_run_until_addr`
 
@@ -473,9 +541,14 @@ zapauzuje, jakmile PC dosáhne `addr` (nebo zatím trefí jiný
 permanentní BP). Argumenty:
 
 - `addr` (int, 0..65535) - cílová PC adresa
-- `max_cycles` (int, volitelný, default 10 mil.) - informativní
-  timeout v T-states; klient může pollovat `emu_status` a sám
-  zapauzovat, pokud doběhnutí trvá dlouho.
+- `max_cycles` (int, volitelný, default 10 mil.) - jen informativní,
+  vrací se zpět, nic neomezuje
+- `deadline_frames` / `deadline_ms` / `deadline_ticks` (int, volitelný,
+  nejvýš jeden) - zastaví běh v emulovaném čase, když `addr` nedosáhne
+  (důvod `"deadline"`), viz `emu_resume`
+
+Odpověď `{"addr", "max_cycles", "running": true, "run_seq"}` (plus
+`deadline_ticks`); na zastavení se čeká přes `emu_wait_stop(run_seq)`.
 
 Vyžaduje pause stav. Na běžícím emulátoru vrátí chybu
 `Emulator is running: run_until_addr needs a paused emulator ...`
@@ -483,9 +556,9 @@ a emulátor běží dál beze změny (čerstvě spuštěný emulátor běží, p
 nejdřív `emu_pause`).
 
 Když PC dosáhne `addr`, emulátor vyšle událost `paused`
-s `{"reason": "run_to", "pc": <addr>}` (topic `paused`, viz
-`emu_event_subscribe`), takže klient může čekat přes `emu_event_poll`
-místo pollování `emu_status`. Zastaví-li emulaci dřív trvalý breakpoint,
+s `{"reason": "run_to", "pc": <addr>, "run_seq": ...}` (topic `paused`,
+viz `emu_event_subscribe`), takže klient může čekat přes `emu_wait_stop`
+nebo `emu_event_poll` místo pollování `emu_status`. Zastaví-li emulaci dřív trvalý breakpoint,
 nebo trvalý breakpoint na `addr`, je událost jeho (`reason: "breakpoint"`),
 nikdy obě. Trvalý breakpoint na `addr`, který nezastaví (nesplněná
 podmínka, `skip_count`, akce s pokračováním), cíl nezakryje: běh na `addr`
@@ -660,13 +733,17 @@ Předpoklady:
 
 Argumenty:
 
-- `max_cycles` (int, volitelný, default 10000000) - informativní cap
-  v T-states.
+- `max_cycles` (int, volitelný, default 10000000) - jen informativní,
+  vrací se zpět, nic neomezuje
+- `deadline_frames` / `deadline_ms` / `deadline_ticks` (int, volitelný,
+  nejvýš jeden) - zastaví běh v emulovaném čase, když se funkce
+  nevrátí (důvod `"deadline"`), viz `emu_resume`
 
-Odpověď: `{"return_addr": <int>, "max_cycles": <int>, "running": true}`
-nebo error pokud callstack neaktivní / prázdný stack / emu už běží.
-Dosažení `return_addr` vyšle událost `paused` s `reason: "run_to"`
-(viz `emu_run_until_addr`).
+Odpověď: `{"return_addr": <int>, "max_cycles": <int>, "running": true,
+"run_seq": <int>}` (plus `deadline_ticks`) nebo error pokud callstack
+neaktivní / prázdný stack / emu už běží. Dosažení `return_addr` vyšle
+událost `paused` s `reason: "run_to"` (viz `emu_run_until_addr`); čekat
+přes `emu_wait_stop(run_seq)`.
 
 ### `emu_run_until_raster`
 
@@ -687,9 +764,15 @@ Argumenty:
 Přesnost je omezena délkou Z80 instrukce (4-23 T-states ~ +/-10 GDG
 ticks ~ +/-5 viditelných pixelů). Pro mid-frame efekty dostačující.
 
+Smyčka běží uvnitř jednoho požadavku a nejde zrušit; skončí nejpozději
+po 20 s času hostitele (`time_limited: true`), aby odpověď přišla před
+30 s limitem transportu. Emulace pak stojí v pauze tam, kam smyčka
+došla.
+
 Odpověď: `{"scanline": <int>, "column_pixel": <int>, "frame_number":
 <int>, "total_cycles": <int>, "delta_cycles": <int>, "reached":
-<bool>}`. `reached=false` znamená timeout polling smyčky.
+<bool>, "time_limited": <bool>}`. `reached=false` znamená, že smyčka
+skončila na bezpečnostním stropu nebo na časovém limitu.
 
 ### `emu_run_until_tstate`
 
@@ -707,8 +790,11 @@ Argumenty:
 Pozn.: `total_cycles` je uint32, přetéká každých ~20 minut při 3.5 MHz.
 Wraparound není ošetřen - typický klient cílí na delta v řádu sekund.
 
+Stejně jako `emu_run_until_raster` skončí smyčka nejpozději po 20 s
+času hostitele (`time_limited: true`).
+
 Odpověď: `{"total_cycles": <int>, "target": <int>, "delta_cycles":
-<int>, "reached": <bool>}`.
+<int>, "reached": <bool>, "time_limited": <bool>}`.
 
 ### `emu_run_until_event`
 
@@ -726,9 +812,13 @@ Argumenty:
 - `params` (object, volitelný) - kind-specific
 - `max_cycles` (int, volitelný, default 10000000) - bezpečnostní cap
 
+Čekání skončí nejpozději po 20 s času hostitele (`time_limited: true`;
+u `breakpoint_hit` je emulace pak v pauze). Na dlouhé čekání použij
+`emu_resume` s deadlinem a `emu_wait_stop`.
+
 Odpověď: `{"kind": <str>, "reached": <bool>, "delta_cycles": <int>,
-...}` plus kind-specific fields (`frames_done` pro `frame_done`,
-`paused` pro `breakpoint_hit`).
+"time_limited": <bool>, ...}` plus kind-specific fields (`frames_done`
+pro `frame_done`, `paused` pro `breakpoint_hit`).
 
 ### `emu_io_read` (sensitive)
 
@@ -1184,6 +1274,23 @@ PNG obrázky obrazovky emulátoru zapsané přímo do souboru na počítači se
 serverem (v odpovědi není velký base64 obsah). Postup s recepty je
 v MCP dokumentu `emulator://docs/screenshot_workflow`; parametry popisuje
 i [headless-mode.md](headless-mode.md).
+
+### `emu_frame_hash`
+
+SHA-256 obrazu a video paměti bez jejich přenosu. Bez argumentů.
+`image_sha256` je hash obrazu ze stejného zdroje jako screenshot: index
+palety každého bodu po řádcích (`width` x `height` bajtů, INDEX8 & 0Fh),
+za nimi 16 barev palety po bajtech R, G, B. `vram_sha256` je hash video
+paměti (MZ-800: všechny čtyři plány; MZ-700 / MZ-1500: znaková
+a atributová VRAM). Obraz závisí i na registrech GDG (paleta, režim,
+border), hash VRAM ne. V pauze uprostřed snímku je část obrazu ještě
+z minulého snímku - odpověď nese pozici paprsku (`beam`: `frame`,
+`scanline`, `column`) a `paused`. Resources screenshotu
+(`emulator://frame/screenshot.raw`, `emulator://frame/screenshot`)
+vracejí stejný `image_sha256` (u PNG pro celý framebuffer bez ohledu na
+oblast a měřítko). Vrací `{"available", "image_sha256", "vram_sha256",
+"source_screen_id", "image_source", "width", "height", "beam",
+"paused"}`.
 
 ### `emu_screenshot_save_to_file` (citlivý - vytvoří / přepíše soubor)
 
@@ -2313,6 +2420,7 @@ Args:
 - `region_id` (= z poslední `regions_list` volání)
 - `offset` (= byte offset v rámci regionu, 0..size-1)
 - `length` (= 1..65536, clamp na region size pokud `offset+length > size`)
+- `want_data` (bool, volitelný, default true) - false = jen hash
 
 Returns:
 ```json
@@ -2320,7 +2428,8 @@ Returns:
   "region_id": int,
   "offset": int,
   "length": int,        // skutečně přečtená délka po clampu
-  "data_b64": "..."     // base64-encoded raw bajty
+  "sha256": "...",      // SHA-256 přečtených bajtů (64 hex, malá písmena)
+  "data_b64": "..."     // base64-encoded raw bajty (ne s want_data=false)
 }
 ```
 

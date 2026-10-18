@@ -59,6 +59,8 @@
 #include "debugger/trace/eventlog.h"
 #include "debugger/callstack.h"
 #include "debugger/freeze/freeze.h"
+#include "debugger/run_control/run_control.h"
+#include "debugger/run_control/run_log.h"
 #include "mzarch/interrupt.h"
 #ifdef MZ800EMU_CFG_MCP_SERVER_ENABLED
 #include <json-glib/json-glib.h>
@@ -235,11 +237,13 @@ static inline void mz800_main_event_callback_screen_done(void)
 
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
 /**
- * @brief Vybere a vykoná všechny čekající dbgapi příkazy (CMDRQ drain).
+ * @brief Vykoná jeden vyzvednutý dbgapi příkaz a uklidí účty insideop.
  *
  * UI i MCP submitují příkazy přes dbgapi_ui_submit_cmd_sync*(); EMU vlákno
- * je vykonává tady. V default stavu (prázdná fronta) je
- * dbgapi_emu_has_pending() jedno atomické čtení.
+ * je vykonává přes tuto funkci z drainu běžící emulace
+ * (mzarch_main_dbgapi_drain()) i paused smyčky
+ * (dbgapi_emu_drain_paused()). Dokončení (dbgapi_emu_complete()) dělá
+ * volající.
  *
  * Příkazy jako IO_WRITE, IO_READ, MEM_WRITE nebo REGION_WRITE volají stejné
  * callbacky sběrnice jako instrukce (port_write_cb, memory_write_byte) a ty
@@ -269,11 +273,33 @@ static inline void mz800_main_event_callback_screen_done(void)
  *      nikdy z callbacku události ani z insideop. V obou bodech jsou účty
  *      insideop nulové (hlavní smyčka je nuluje po každém z80_step(),
  *      cpu->wait_cycles spotřebuje z80_step()).
+ * @param rq Vyzvednutý slot (dbgapi_emu_dequeue()).
+ * @post Účty insideop jsou nulové, cpu->op_tstate má hodnotu z doby před
+ *       příkazem. Slot ještě není dokončený.
+ */
+static void mzarch_main_dbgapi_dispatch_one(st_DBGAPI_CMDRQ *rq)
+{
+    z80_t *cpu = g_mzarch_main.cpu;
+    const int saved_op_tstate = cpu->op_tstate;
+
+    dbgapi_emu_dispatch(rq);
+
+    /* Úklid účtů insideop po operaci mimo instrukci (viz výše). */
+    g_mzarch_main.instruction_insideop_sync_ticks = 0;
+    g_mzarch_main.instruction_wait_tstates = 0;
+    cpu->wait_cycles = 0;
+    cpu->op_tstate = saved_op_tstate;
+}
+
+/**
+ * @brief Drain fronty dbgapi běžící emulace (per-frame bod hlavní smyčky).
+ *
+ * Každý příkaz provede mzarch_main_dbgapi_dispatch_one() (dispatch + úklid
+ * účtů insideop, viz výše) a dokončí ho.
+ *
+ * @pre Viz mzarch_main_dbgapi_dispatch_one().
  * @post Fronta byla v okamžiku kontroly prázdná. Příkaz zařazený během
- *       drainu se vykoná ještě v tomto volání. Každý vyzvednutý požadavek
- *       je dokončen (dbgapi_emu_complete()) a jeho volající odblokován.
- *       Účty insideop jsou nulové, cpu->op_tstate má hodnotu z doby před
- *       příkazem.
+ *       drainu se vykoná ještě v tomto volání.
  */
 static void mzarch_main_dbgapi_drain(void)
 {
@@ -282,17 +308,7 @@ static void mzarch_main_dbgapi_drain(void)
         st_DBGAPI_CMDRQ *rq = dbgapi_emu_dequeue(&g_dbgapi_cmdrq_queue);
         if (rq)
         {
-            z80_t *cpu = g_mzarch_main.cpu;
-            const int saved_op_tstate = cpu->op_tstate;
-
-            dbgapi_emu_dispatch(rq);
-
-            /* Úklid účtů insideop po operaci mimo instrukci (viz výše). */
-            g_mzarch_main.instruction_insideop_sync_ticks = 0;
-            g_mzarch_main.instruction_wait_tstates = 0;
-            cpu->wait_cycles = 0;
-            cpu->op_tstate = saved_op_tstate;
-
+            mzarch_main_dbgapi_dispatch_one(rq);
             dbgapi_emu_complete(rq);
         };
     };
@@ -332,7 +348,17 @@ static void mzarch_main_frame_done_debugger_hooks(void)
     };
 #endif
 
-    mzarch_main_dbgapi_drain();
+    /* Během kroku debuggeru (STEP_INTO, step over bez CALL) frontu
+     * nevybírat: paused smyčka ji vybere hned po kroku (krok emulaci
+     * z pauzy nevyvede, vstup do pauzy následuje v tomto bloku událostí).
+     * Příkaz, který klient poslal po dokončení příkazu kroku, by se tu
+     * jinak zpracoval ještě před koncem kroku: další STEP_INTO by se
+     * ztratil (debugger_step_call(1) při nastaveném kroku nic neudělá).
+     * Změřeno přes MCP step_n: na každé hranici snímku jeden ztracený krok. */
+    if (!TEST_DEBUGGER_STEP_CALL)
+    {
+        mzarch_main_dbgapi_drain();
+    };
 
     /* V1 Freeze Bytes - per-frame apply všech zafrozených bajtů (cheat
      * engine semantika). Pokud žádný entry, vrátí okamžitě (1 atomic byte
@@ -994,6 +1020,14 @@ static inline void mzzarch_main_do_emulator_paused(void)
      * v první iteraci smyčky by jinak příznak nechalo přežít do volného běhu. */
     videorec_on_emulation_stopped();
 
+#ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
+    /* Záznam zastavení a jediná událost "paused" na každé zastavení (BP,
+     * dočasný BP, krok, run(frames), deadline, pauza). Před automatizací,
+     * aby záznam existoval i u žádosti o konec, a před
+     * debugger_step_call(0), aby se poznal dokončený krok. */
+    run_control_on_stop();
+#endif
+
     /* Automatizace: čekající žádost o konec (akce exit, --exit-after-frames,
      * --timeout-*) se vyřídí tady, mezi instrukcemi a v pauze (snapshot
      * smí vzniknout). Kde smí proces skončit, se odtud nevrací. */
@@ -1014,8 +1048,13 @@ static inline void mzzarch_main_do_emulator_paused(void)
         JsonObject *payload = json_object_new ( );
         json_object_set_int_member ( payload, "pc",
             (gint64) ( g_mzarch_main.cpu ? g_mzarch_main.cpu->pc : 0 ) );
+        /* cycles = cpu->total_cycles (uint32_t, přeteče asi po 20 min
+         * emulace); ticks = takty GDG od startu emulátoru (64 bit, bez
+         * přetečení; reset stroje je nenuluje). */
         json_object_set_int_member ( payload, "cycles",
             (gint64) ( g_mzarch_main.cpu ? g_mzarch_main.cpu->total_cycles : 0 ) );
+        json_object_set_int_member ( payload, "ticks", (gint64) gdg_get_total_ticks ( ) );
+        json_object_set_int_member ( payload, "run_seq", (gint64) run_log_current ( NULL ) );
         event_bus_emit ( "step_done", payload );
     }
 #endif
@@ -1053,9 +1092,10 @@ static inline void mzzarch_main_do_emulator_paused(void)
          * Reset přes dbgapi_ui_submit_cmd_sync zatuhly (= EMU vlákno by
          * frontu nikdy nedrainovalo). Tady jen non-blocking has_pending
          * check; na nový příkaz smyčka čeká na konci iterace přes
-         * dbgapi_emu_wait_for_cmd() (nejvýš 20 ms). Stejný helper jako drain
-         * běžící emulace (per-frame bod v hlavní smyčce). */
-        mzarch_main_dbgapi_drain();
+         * dbgapi_emu_wait_for_cmd() (nejvýš 20 ms). Na rozdíl od drainu
+         * běžící emulace skončí po příkazu, který vyžádal krok (zbytek fronty
+         * se zpracuje až po kroku). */
+        (void)dbgapi_emu_drain_paused(&g_dbgapi_cmdrq_queue, mzarch_main_dbgapi_dispatch_one);
 
         /* Přemapování MemExt vyžádané z UI i během pauzy (do ~20 ms). */
         memext_map_request_poll();
@@ -1110,6 +1150,10 @@ static inline void mzzarch_main_do_emulator_paused(void)
      * mezi tím proběhne reset (= PC se změní na 0000), skip se
      * neuplatní na novou adresu a BP na 0000 se správně aktivuje. */
     g_debugger.skip_bp_at_pc = (int) g_mzarch_main.cpu->pc;
+
+    /* Nové číslo běhu, vynulovaný důvod pauzy, událost "resumed" (jen
+     * u rozběhu, ne u kroku). */
+    run_control_on_resume();
 
     if (TEST_DEBUGGER_STEP_CALL)
     {
@@ -1208,11 +1252,11 @@ static void mzarch_main_reset(void)
      * aby se BP na nové adrese (typicky 0000) správně aktivoval. */
     g_debugger.skip_bp_at_pc = -1;
     /* Frame-bounded run (mcp-debug-control request 0021): pokud reset přijde
-     * za běhu frame-bounded runu, zrušíme aktivní flag. Cílová hodnota
-     * run_frames_target byla vázána na předreset screens; po resetu (gdg_reset
-     * vynuluje screens) by porovnání mohlo dát nedeterministický výsledek.
-     * Bezpečné je run-bounded operaci zrušit - klient dostane zastavený stav
-     * přes fallback v dispatch vrstvě. */
+     * za běhu frame-bounded runu, zrušíme aktivní flag - klient dostane
+     * zastavený stav přes fallback v dispatch vrstvě. (gdg_reset() čítač
+     * snímků nenuluje, nuluje ho jen gdg_init() při startu - změřeno; cíl by
+     * tedy platil dál, zrušení zůstává kvůli dosavadnímu chování.) Deadline
+     * běhu (run_control.h) reset neruší, běží v témže čítači. */
     g_debugger.run_frames_active = 0;
 #ifdef MZ800EMU_CFG_MCP_SERVER_ENABLED
     /* Sekvence vstupu MCP má cíle vázané na předreset screens - zrušit
@@ -1623,15 +1667,15 @@ void mzarch_main(void)
              * hodnotu. Po emulator_pause(true) stávající EMULATOR_TEST_PAUSED
              * blok níže okamžitě vstoupí do pause loopu.
              *
-             * PERF: check je UVNITŘ per-frame bloku (~50 Hz), NE v
-             * per-instruction hot path -> zanedbatelný dopad. V default stavu
-             * (run_frames_active == 0) branch predictor naučí "vždy false". */
-            if ( g_debugger.run_frames_active
-                 && g_gdg.total_elapsed.screens >= g_debugger.run_frames_target )
+             * PERF: check je UVNITŘ per-event bloku, NE v per-instruction hot
+             * path -> zanedbatelný dopad. V default stavu (oba příznaky 0)
+             * jedno bitové OR a jedna větev, branch predictor naučí "vždy
+             * false". */
+            if ( g_debugger.run_frames_active | g_debugger.run_deadline_active )
             {
-                g_debugger.run_frames_active = 0;
-                g_emulator.pause_reason = EMU_PAUSE_REASON_FRAMES;
-                emulator_pause ( true );
+                /* Frame-bounded run i deadline v emulovaném čase (run_control.h):
+                 * jedna podmínka v default stavu, vyhodnocení mimo smyčku. */
+                run_control_check_run_bounds ( );
             };
 #endif
 

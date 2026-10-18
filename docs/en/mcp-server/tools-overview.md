@@ -12,14 +12,17 @@ documented separately in [Resources overview](resources-overview.md).
 |------|-----------|-------------|
 | `emu_status` | no | Emu state (running / paused, connected) |
 | `emu_ping` | no | Liveness check (`pong`) |
-| `emu_pause` | no | Pauses emulation |
+| `emu_pause` | no | Pauses emulation (optionally only the run `if_run_seq`) |
+| `emu_resume` | no | Free run without blocking, optional deadline in emulated time |
+| `emu_wait_stop` | no | Waits until a run stops (max 25 s per call): reason, PC, who started it |
+| `emu_get_stop_history` | no | Newest 32 stop records (also `emulator://run/history`) |
 | `emu_run` | no | Blocking resume for N frames (1..1000) |
 | `emu_reset` | no | Power-on reset of CPU + peripherals |
 | `emu_get_registers` | no | 14 Z80 registers (AF..IR) |
 | `emu_set_register` | **YES** | Write 16-bit value to register - **destructive** |
 | `emu_dasm` | no | Disassemble N instructions from an address (banking-aware) |
 | `emu_history_get` | no | 32 most recently executed instructions (ring buffer) |
-| `emu_mem_read` | no | Reads bytes from Z80 memory (base64) |
+| `emu_mem_read` | no | Reads bytes from Z80 memory (base64 + SHA-256, or the hash only) |
 | `emu_mem_write` | **YES** | Writes bytes into RAM - region checked, **destructive** |
 | `emu_bp_add` | no | Adds a breakpoint (exec, or typed memw/memr/ior/iow + condition) |
 | `emu_bp_list` | no | Lists breakpoints (id/addr/addr_end/addr_match_mode/addr_mask/enabled + type/zone/bank_id/bank_id_end/bank_match_mode/bank_id_mask/hits/condition) |
@@ -29,7 +32,7 @@ documented separately in [Resources overview](resources-overview.md).
 | `emu_step_into` | no | One Z80 instruction (steps INTO CALL/RST) |
 | `emu_step_over` | no | One instruction, CALL/RST as atomic |
 | `emu_step_n` | no | N steps as sequence of step_into (1..1000) |
-| `emu_run_until_addr` | no | Run until PC == addr (uses temp BP) |
+| `emu_run_until_addr` | no | Run until PC == addr (uses temp BP), optional deadline |
 | `emu_snapshot_save` | **YES** | Saves a .mzs snapshot to disk (overwrites) |
 | `emu_snapshot_save_buffer` | no | Saves snapshot as inline base64 (no disk I/O) |
 | `emu_snapshot_load` | **YES** | Loads .mzs from disk, **replaces emu state** |
@@ -41,11 +44,11 @@ documented separately in [Resources overview](resources-overview.md).
 | `emu_symbol_list` | no | Lists symbols matching name prefix (max 1000) |
 | `emu_bookmark_add` | no | Adds a named address bookmark (hex literal or symbol), owner mcp |
 | `emu_bookmark_remove` | no | Removes a bookmark by ID |
-| `emu_step_out` | no | Runs until RET from the current subroutine (callstack pop) |
+| `emu_step_out` | no | Runs until RET from the current subroutine (callstack pop), optional deadline |
 | `emu_run_until_raster` | no | Runs until the GDG raster reaches a target line (and optional column) |
 | `emu_run_until_tstate` | no | Runs until the absolute Z80 cycle counter reaches a target |
 | `emu_run_until_event` | no | Runs until an event fires (`frame_done`, `breakpoint_hit`) |
-| `emu_event_subscribe` | no | Subscribe to a list of topics (`breakpoint_hit`, `paused`, `step_done`, `io_write`) |
+| `emu_event_subscribe` | no | Subscribe to a list of topics (`breakpoint_hit`, `paused`, `resumed`, `step_done`, `io_write`) |
 | `emu_event_unsubscribe` | no | Unsubscribe topics (empty list = all) |
 | `emu_event_poll` | no | Retrieve pending events (timeout 0..60000 ms, max 1..100) |
 | `emu_trap_respond` | no | Respond to a TRAP from a `breakpoint_hit` event (continue/step_into/step_over/abort) |
@@ -81,6 +84,7 @@ documented separately in [Resources overview](resources-overview.md).
 | `emu_videorec_marker` | no | Marker (chapter) at the current recording position |
 | `emu_videorec_status` | no | Video recording status (state, frames, segment, size, path, last event) |
 | `emu_videorec_timebase` | no | Recording timebase: emulated time or real time |
+| `emu_frame_hash` | no | SHA-256 of the screen picture and of the VRAM, beam position (no data) |
 | `emu_screenshot_save_to_file` | yes (creates / overwrites a file) | PNG of the screen to a file: area (full / canvas), scale (framebuffer / native dots / window 1-4), crop |
 | `emu_screenshot_series_start` | yes (creates files) | Frame series: a PNG of every changed emulated frame (area, scale, crop, only_changed, frames, max_files) |
 | `emu_screenshot_series_stop` | no | Stop the frame series, by default wait until all frames are written |
@@ -279,7 +283,63 @@ that does not depend on emu state.
 ### `emu_pause`
 
 Pauses CPU emulation. The tool returns once the pause is confirmed
-(= the next call reads consistent state). No arguments.
+(= the next call reads consistent state). Argument:
+
+- `if_run_seq` (int, optional) - pause only while the run with this
+  number runs (see `emu_wait_stop`); a run that someone else started
+  meanwhile (the user in the GUI) is not stopped
+
+Returns `{"paused": <bool>, "was_running": <bool>, "paused_now": <bool>,
+"run_seq": <int>}`, plus `skipped` (`"run_seq_mismatch"` or
+`"not_running"`) when `if_run_seq` prevented the pause. Pausing an
+already paused emulator is not a new stop: no `paused` event.
+
+### `emu_resume`
+
+Resumes emulation without blocking and returns at once with
+`{"running": true, "run_seq": <int>, "already_running": <bool>}`.
+Optional deadline in emulated time, at most one of:
+
+- `deadline_frames` (int, 1..1000000) - stop exactly at the N-th frame
+  boundary
+- `deadline_ms` (int, 1..86400000) - stop after N ms of emulated time
+- `deadline_ticks` (int) - stop after N GDG clock ticks
+
+The deadline is deterministic (emulated time, not wall clock); `ms` and
+`ticks` stop at the first emulation event point at or after the
+deadline, less than one frame late. The stop has the reason
+`"deadline"`, the reply carries `deadline_ticks`. A deadline holds until
+the next pause and survives a machine reset during the run. Wait for
+the stop with `emu_wait_stop`.
+
+### `emu_wait_stop`
+
+Waits until a run stops and returns why and where. A run is the time
+between leaving a pause and the next pause; every run has a number
+`run_seq` (returned by the tools that start a run and by `emu_pause`,
+`emu_get_state`). Arguments:
+
+- `run_seq` (int, optional) - the run to wait for; without it the
+  current run (or the last one when paused)
+- `timeout_ms` (int, 0..25000, default 5000)
+
+Returns `{"done": true, "run_seq", "record": {...}}` or, after the
+timeout, `{"done": false, "running": true, ...}` - call again. The
+record: `reason` (`run_to`, `breakpoint`, `deadline`, `frames`, `step`,
+`manual`, `exit`, `bp_action_saturation`, `event_trigger`), `pc`,
+`bp_id`, `started_by` / `start_cmd` (`mcp` = an agent, `user` = the
+GUI), `stopped_by` (for `manual`), `start_ticks` / `stop_ticks` (GDG
+ticks since reset), `elapsed_ticks`, `frame`, `step`; for `exit` also
+`exit_code`, `exit_reason`, `message`. `history_lost: true` = the run
+stopped, but its record is no longer among the 32 newest. The event
+`paused` carries the same fields. Recipe in `emulator://docs/run_control`.
+
+### `emu_get_stop_history`
+
+Newest stop records, oldest first. Argument `limit` (int, 1..32,
+default 32). Returns `{"records": [...], "count", "current_run_seq",
+"running"}`; same record fields as `emu_wait_stop`. Also available as
+the resource `emulator://run/history`.
 
 ### `emu_run`
 
@@ -358,8 +418,12 @@ Reads N bytes from Z80 memory starting at the given address. Arguments:
 
 - `address` (int, 0..0xFFFF) - start address
 - `length` (int, 1..65536) - number of bytes
+- `want_data` (bool, optional, default true) - false = only the hash
 
-Returns base64-encoded data. No region check - anything readable
+Returns base64-encoded data (`data_b64`) and `sha256` (SHA-256 of the
+bytes, 64 lowercase hex digits). With `want_data=false` only the hash:
+compare it with an earlier read to see whether the memory changed
+without downloading it. No region check - anything readable
 by the CPU (ROM, RAM, peripheral mapped, ...) is returned. Banking
 is respected (= you read what the CPU would see at that address).
 
@@ -449,18 +513,25 @@ for temporarily silencing a BP you want to reactivate later
 
 Executes exactly one Z80 instruction. For CALL/RST the next
 instruction is at the destination address (= steps INTO the
-subroutine, unlike `emu_step_over`). Requires paused state - if
-the emu is running, the tool first pauses it and the step does
-NOT execute (the client must call again).
+subroutine, unlike `emu_step_over`). Requires paused state: the tool
+returns after the step executed (`completed: true`). On a running
+emulator nothing happens and the emulator keeps running
+(`completed: false`, `running: true`). Returns `{"stepped": true,
+"completed", "running", "run_seq"}`; `stepped` is kept for
+compatibility and is always true.
 
 ### `emu_step_over`
 
 Like `emu_step_into` for ordinary instructions, but for
 CALL/RST/DJNZ and block instructions a temporary breakpoint is
 placed at addr+length and run-to executes (= subroutine becomes
-one logical step). Requires paused state. When the run-to stops on its
-temporary breakpoint, the `paused` event carries `reason: "run_to"`
-(see `emu_run_until_addr`).
+one logical step). Requires paused state. An ordinary instruction
+returns after the step (`completed: true`). Over CALL/RST/DJNZ/block
+instructions the tool returns at once (`completed: false`,
+`running: true`); when the run-to stops on its temporary breakpoint,
+the `paused` event carries `reason: "run_to"` (see `emu_run_until_addr`),
+wait with `emu_wait_stop(run_seq)`. On a running emulator the tool
+only pauses it (`paused_only: true`).
 
 ### `emu_step_n`
 
@@ -471,7 +542,8 @@ Executes N instructions as a sequence of `emu_step_into`. Argument:
 If any step fails mid-loop (= BP hit, another reason for the
 pause), the tool returns the partial counter with `partial=true`
 in the response. Return value: `{"count": <int>, "requested":
-<int>, "partial": <bool>}`.
+<int>, "partial": <bool>}`. The tool returns after the last step
+executed.
 
 ### `emu_run_until_addr`
 
@@ -480,9 +552,14 @@ emulation. The emu pauses when PC reaches `addr` (or hits another
 permanent BP first). Arguments:
 
 - `addr` (int, 0..65535) - target PC address
-- `max_cycles` (int, optional, default 10M) - informative timeout
-  in T-states; the client can poll `emu_status` and pause itself
-  if the run takes too long.
+- `max_cycles` (int, optional, default 10M) - informative only, echoed
+  back, limits nothing
+- `deadline_frames` / `deadline_ms` / `deadline_ticks` (int, optional,
+  at most one) - stop the run in emulated time when `addr` is not
+  reached (reason `"deadline"`), see `emu_resume`
+
+The reply is `{"addr", "max_cycles", "running": true, "run_seq"}`
+(plus `deadline_ticks`); wait for the stop with `emu_wait_stop(run_seq)`.
 
 Requires paused state. On a running emulator the call returns the
 error `Emulator is running: run_until_addr needs a paused emulator ...`
@@ -490,9 +567,9 @@ and the emulator keeps running unchanged (a freshly started emulator
 runs, so call `emu_pause` first).
 
 When PC reaches `addr`, the emulator emits the event `paused` with
-`{"reason": "run_to", "pc": <addr>}` (topic `paused`, see
-`emu_event_subscribe`), so the client can wait with `emu_event_poll`
-instead of polling `emu_status`. If a permanent breakpoint stops the
+`{"reason": "run_to", "pc": <addr>, "run_seq": ...}` (topic `paused`, see
+`emu_event_subscribe`), so the client can wait with `emu_wait_stop` or
+`emu_event_poll` instead of polling `emu_status`. If a permanent breakpoint stops the
 emulation first, or sits on `addr` and stops there, the event is the
 breakpoint's (`reason: "breakpoint"`), never both. A permanent
 breakpoint on `addr` that does not stop (condition false, `skip_count`,
@@ -672,13 +749,18 @@ Preconditions:
 
 Arguments:
 
-- `max_cycles` (int, optional, default 10000000) - informational
-  T-state cap.
+- `max_cycles` (int, optional, default 10000000) - informative only,
+  echoed back, limits nothing
+- `deadline_frames` / `deadline_ms` / `deadline_ticks` (int, optional,
+  at most one) - stop in emulated time when the function does not
+  return (reason `"deadline"`), see `emu_resume`
 
-Response: `{"return_addr": <int>, "max_cycles": <int>, "running": true}`
-or an error if callstack tracking is inactive, the stack is empty, or
-the emulator is already running. Reaching `return_addr` emits the
-`paused` event with `reason: "run_to"` (see `emu_run_until_addr`).
+Response: `{"return_addr": <int>, "max_cycles": <int>, "running": true,
+"run_seq": <int>}` (plus `deadline_ticks`) or an error if callstack
+tracking is inactive, the stack is empty, or the emulator is already
+running. Reaching `return_addr` emits the `paused` event with
+`reason: "run_to"` (see `emu_run_until_addr`); wait with
+`emu_wait_stop(run_seq)`.
 
 ### `emu_run_until_raster`
 
@@ -700,9 +782,15 @@ Precision is bounded by Z80 instruction length (4-23 T-states ~
 +/-10 GDG ticks ~ +/-5 visible pixels). Sufficient for mid-frame
 effects.
 
+The loop runs inside one request and cannot be cancelled; it ends
+after at most 20 s of wall-clock time (`time_limited: true`), so that
+the reply comes before the 30 s transport limit. The emulator then stays
+paused where the loop got.
+
 Response: `{"scanline": <int>, "column_pixel": <int>, "frame_number":
 <int>, "total_cycles": <int>, "delta_cycles": <int>, "reached":
-<bool>}`. `reached=false` means the polling loop timed out.
+<bool>, "time_limited": <bool>}`. `reached=false` means the polling
+loop stopped at the safety cap or at the time limit.
 
 ### `emu_run_until_tstate`
 
@@ -722,8 +810,11 @@ Note: `total_cycles` is a uint32 that wraps roughly every 20 minutes
 at 3.5 MHz. Wraparound across the boundary is not handled - typical
 clients target deltas in the order of seconds.
 
+Like `emu_run_until_raster` the loop ends after at most 20 s of
+wall-clock time (`time_limited: true`).
+
 Response: `{"total_cycles": <int>, "target": <int>, "delta_cycles":
-<int>, "reached": <bool>}`.
+<int>, "reached": <bool>, "time_limited": <bool>}`.
 
 ### `emu_run_until_event`
 
@@ -742,9 +833,14 @@ Arguments:
 - `params` (object, optional) - kind-specific
 - `max_cycles` (int, optional, default 10000000) - safety cap
 
+The wait ends after at most 20 s of wall-clock time
+(`time_limited: true`; for `breakpoint_hit` the emulator is then
+paused). For long waits use `emu_resume` with a deadline and
+`emu_wait_stop`.
+
 Response: `{"kind": <str>, "reached": <bool>, "delta_cycles": <int>,
-...}` plus kind-specific fields (`frames_done` for `frame_done`,
-`paused` for `breakpoint_hit`).
+"time_limited": <bool>, ...}` plus kind-specific fields (`frames_done`
+for `frame_done`, `paused` for `breakpoint_hit`).
 
 ### `emu_io_read` (sensitive)
 
@@ -1211,6 +1307,24 @@ PNG pictures of the emulator screen written straight to a file on the
 server host (no large base64 payload in the reply). The workflow with
 recipes is in the MCP document `emulator://docs/screenshot_workflow`; the
 parameters are also described in [headless-mode.md](headless-mode.md).
+
+### `emu_frame_hash`
+
+SHA-256 of the screen picture and of the video memory without
+transferring them. No arguments. `image_sha256` hashes the picture from
+the same source as a screenshot: the palette index of every pixel, row
+by row (`width` x `height` bytes, INDEX8 & 0Fh), then the 16 palette
+colours as R, G, B. `vram_sha256` hashes the video memory (MZ-800: all
+four planes; MZ-700 / MZ-1500: character and attribute VRAM). The
+picture also depends on GDG registers (palette, mode, border), the VRAM
+hash does not. Paused in the middle of a frame, part of the picture is
+still from the previous frame - the reply carries the beam position
+(`beam`: `frame`, `scanline`, `column`) and `paused`. The screenshot
+resources (`emulator://frame/screenshot.raw`, `emulator://frame/screenshot`)
+return the same `image_sha256` (the PNG one for the full framebuffer,
+whatever the area and scale). Returns `{"available", "image_sha256",
+"vram_sha256", "source_screen_id", "image_source", "width", "height",
+"beam", "paused"}`.
 
 ### `emu_screenshot_save_to_file` (sensitive - creates / overwrites a file)
 
@@ -2361,6 +2475,7 @@ Args:
 - `offset` (= byte offset within the region, 0..size-1)
 - `length` (= 1..65536, clamped to region size if
   `offset+length > size`)
+- `want_data` (bool, optional, default true) - false = only the hash
 
 Returns:
 ```json
@@ -2368,7 +2483,8 @@ Returns:
   "region_id": int,
   "offset": int,
   "length": int,        // actually-read length after clamping
-  "data_b64": "..."     // base64-encoded raw bytes
+  "sha256": "...",      // SHA-256 of the bytes read (64 lowercase hex)
+  "data_b64": "..."     // base64-encoded raw bytes (not with want_data=false)
 }
 ```
 

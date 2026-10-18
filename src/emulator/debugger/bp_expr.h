@@ -114,9 +114,9 @@ extern "C" {
         /* Globální emu state (= naplnit z g_mzarch_main / g_gdg). */
         int32_t  InsnPC;        /**< Adresa právě vykonávané instrukce (g_mzarch_main.instruction_addr);
                                      u MEM_R/MEM_W/IORQ je živé PC už za ní. */
-        int64_t  Cycle;         /**< Takty GDG od resetu na začátku instrukce (gdg_get_total_ticks);
+        int64_t  Cycle;         /**< Takty GDG od startu emulátoru na začátku instrukce (gdg_get_total_ticks; reset stroje čítač nenuluje);
                                      ve výrazu oříznuté na int32 (přeteče asi po 121 s PAL). */
-        int64_t  Frame;         /**< Počet dokončených snímků od resetu. */
+        int64_t  Frame;         /**< Počet dokončených snímků od startu emulátoru (reset ho nenuluje). */
         int32_t  FrameCycle;    /**< Takty GDG od začátku aktuálního snímku (0 .. takty snímku - 1),
                                      na začátku instrukce; nepřetéká. */
         int32_t  Scanline;      /**< GDG raster line */

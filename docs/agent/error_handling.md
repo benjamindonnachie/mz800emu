@@ -81,6 +81,12 @@ compatibility and does **not** mean the ID is unknown.
   they return an error saying so (`Emulator is running ...` /
   `... Emulator is not paused ...`) and change nothing; call
   `emu_pause` and repeat.
+- `emu_wait_stop` waits at most 25 s per call (below the 30 s limit of
+  the bundled wrapper, which extends its own timeout by `timeout_ms`);
+  `done: false` is not an error, call it again. The stepping loops
+  `emu_run_until_raster`, `emu_run_until_tstate` and
+  `emu_run_until_event` end after at most 20 s of wall-clock time with
+  `time_limited: true`. See `emulator://docs/run_control`.
 - Send the next request only after the previous response arrived.
 - Bundled Python wrapper: any tool result may carry `restarted: true`
   and `restart_reason` (a failed call: error text ending with

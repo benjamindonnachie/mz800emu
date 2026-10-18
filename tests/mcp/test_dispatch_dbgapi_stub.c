@@ -799,11 +799,65 @@ bool dbgapi_ui_submit_cmd_sync_with_origin(st_DBGAPI_CMDRQ_QUEUE *queue,
         case DBGAPI_CMD_STEP_INTO:
             /* V0.B.6 - inkrementuj counter (pro step_n + step_into testy). */
             g_stub_state.step_into_calls++;
+            /* run-control: v pauze krok jedné instrukce, za běhu nic. */
+            if (result_ptr) {
+                st_DBGAPI_RUN_START_RESULT *r = (st_DBGAPI_RUN_START_RESULT *)result_ptr;
+                r->status = g_stub_state.is_running ? DBGAPI_RUN_START_NOT_PAUSED
+                                                    : DBGAPI_RUN_TO_STARTED;
+                r->step = !g_stub_state.is_running;
+                r->run_seq = g_stub_state.run_seq;
+            }
             break;
 
         case DBGAPI_CMD_STEP_OVER:
             /* V0.B.6 - counter pro step_over test. */
             g_stub_state.step_over_calls++;
+            /* run-control: step_over_runs = CALL (běh k dočasnému BP). */
+            if (result_ptr) {
+                st_DBGAPI_RUN_START_RESULT *r = (st_DBGAPI_RUN_START_RESULT *)result_ptr;
+                r->status = g_stub_state.is_running ? DBGAPI_RUN_TO_PAUSED_ONLY
+                                                    : DBGAPI_RUN_TO_STARTED;
+                r->step = !g_stub_state.is_running && !g_stub_state.step_over_runs;
+                r->run_seq = g_stub_state.run_seq;
+            }
+            break;
+
+        case DBGAPI_CMD_RUN:
+            /* run-control: číslo běhu, už běžící běh = NOT_PAUSED. */
+            if (result_ptr) {
+                st_DBGAPI_RUN_START_RESULT *r = (st_DBGAPI_RUN_START_RESULT *)result_ptr;
+                r->status = g_stub_state.is_running ? DBGAPI_RUN_START_NOT_PAUSED
+                                                    : DBGAPI_RUN_TO_STARTED;
+                r->step = false;
+                r->run_seq = g_stub_state.run_seq;
+            }
+            break;
+
+        case DBGAPI_CMD_PAUSE:
+            /* run-control: podmíněná pauza if_run_seq podle is_running a run_seq. */
+            if (data_ptr) {
+                st_DBGAPI_PAUSE_PARAM *pp = (st_DBGAPI_PAUSE_PARAM *)data_ptr;
+                g_stub_state.pause_last = *pp;
+                pp->was_running = g_stub_state.is_running;
+                pp->run_seq = g_stub_state.run_seq;
+                pp->paused_now = g_stub_state.is_running
+                                 && (!pp->has_if_run_seq || pp->if_run_seq == g_stub_state.run_seq);
+            }
+            break;
+
+        case DBGAPI_CMD_RUN_DEADLINE:
+            /* run-control: zachytí nastavení / zrušení deadlinu. */
+            if (data_ptr) {
+                st_DBGAPI_RUN_DEADLINE_PARAM *dp = (st_DBGAPI_RUN_DEADLINE_PARAM *)data_ptr;
+                g_stub_state.deadline_last = *dp;
+                if (dp->arm) {
+                    g_stub_state.deadline_arms++;
+                    dp->ticks = dp->value * 10u;
+                } else {
+                    g_stub_state.deadline_clears++;
+                }
+                dp->valid = true;
+            }
             break;
 
         case DBGAPI_CMD_RUN_TO:
@@ -811,10 +865,11 @@ bool dbgapi_ui_submit_cmd_sync_with_origin(st_DBGAPI_CMDRQ_QUEUE *queue,
             if (data_ptr) {
                 g_stub_state.run_to_last_addr = *(uint16_t *)data_ptr;
             }
-            /* mcp-inbox-fixes: volitelný int* výsledek (spuštěno / emulace
-             * běžela a jen se pauzla). */
+            /* mcp-inbox-fixes: volitelný výsledek rozběhu (spuštěno /
+             * emulace běžela a jen se pauzla). */
             if (result_ptr) {
-                *(int *)result_ptr = g_stub_state.run_to_result;
+                ((st_DBGAPI_RUN_START_RESULT *)result_ptr)->status = g_stub_state.run_to_result;
+                ((st_DBGAPI_RUN_START_RESULT *)result_ptr)->run_seq = g_stub_state.run_seq;
             }
             break;
 
@@ -2568,6 +2623,7 @@ const char *dbgapi_cmd_to_str ( en_DBGAPI_CMD cmd )
     {
         case DBGAPI_CMD_NONE:           return "none";
         case DBGAPI_CMD_PAUSE:          return "pause";
+        case DBGAPI_CMD_RUN_DEADLINE:   return "run_deadline";
         case DBGAPI_CMD_RUN:            return "run";
         case DBGAPI_CMD_RESET:          return "reset";
         case DBGAPI_CMD_STEP_INTO:      return "step_into";

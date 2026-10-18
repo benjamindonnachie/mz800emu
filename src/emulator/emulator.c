@@ -26,6 +26,7 @@
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
 #include "debugger/debugger.h"
 #include "debugger/bptmap.h"
+#include "debugger/run_control/run_log.h"
 #endif
 
 #include "generic_driver/memory_driver.h"
@@ -71,6 +72,11 @@ static void emulator_exit_cleanup(void)
 
 void emulator_quit(int exit_value)
 {
+#ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
+    /* Probudit čekání MCP na zastavení běhu (wait_stop), ať dispatch
+     * vlákno neblokuje ukončení až do svého timeoutu. */
+    run_log_shutdown();
+#endif
     if (exit_value == 0)
     {
         /* Konec zvenku (SIGINT, zavření okna, MCP shutdown) nebo po
@@ -109,6 +115,9 @@ void emulator_quit(int exit_value)
 
 void emulator_quit_with_code(int exit_value)
 {
+#ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
+    run_log_shutdown(); /* viz emulator_quit() */
+#endif
     g_emulator_exit_value = exit_value;
     emulator_exit_cleanup();
 

@@ -64,6 +64,7 @@ mz_add_test(mcp_dispatch
         ${CMAKE_SOURCE_DIR}/src/emulator/audio_analysis.c
         ${CMAKE_SOURCE_DIR}/src/emulator/debugger/trace/ramlog.c
         ${CMAKE_SOURCE_DIR}/src/emulator/debugger/memsearch/memsearch.c
+        ${CMAKE_SOURCE_DIR}/src/emulator/debugger/run_control/run_log.c
     LABELS   "standalone;mcp"
 )
 
@@ -772,6 +773,63 @@ if(Python3_FOUND)
         TIMEOUT 120
     )
     message(STATUS "  tests/mcp: registered mcp_run_to_paused_event "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
+    # Krokování přes hranici snímku neztratí krok (pipe)
+    # -----------------------------------------------------------
+    # Blok konce snímku dřív vybíral frontu dbgapi i během kroku a další
+    # STEP_INTO se ztratil: step_n posunul PC o krok méně na každé hranici
+    # snímku. 20x step_n 1000 nad NOPy + jednotlivé step_into přes hranici.
+    add_test(
+        NAME    mcp_step_frame_boundary
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_step_frame_boundary.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_step_frame_boundary PROPERTIES
+        LABELS  "e2e;mcp;pipe;debugger"
+        TIMEOUT 300
+    )
+    message(STATUS "  tests/mcp: registered mcp_step_frame_boundary "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
+    # Řízení běhu: čísla běhů, wait_stop, deadline, pause(if_run_seq) (pipe)
+    # -----------------------------------------------------------
+    # deadline v emulovaném čase (snímky, ms), determinismus délky běhu,
+    # resumed + jediný paused, step_over přes CALL = běh, wait_stop timeout,
+    # podmíněná pauza, přerušený run(frames) nezastaví další běh, historie.
+    add_test(
+        NAME    mcp_run_control
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_run_control.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_run_control PROPERTIES
+        LABELS  "e2e;mcp;pipe;debugger"
+        TIMEOUT 180
+    )
+    message(STATUS "  tests/mcp: registered mcp_run_control "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
+    # SHA-256 u čtení paměti, regionů a obrazu (pipe)
+    # -----------------------------------------------------------
+    # mem_read / region_read sha256 proti hashlib, want_data false,
+    # frame_hash stabilní v pauze a shodný se screenshotem, změna po
+    # zápisu do VRAM.
+    add_test(
+        NAME    mcp_read_sha256
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_read_sha256.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_read_sha256 PROPERTIES
+        LABELS  "e2e;mcp;pipe;debugger"
+        TIMEOUT 120
+    )
+    message(STATUS "  tests/mcp: registered mcp_read_sha256 "
                    "(Python ${Python3_VERSION})")
 
     # -----------------------------------------------------------

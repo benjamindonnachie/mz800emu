@@ -64,6 +64,7 @@
 #include "../audio_analysis.h"
 #include "../debugger/trace/ramlog_hook.h"
 #include "../debugger/memsearch/memsearch.h"
+#include "../debugger/run_control/run_log.h"
 #include <math.h>
 /* CMTSPEED_CUSTOM pro cmt_tape_block_speed s vlastními pulzy */
 #include "libs/cmtspeed/cmtspeed.h"
@@ -393,6 +394,12 @@ static en_MCP_DISPATCH_RESULT _handle_step_n(const st_JSONL_MESSAGE *req,
                                              char **out_response);
 static en_MCP_DISPATCH_RESULT _handle_run_until_addr(const st_JSONL_MESSAGE *req,
                                                      char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_wait_stop(const st_JSONL_MESSAGE *req,
+                                                char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_get_stop_history(const st_JSONL_MESSAGE *req,
+                                                       char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_frame_hash(const st_JSONL_MESSAGE *req,
+                                                 char **out_response);
 /* V0.B.7 - resource backing pro emulator://config/mcp */
 static en_MCP_DISPATCH_RESULT _handle_get_mcp_config(const st_JSONL_MESSAGE *req,
                                                      char **out_response);
@@ -1210,6 +1217,11 @@ static const st_MCP_CMD_MAP_ENTRY g_cmd_map[] = {
     { "memsearch_list",           DBGAPI_CMD_NONE,                    _handle_memsearch_list           },
     { "memsearch_eliminate",      DBGAPI_CMD_NONE,                    _handle_memsearch_eliminate      },
     { "memsearch_close",          DBGAPI_CMD_NONE,                    _handle_memsearch_close          },
+    /* run-control (M5): čekání na zastavení a historie zastavení (lokální). */
+    { "wait_stop",                DBGAPI_CMD_NONE,                    _handle_wait_stop                },
+    { "get_stop_history",         DBGAPI_CMD_NONE,                    _handle_get_stop_history         },
+    /* run-control (M5): SHA-256 obrazu a VRAM bez přenosu dat. */
+    { "frame_hash",               DBGAPI_CMD_FRAME_HASH,              _handle_frame_hash               },
     /* sentinel */
     { NULL,              DBGAPI_CMD_NONE,              NULL                  },
 };
@@ -1460,8 +1472,9 @@ static en_MCP_DISPATCH_RESULT _handle_ping(const st_JSONL_MESSAGE *req,
  * @brief `get_state` handler - vrací stav emulace.
  *
  * Volá `DBGAPI_CMD_IS_RUNNING` (result: bool*). Sestaví response s
- * polem `paused` (= `!is_running`). Frame counter / cycles by mělo
- * přidat V0.B (vyžaduje GET_RASTER_POS nebo equivalentní dbgapi call).
+ * polem `paused` (= `!is_running`) a `run_seq` (číslo běžícího, v pauze
+ * posledního běhu, run_log.h). Frame counter / cycles by mělo přidat V0.B
+ * (vyžaduje GET_RASTER_POS nebo equivalentní dbgapi call).
  *
  * Při selhání dbgapi sestaví error response.
  */
@@ -1476,6 +1489,8 @@ static en_MCP_DISPATCH_RESULT _handle_get_state(const st_JSONL_MESSAGE *req,
     JsonObject *data = json_object_new();
     json_object_set_boolean_member(data, "running", is_running);
     json_object_set_boolean_member(data, "paused", !is_running);
+    /* run-control: číslo běžícího (v pauze posledního) běhu, viz wait_stop. */
+    json_object_set_int_member(data, "run_seq", (gint64)run_log_current(NULL));
 
     /* V1.D.1 - last_user_action field. Pokud žádná USER akce nebyla,
      * vystavíme JSON null (= AI vidí "user nic neudělal od startu emu"). */
@@ -1495,20 +1510,295 @@ static en_MCP_DISPATCH_RESULT _handle_get_state(const st_JSONL_MESSAGE *req,
 }
 
 
+/* ------------------------------------------------------------------ */
+/* run-control (M5): záznamy zastavení, deadline, čekání na zastavení  */
+/* ------------------------------------------------------------------ */
+
+/** @brief Nejdelší čekání `wait_stop` [ms] (pod 30 s limitem wrapperu MCP). */
+#define MCP_WAIT_STOP_MAX_MS RUN_LOG_WAIT_MAX_MS
+
+/** @brief Výchozí čekání `wait_stop` [ms]. */
+#define MCP_WAIT_STOP_DEFAULT_MS 5000
+
+/**
+ * @brief Strop doby krokovacích smyček `run_until_raster`, `run_until_tstate`
+ *        a `run_until_event` [ms] (N3).
+ *
+ * Smyčky běží v dispatch vlákně a nejdou zrušit; wrapper MCP čeká na
+ * odpověď nejvýš 30 s. Po vypršení smyčka skončí s `time_limited: true`
+ * a emulace stojí v pauze tam, kam došla.
+ */
+#define MCP_STEP_LOOP_TIME_LIMIT_MS 20000
+
+
+/**
+ * @brief Převede záznam zastavení na JSON objekt (MCP wait_stop, historie).
+ *
+ * @param rec Záznam (run_log.h).
+ * @return Nový JsonObject (vlastník volající).
+ */
+static JsonObject *_stop_record_to_json(const st_RUN_LOG_RECORD *rec) {
+    JsonObject *o = json_object_new();
+    json_object_set_int_member(o, "run_seq", (gint64)rec->run_seq);
+    json_object_set_string_member(o, "reason", rec->reason);
+    json_object_set_int_member(o, "pc", rec->pc);
+    json_object_set_boolean_member(o, "step", rec->step ? TRUE : FALSE);
+    json_object_set_string_member(o, "started_by", rec->started_by);
+    json_object_set_string_member(o, "start_cmd", rec->start_cmd);
+    json_object_set_string_member(o, "stopped_by", rec->stopped_by);
+    json_object_set_int_member(o, "start_ticks", (gint64)rec->start_ticks);
+    json_object_set_int_member(o, "stop_ticks", (gint64)rec->stop_ticks);
+    json_object_set_int_member(o, "elapsed_ticks", (gint64)rec->elapsed_ticks);
+    json_object_set_int_member(o, "frame", (gint64)rec->stop_frame);
+    if (rec->bp_id >= 0) json_object_set_int_member(o, "bp_id", rec->bp_id);
+    if (strcmp(rec->reason, "exit") == 0) {
+        json_object_set_int_member(o, "exit_code", rec->exit_code);
+        json_object_set_string_member(o, "exit_reason", rec->exit_reason);
+        if (rec->detail[0]) json_object_set_string_member(o, "message", rec->detail);
+    } else if (strcmp(rec->reason, "bp_action_saturation") == 0) {
+        json_object_set_int_member(o, "bytes", (gint64)rec->bytes);
+        json_object_set_string_member(o, "detail", rec->detail);
+    }
+    return o;
+}
+
+
+/**
+ * @brief Načte volitelný parametr `deadline` (objekt s právě jedním klíčem).
+ *
+ * Tvary: `{"frames": N}` (1..1000000), `{"emulated_ms": N}` (1..86400000),
+ * `{"ticks": N}` (takty GDG, >= 1). Hodnoty druhu odpovídají
+ * en_RUN_DEADLINE_KIND (run_control.h): 0 frames, 1 emulated_ms, 2 ticks.
+ *
+ * @param obj Objekt `data` požadavku (smí být NULL).
+ * @param[out] out Parametr pro DBGAPI_CMD_RUN_DEADLINE (arm = true).
+ * @param[out] present true = parametr je v požadavku.
+ * @param[out] err Chybová hláška (anglicky) při návratu false.
+ * @param err_size Velikost @p err.
+ * @return false = neplatný tvar nebo hodnota.
+ */
+static bool _parse_deadline(JsonObject *obj, st_DBGAPI_RUN_DEADLINE_PARAM *out,
+                            bool *present, char *err, size_t err_size) {
+    memset(out, 0, sizeof(*out));
+    *present = false;
+    if (!obj || !json_object_has_member(obj, "deadline")) return true;
+    JsonNode *n = json_object_get_member(obj, "deadline");
+    if (!n || json_node_get_node_type(n) == JSON_NODE_NULL) return true;
+    if (json_node_get_node_type(n) != JSON_NODE_OBJECT) {
+        g_snprintf(err, err_size, "deadline must be an object: {frames|emulated_ms|ticks: N}");
+        return false;
+    }
+    JsonObject *d = json_node_get_object(n);
+    static const struct { const char *key; int kind; gint64 max; } KINDS[] = {
+        { "frames",      0, 1000000LL },
+        { "emulated_ms", 1, 86400000LL },
+        { "ticks",       2, G_MAXINT64 / 4 },
+    };
+    int found = 0;
+    for (size_t i = 0; i < G_N_ELEMENTS(KINDS); i++) {
+        if (!json_object_has_member(d, KINDS[i].key)) continue;
+        found++;
+        gint64 v = _obj_int_or(d, KINDS[i].key, -1);
+        if (v < 1 || v > KINDS[i].max) {
+            g_snprintf(err, err_size, "deadline.%s must be in range 1..%" G_GINT64_FORMAT,
+                       KINDS[i].key, KINDS[i].max);
+            return false;
+        }
+        out->kind = KINDS[i].kind;
+        out->value = (uint64_t)v;
+    }
+    if (found != 1 || json_object_get_size(d) != 1) {
+        g_snprintf(err, err_size, "deadline must have exactly one of: frames, emulated_ms, ticks");
+        return false;
+    }
+    out->arm = true;
+    *present = true;
+    return true;
+}
+
+
+/**
+ * @brief Nastaví deadline v emulátoru (DBGAPI_CMD_RUN_DEADLINE).
+ *
+ * @param p Parametr z _parse_deadline() (na výstupu `ticks`).
+ * @return false = emulátor deadline nepřijal nebo příkaz neproběhl.
+ */
+static bool _arm_deadline(st_DBGAPI_RUN_DEADLINE_PARAM *p) {
+    return _submit_dbgapi(DBGAPI_CMD_RUN_DEADLINE, p, NULL);
+}
+
+
+/** @brief Zruší deadline (příkaz, pro který byl nastavený, selhal). */
+static void _clear_deadline(void) {
+    st_DBGAPI_RUN_DEADLINE_PARAM p;
+    memset(&p, 0, sizeof(p));
+    p.arm = false;
+    (void)_submit_dbgapi(DBGAPI_CMD_RUN_DEADLINE, &p, NULL);
+}
+
+
+/**
+ * @brief Doplní do odpovědi rozběhu délku deadlinu.
+ *
+ * @param resp Odpověď.
+ * @param present Deadline byl v požadavku.
+ * @param p Parametr po nastavení (`ticks` = délka v taktech GDG od nastavení).
+ */
+static void _deadline_to_json(JsonObject *resp, bool present,
+                              const st_DBGAPI_RUN_DEADLINE_PARAM *p) {
+    if (!present) return;
+    json_object_set_int_member(resp, "deadline_ticks", (gint64)p->ticks);
+}
+
+
+/**
+ * @brief `wait_stop` handler - počká, až skončí běh (nejvýš 25 s).
+ *
+ * Parametry v `data` (volitelné):
+ *  - `run_seq` (int) - číslo běhu; bez něj aktuální (běžící) nebo poslední běh
+ *  - `timeout_ms` (int, 0..25000, default 5000)
+ *
+ * Response:
+ *  - `done` (bool) - běh skončil
+ *  - `run_seq` (int) - číslo běhu, na který se čekalo
+ *  - `current_run_seq` (int), `running` (bool) - stav v okamžiku odpovědi
+ *  - `record` (objekt) - záznam zastavení (jen `done` a záznam v historii)
+ *  - `history_lost` (bool) - `done`, ale záznam už historie přepsala
+ *  - `shutdown` (bool) - emulátor končí, čekání přerušeno
+ *
+ * Lokální handler: čeká na dispatch vlákně (run_log_wait), frontu dbgapi
+ * neblokuje.
+ */
+static en_MCP_DISPATCH_RESULT _handle_wait_stop(const st_JSONL_MESSAGE *req,
+                                                char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonNode *data_node = (JsonNode *)jsonl_msg_get_data_node(req);
+    JsonObject *obj = (data_node && json_node_get_node_type(data_node) == JSON_NODE_OBJECT)
+                      ? json_node_get_object(data_node) : NULL;
+    gint64 timeout_ms = obj ? _obj_int_or(obj, "timeout_ms", MCP_WAIT_STOP_DEFAULT_MS)
+                            : MCP_WAIT_STOP_DEFAULT_MS;
+    if (timeout_ms < 0 || timeout_ms > MCP_WAIT_STOP_MAX_MS) {
+        return _err_response(req_id, "timeout_ms must be in range 0..25000",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    uint64_t seq;
+    if (obj && json_object_has_member(obj, "run_seq")) {
+        gint64 v = _obj_int_or(obj, "run_seq", -1);
+        if (v < 0) {
+            return _err_response(req_id, "run_seq must be >= 0",
+                                 MCP_DISPATCH_INVALID_PARAMS, out_response);
+        }
+        seq = (uint64_t)v;
+    } else {
+        seq = run_log_current(NULL);
+    }
+
+    st_RUN_LOG_RECORD rec;
+    bool found = false;
+    en_RUN_LOG_WAIT w = run_log_wait(seq, (int)timeout_ms, &rec, &found);
+    bool running = false;
+    uint64_t cur = run_log_current(&running);
+
+    JsonObject *resp = json_object_new();
+    json_object_set_boolean_member(resp, "done", (w == RUN_LOG_WAIT_DONE) ? TRUE : FALSE);
+    json_object_set_int_member(resp, "run_seq", (gint64)seq);
+    json_object_set_int_member(resp, "current_run_seq", (gint64)cur);
+    json_object_set_boolean_member(resp, "running", running ? TRUE : FALSE);
+    if (w == RUN_LOG_WAIT_DONE) {
+        if (found) {
+            json_object_set_object_member(resp, "record", _stop_record_to_json(&rec));
+        } else {
+            json_object_set_boolean_member(resp, "history_lost", TRUE);
+        }
+    }
+    if (w == RUN_LOG_WAIT_SHUTDOWN) {
+        json_object_set_boolean_member(resp, "shutdown", TRUE);
+    }
+    return _ok_response(req_id, resp, out_response);
+}
+
+
+/**
+ * @brief `get_stop_history` handler - posledních N záznamů zastavení.
+ *
+ * Parametr `limit` (int, 1..RUN_LOG_CAPACITY, default RUN_LOG_CAPACITY).
+ * Response: `records` (od nejstaršího), `count`, `current_run_seq`,
+ * `running`. Backing pro resource `emulator://run/history`.
+ */
+static en_MCP_DISPATCH_RESULT _handle_get_stop_history(const st_JSONL_MESSAGE *req,
+                                                       char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonNode *data_node = (JsonNode *)jsonl_msg_get_data_node(req);
+    JsonObject *obj = (data_node && json_node_get_node_type(data_node) == JSON_NODE_OBJECT)
+                      ? json_node_get_object(data_node) : NULL;
+    gint64 limit = obj ? _obj_int_or(obj, "limit", RUN_LOG_CAPACITY) : RUN_LOG_CAPACITY;
+    if (limit < 1 || limit > RUN_LOG_CAPACITY) {
+        return _err_response(req_id, "limit must be in range 1..32",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    st_RUN_LOG_RECORD recs[RUN_LOG_CAPACITY];
+    unsigned n = run_log_history(recs, (unsigned)limit);
+    bool running = false;
+    uint64_t cur = run_log_current(&running);
+    JsonObject *resp = json_object_new();
+    JsonArray *arr = json_array_sized_new(n);
+    for (unsigned i = 0; i < n; i++) {
+        json_array_add_object_element(arr, _stop_record_to_json(&recs[i]));
+    }
+    json_object_set_array_member(resp, "records", arr);
+    json_object_set_int_member(resp, "count", (gint64)n);
+    json_object_set_int_member(resp, "current_run_seq", (gint64)cur);
+    json_object_set_boolean_member(resp, "running", running ? TRUE : FALSE);
+    return _ok_response(req_id, resp, out_response);
+}
+
+
 /**
  * @brief `pause` handler - pozastaví emulaci.
  *
- * Proxy na `DBGAPI_CMD_PAUSE`. Vrací `{"paused": true}` při úspěchu.
+ * Proxy na `DBGAPI_CMD_PAUSE` se st_DBGAPI_PAUSE_PARAM. Volitelný parametr
+ * `if_run_seq` (int): pozastaví jen běžící běh s tímto číslem, takže agent
+ * nezastaví běh, který mezitím spustil člověk v GUI.
+ *
+ * Response:
+ *  - `paused` (bool) - emulace je po příkazu v pauze (bez `if_run_seq`
+ *    vždy true)
+ *  - `was_running` (bool), `paused_now` (bool) - běžela / příkaz ji zastavil
+ *  - `run_seq` (int) - číslo běhu běžícího před příkazem (nebo posledního)
+ *  - `skipped` (string, jen s `if_run_seq` bez zastavení) - "not_running"
+ *    nebo "run_seq_mismatch"
  */
 static en_MCP_DISPATCH_RESULT _handle_pause(const st_JSONL_MESSAGE *req,
                                             char **out_response) {
     int64_t req_id = jsonl_msg_get_req_id(req);
-    if (!_submit_dbgapi(DBGAPI_CMD_PAUSE, NULL, NULL)) {
+    JsonNode *data_node = (JsonNode *)jsonl_msg_get_data_node(req);
+    JsonObject *obj = (data_node && json_node_get_node_type(data_node) == JSON_NODE_OBJECT)
+                      ? json_node_get_object(data_node) : NULL;
+    st_DBGAPI_PAUSE_PARAM pp;
+    memset(&pp, 0, sizeof(pp));
+    if (obj && json_object_has_member(obj, "if_run_seq")) {
+        gint64 v = _obj_int_or(obj, "if_run_seq", -1);
+        if (v < 0) {
+            return _err_response(req_id, "if_run_seq must be >= 0",
+                                 MCP_DISPATCH_INVALID_PARAMS, out_response);
+        }
+        pp.has_if_run_seq = true;
+        pp.if_run_seq = (uint64_t)v;
+    }
+    if (!_submit_dbgapi(DBGAPI_CMD_PAUSE, &pp, NULL)) {
         return _err_response(req_id, "Pause failed",
                              MCP_DISPATCH_EMU_ERROR, out_response);
     }
+    bool paused_after = !pp.was_running || pp.paused_now;
     JsonObject *data = json_object_new();
-    json_object_set_boolean_member(data, "paused", TRUE);
+    json_object_set_boolean_member(data, "paused", paused_after ? TRUE : FALSE);
+    json_object_set_boolean_member(data, "was_running", pp.was_running ? TRUE : FALSE);
+    json_object_set_boolean_member(data, "paused_now", pp.paused_now ? TRUE : FALSE);
+    json_object_set_int_member(data, "run_seq", (gint64)pp.run_seq);
+    if (pp.has_if_run_seq && !pp.paused_now) {
+        json_object_set_string_member(data, "skipped",
+                                      pp.was_running ? "run_seq_mismatch" : "not_running");
+    }
     return _ok_response(req_id, data, out_response);
 }
 
@@ -1518,8 +1808,11 @@ static en_MCP_DISPATCH_RESULT _handle_pause(const st_JSONL_MESSAGE *req,
  *
  * Dvě cesty podle parametru `frames`:
  *  - **Async (legacy)** - frames chybí nebo == 0: jen submit
- *    `DBGAPI_CMD_RUN` (= unpause), response `{"running": true}`.
- *    Emulátor běží asynchronně dál.
+ *    `DBGAPI_CMD_RUN` (= unpause), response `{"running": true, "run_seq",
+ *    "already_running"}`. Emulátor běží asynchronně dál. Volitelný
+ *    `deadline` ({frames|emulated_ms|ticks: N}) běh zastaví v emulovaném
+ *    čase (reason "deadline", odpověď navíc `deadline_ticks`); na konec
+ *    běhu jde čekat přes `wait_stop`.
  *  - **Blokující (deterministická)** - frames > 0: submit
  *    `DBGAPI_CMD_RUN_FRAMES`. Emu vlákno samo deterministicky doběhne N
  *    framů a pausne se přesně na N-té frame hranici (= emu-side stop
@@ -1558,9 +1851,10 @@ static en_MCP_DISPATCH_RESULT _handle_run(const st_JSONL_MESSAGE *req,
     /* Parse frames z optional data objektu. Default 0 = async (legacy). */
     gint64 frames = 0;
     JsonNode *data_node = (JsonNode *)jsonl_msg_get_data_node(req);
+    JsonObject *obj = NULL;
     if (data_node
         && json_node_get_node_type(data_node) == JSON_NODE_OBJECT) {
-        JsonObject *obj = json_node_get_object(data_node);
+        obj = json_node_get_object(data_node);
         frames = _obj_int_or(obj, "frames", 0);
     }
 
@@ -1571,15 +1865,41 @@ static en_MCP_DISPATCH_RESULT _handle_run(const st_JSONL_MESSAGE *req,
                              MCP_DISPATCH_INVALID_PARAMS, out_response);
     }
 
+    /* Deadline v emulovaném čase (run-control) jen u asynchronního běhu;
+     * frames je sám deterministický limit. */
+    st_DBGAPI_RUN_DEADLINE_PARAM dl;
+    bool has_deadline = false;
+    char dl_err[128];
+    if (!_parse_deadline(obj, &dl, &has_deadline, dl_err, sizeof(dl_err))) {
+        return _err_response(req_id, dl_err, MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    if (has_deadline && frames > 0) {
+        return _err_response(req_id, "deadline cannot be combined with frames",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+
     if (frames == 0) {
         /* Async path (legacy) - jen unpause, response `running: true`.
-         * Side effect: emulator_pause(false) + audio resume + UI update. */
-        if (!_submit_dbgapi(DBGAPI_CMD_RUN, NULL, NULL)) {
+         * Side effect: emulator_pause(false) + audio resume + UI update.
+         * S deadline se emulace sama zastaví (reason "deadline"); deadline
+         * platí do nejbližší pauzy. */
+        if (has_deadline && !_arm_deadline(&dl)) {
+            return _err_response(req_id, "Invalid deadline",
+                                 MCP_DISPATCH_INVALID_PARAMS, out_response);
+        }
+        st_DBGAPI_RUN_START_RESULT rr;
+        memset(&rr, 0, sizeof(rr));
+        if (!_submit_dbgapi(DBGAPI_CMD_RUN, NULL, &rr)) {
+            if (has_deadline) _clear_deadline();
             return _err_response(req_id, "Run failed",
                                  MCP_DISPATCH_EMU_ERROR, out_response);
         }
         JsonObject *data = json_object_new();
         json_object_set_boolean_member(data, "running", TRUE);
+        json_object_set_int_member(data, "run_seq", (gint64)rr.run_seq);
+        json_object_set_boolean_member(data, "already_running",
+                                       (rr.status == DBGAPI_RUN_START_NOT_PAUSED) ? TRUE : FALSE);
+        _deadline_to_json(data, has_deadline, &dl);
         return _ok_response(req_id, data, out_response);
     }
 
@@ -1662,6 +1982,8 @@ static en_MCP_DISPATCH_RESULT _handle_run(const st_JSONL_MESSAGE *req,
 
     JsonObject *data = json_object_new();
     json_object_set_boolean_member(data, "running", FALSE);
+    /* Číslo běhu, který právě skončil (emulace stojí, run_log.h). */
+    json_object_set_int_member(data, "run_seq", (gint64)run_log_current(NULL));
     json_object_set_int_member(data, "actual_frames", actual);
     json_object_set_int_member(data, "requested_frames", frames);
     json_object_set_string_member(data, "stopped_by", stopped_by);
@@ -3875,6 +4197,47 @@ static gchar *_b64_encode_take(const guint8 *data, gsize len) {
 
 
 /**
+ * @brief Načte volitelný parametr `want_data` (default true).
+ *
+ * @param obj Objekt `data` požadavku (smí být NULL).
+ * @param[out] out Hodnota parametru.
+ * @return false = parametr není bool.
+ */
+static bool _parse_want_data(JsonObject *obj, bool *out) {
+    *out = true;
+    if (!obj || !json_object_has_member(obj, "want_data")) return true;
+    JsonNode *n = json_object_get_member(obj, "want_data");
+    if (!n || json_node_get_value_type(n) != G_TYPE_BOOLEAN) return false;
+    *out = json_node_get_boolean(n) ? true : false;
+    return true;
+}
+
+
+/**
+ * @brief Doplní do odpovědi čtení pole `sha256` (a `data_b64`, chce-li klient data).
+ *
+ * SHA-256 přes GLib (stejná implementace jako checksum snapshotu), 64 hex
+ * znaků malými písmeny, nad přečtenými bajty.
+ *
+ * @param resp Odpověď.
+ * @param buf Přečtená data.
+ * @param len Délka dat.
+ * @param want_data false = bez `data_b64` (jen hash).
+ */
+static void _read_result_to_json(JsonObject *resp, const uint8_t *buf, gsize len,
+                                 bool want_data) {
+    gchar *hex = g_compute_checksum_for_data(G_CHECKSUM_SHA256, buf, len);
+    json_object_set_string_member(resp, "sha256", hex ? hex : "");
+    g_free(hex);
+    if (want_data) {
+        gchar *b64 = g_base64_encode(buf, len);
+        json_object_set_string_member(resp, "data_b64", b64 ? b64 : "");
+        g_free(b64);
+    }
+}
+
+
+/**
  * @brief `mem_read` handler - čte blok paměti.
  *
  * Parametry v `data` poli requestu:
@@ -3883,10 +4246,13 @@ static gchar *_b64_encode_take(const guint8 *data, gsize len) {
  *    <= 65536 jinak se neauthorizujeme (= MEM_READ adresuje 16-bit
  *    prostor s wrap-around v emulátoru, ale my odmítáme)
  *
+ *  - `want_data` (bool, volitelný, default true) - false = jen hash
+ *
  * Response payload:
  *  - `addr` (int) - echo
  *  - `len`  (int) - echo
- *  - `data_b64` (string) - obsah paměti zakódovaný base64
+ *  - `sha256` (string) - SHA-256 přečtených bajtů (64 hex, malá písmena)
+ *  - `data_b64` (string, jen s want_data) - obsah paměti zakódovaný base64
  */
 static en_MCP_DISPATCH_RESULT _handle_mem_read(const st_JSONL_MESSAGE *req,
                                                char **out_response) {
@@ -3904,6 +4270,11 @@ static en_MCP_DISPATCH_RESULT _handle_mem_read(const st_JSONL_MESSAGE *req,
         return _err_response(req_id, "Invalid parameters",
                              MCP_DISPATCH_INVALID_PARAMS, out_response);
     }
+    bool want_data = true;
+    if (!_parse_want_data(data_obj, &want_data)) {
+        return _err_response(req_id, "want_data must be a boolean",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
     uint8_t *buf = g_malloc0((gsize)len);
     st_DBGAPI_MEM_PARAM param = {
         .addr = (uint16_t)addr,
@@ -3915,13 +4286,11 @@ static en_MCP_DISPATCH_RESULT _handle_mem_read(const st_JSONL_MESSAGE *req,
         return _err_response(req_id, "MEM_READ failed",
                              MCP_DISPATCH_EMU_ERROR, out_response);
     }
-    gchar *b64 = _b64_encode_take(buf, (gsize)len);
-    g_free(buf);
     JsonObject *resp = json_object_new();
     json_object_set_int_member(resp, "addr", addr);
     json_object_set_int_member(resp, "len",  len);
-    json_object_set_string_member(resp, "data_b64", b64 ? b64 : "");
-    g_free(b64);
+    _read_result_to_json(resp, buf, (gsize)len, want_data);
+    g_free(buf);
     return _ok_response(req_id, resp, out_response);
 }
 
@@ -4377,25 +4746,69 @@ static en_MCP_DISPATCH_RESULT _handle_bp_enable(const st_JSONL_MESSAGE *req,
 
 
 /**
+ * @brief Počká, až emulátor dokončí vyžádaný krok jedné instrukce.
+ *
+ * Krok se provede po dokončení příkazu kroku, v pauze se fronta dbgapi
+ * vybírá až po kroku (dbgapi_emu_drain_paused()). Prázdný příkaz
+ * (DBGAPI_CMD_NONE) se tedy zpracuje až po kroku; po jeho návratu je
+ * krok hotový.
+ *
+ * @return false = příkaz neproběhl (emulátor nedostupný).
+ */
+static bool _wait_step_done(void) {
+    return _submit_dbgapi(DBGAPI_CMD_NONE, NULL, NULL);
+}
+
+
+/**
+ * @brief Doplní do odpovědi kroku pole `completed`, `running`, `run_seq` (N4).
+ *
+ * @param resp Odpověď (už má `stepped: true` kvůli kompatibilitě).
+ * @param rr Výsledek příkazu kroku.
+ * @return true = krok jedné instrukce, na jehož dokončení se má počkat.
+ */
+static bool _step_result_to_json(JsonObject *resp, const st_DBGAPI_RUN_START_RESULT *rr) {
+    bool single = (rr->status == DBGAPI_RUN_TO_STARTED) && rr->step;
+    bool run = (rr->status == DBGAPI_RUN_TO_STARTED) && !rr->step;
+    json_object_set_boolean_member(resp, "completed", single ? TRUE : FALSE);
+    json_object_set_boolean_member(resp, "running",
+                                   (run || rr->status == DBGAPI_RUN_START_NOT_PAUSED) ? TRUE : FALSE);
+    if (rr->status == DBGAPI_RUN_TO_PAUSED_ONLY) {
+        json_object_set_boolean_member(resp, "paused_only", TRUE);
+    }
+    json_object_set_int_member(resp, "run_seq", (gint64)rr->run_seq);
+    return single;
+}
+
+
+/**
  * @brief `step_into` handler - 1 instrukce krok (step into CALL/RST).
  *
- * Žádné parametry. Volá `DBGAPI_CMD_STEP_INTO`. Pokud emu běží (=
- * není pause), dbgapi handler ho nejdřív pause-uje a step se neprovede
- * (= klient musí volat znovu po pause). Caller (= AI klient) si tento
- * UX kontrakt musí ohlídat - typicky: `emu_pause` -> `emu_step_into`.
+ * Žádné parametry. Volá `DBGAPI_CMD_STEP_INTO`. Pokud emu běží (= není
+ * pause), krok se neprovede a emulace běží dál (`completed: false`,
+ * `running: true`); klient musí nejdřív pauznout (`emu_pause` ->
+ * `emu_step_into`). V pauze handler počká na provedení kroku.
  *
  * Response:
- *  - `stepped` (bool) - true
+ *  - `stepped` (bool) - true (kompatibilita, nic neříká o provedení)
+ *  - `completed` (bool) - krok proběhl, stav je po kroku
+ *  - `running` (bool) - emulace běží (krok se neprovedl)
+ *  - `run_seq` (int) - číslo běhu kroku (nebo běžícího běhu)
  */
 static en_MCP_DISPATCH_RESULT _handle_step_into(const st_JSONL_MESSAGE *req,
                                                 char **out_response) {
     int64_t req_id = jsonl_msg_get_req_id(req);
-    if (!_submit_dbgapi(DBGAPI_CMD_STEP_INTO, NULL, NULL)) {
+    st_DBGAPI_RUN_START_RESULT rr;
+    memset(&rr, 0, sizeof(rr));
+    if (!_submit_dbgapi(DBGAPI_CMD_STEP_INTO, NULL, &rr)) {
         return _err_response(req_id, "step_into failed",
                              MCP_DISPATCH_EMU_ERROR, out_response);
     }
     JsonObject *resp = json_object_new();
     json_object_set_boolean_member(resp, "stepped", TRUE);
+    if (_step_result_to_json(resp, &rr) && !_wait_step_done()) {
+        json_object_set_boolean_member(resp, "completed", FALSE);
+    }
     return _ok_response(req_id, resp, out_response);
 }
 
@@ -4404,23 +4817,31 @@ static en_MCP_DISPATCH_RESULT _handle_step_into(const st_JSONL_MESSAGE *req,
  * @brief `step_over` handler - 1 instrukce, ale CALL/RST jako atom.
  *
  * Žádné parametry. Volá `DBGAPI_CMD_STEP_OVER`. Pro non-call instrukce
- * se chová jako step_into; pro CALL/RST/DJNZ/blokové instrukce nastaví
- * dočasný BP na addr+length a run-to. Vyžaduje pause stav (= dbgapi
- * handler v dbgapi.c kontroluje `EMULATOR_TEST_PAUSED` - pokud běží,
- * akce se neprovede).
+ * se chová jako step_into (handler počká na provedení kroku); pro
+ * CALL/RST/DJNZ/blokové instrukce nastaví dočasný BP na addr+length
+ * a run-to: odpověď přijde hned (`completed: false`, `running: true`)
+ * a konec běhu ohlásí událost `paused` (`reason: "run_to"`) nebo
+ * `wait_stop`. Za běhu emulaci jen pauzne (`paused_only: true`).
  *
  * Response:
- *  - `stepped` (bool) - true
+ *  - `stepped` (bool) - true (kompatibilita, nic neříká o provedení)
+ *  - `completed` (bool), `running` (bool), `paused_only` (bool, jen při
+ *    pauze běžící emulace), `run_seq` (int) - viz step_into
  */
 static en_MCP_DISPATCH_RESULT _handle_step_over(const st_JSONL_MESSAGE *req,
                                                 char **out_response) {
     int64_t req_id = jsonl_msg_get_req_id(req);
-    if (!_submit_dbgapi(DBGAPI_CMD_STEP_OVER, NULL, NULL)) {
+    st_DBGAPI_RUN_START_RESULT rr;
+    memset(&rr, 0, sizeof(rr));
+    if (!_submit_dbgapi(DBGAPI_CMD_STEP_OVER, NULL, &rr)) {
         return _err_response(req_id, "step_over failed",
                              MCP_DISPATCH_EMU_ERROR, out_response);
     }
     JsonObject *resp = json_object_new();
     json_object_set_boolean_member(resp, "stepped", TRUE);
+    if (_step_result_to_json(resp, &rr) && !_wait_step_done()) {
+        json_object_set_boolean_member(resp, "completed", FALSE);
+    }
     return _ok_response(req_id, resp, out_response);
 }
 
@@ -4468,6 +4889,9 @@ static en_MCP_DISPATCH_RESULT _handle_step_n(const st_JSONL_MESSAGE *req,
         }
         done++;
     }
+    /* Poslední krok se provede až po dokončení svého příkazu; odpověď
+     * má vidět stav po něm. */
+    if (done > 0) (void)_wait_step_done();
     JsonObject *resp = json_object_new();
     json_object_set_int_member(resp, "count", done);
     json_object_set_int_member(resp, "requested", count);
@@ -4481,21 +4905,23 @@ static en_MCP_DISPATCH_RESULT _handle_step_n(const st_JSONL_MESSAGE *req,
  *
  * Parametry v `data`:
  *  - `addr` (int, 0..65535) - cílová adresa
- *  - `max_cycles` (int, volitelný) - informativní timeout v T-states
- *    pro klienta. dbgapi implementace `DBGAPI_CMD_RUN_TO` aktuálně
- *    timeout nezahrnuje (= temp BP + RUN, žádný cycle limit). Pole
- *    se v V0.B.6 do dbgapi nepropaguje; je tu pro budoucí rozšíření
- *    (V1.A `run_until_event` family). Klient může pollovat
- *    `get_state` a sám pauznout, pokud emulace zatím nedoběhla.
+ *  - `max_cycles` (int, volitelný) - jen informativní, nic neomezuje
+ *    (kvůli kompatibilitě se dál jen validuje a vrací). Omezení běhu je
+ *    `deadline`.
+ *  - `deadline` (objekt, volitelný) - {frames|emulated_ms|ticks: N}: běh
+ *    se zastaví v emulovaném čase (reason "deadline"), pokud cíle
+ *    nedosáhne dřív
  *
  * Response:
  *  - `addr` (int) - echo
- *  - `running` (bool) - true (emu nastartoval temp-BP + run, dosáhnutí
- *    cílové addr signalizuje pause + breakpoint event; klient musí
- *    pollovat `get_state`)
+ *  - `running` (bool) - true (emu nastartoval temp-BP + run; dosažení
+ *    cíle vyšle událost `paused` s `reason: "run_to"`, na konec běhu jde
+ *    čekat přes `wait_stop`)
+ *  - `run_seq` (int) - číslo spuštěného běhu
+ *  - `deadline_ticks` (int, jen s deadline) - délka deadlinu v taktech GDG
  *
  * Volá `DBGAPI_CMD_RUN_TO` s data_ptr = uint16_t* (cílová adresa)
- * a result_ptr = int* (DBGAPI_RUN_TO_*).
+ * a result_ptr = st_DBGAPI_RUN_START_RESULT* (status DBGAPI_RUN_TO_*).
  *
  * Předpoklad: emulace v pauze. Pokud běží, handler vrátí chybu
  * (MCP_DISPATCH_EMU_ERROR, "Emulator is running ...") a stav emulace
@@ -4529,6 +4955,12 @@ static en_MCP_DISPATCH_RESULT _handle_run_until_addr(const st_JSONL_MESSAGE *req
         return _err_response(req_id, "Invalid max_cycles",
                              MCP_DISPATCH_INVALID_PARAMS, out_response);
     }
+    st_DBGAPI_RUN_DEADLINE_PARAM dl;
+    bool has_deadline = false;
+    char dl_err[128];
+    if (!_parse_deadline(data_obj, &dl, &has_deadline, dl_err, sizeof(dl_err))) {
+        return _err_response(req_id, dl_err, MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
 #ifndef MZ800EMU_MCP_TEST_BUILD
     if (!EMULATOR_TEST_PAUSED) {
         return _err_response(req_id,
@@ -4537,13 +4969,23 @@ static en_MCP_DISPATCH_RESULT _handle_run_until_addr(const st_JSONL_MESSAGE *req
                              MCP_DISPATCH_EMU_ERROR, out_response);
     }
 #endif
+    /* Deadline se nastaví v pauze těsně před rozběhem a platí do nejbližší
+     * pauzy; když se běh nespustí, zruší se. */
+    if (has_deadline && !_arm_deadline(&dl)) {
+        return _err_response(req_id, "Invalid deadline",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
     uint16_t target = (uint16_t)addr;
-    int run_to_result = DBGAPI_RUN_TO_STARTED;
+    st_DBGAPI_RUN_START_RESULT run_to_result;
+    memset(&run_to_result, 0, sizeof(run_to_result));
+    run_to_result.status = DBGAPI_RUN_TO_STARTED;
     if (!_submit_dbgapi(DBGAPI_CMD_RUN_TO, &target, &run_to_result)) {
+        if (has_deadline) _clear_deadline();
         return _err_response(req_id, "run_until_addr failed",
                              MCP_DISPATCH_EMU_ERROR, out_response);
     }
-    if (run_to_result == DBGAPI_RUN_TO_PAUSED_ONLY) {
+    if (run_to_result.status == DBGAPI_RUN_TO_PAUSED_ONLY) {
+        if (has_deadline) _clear_deadline();
         return _err_response(req_id,
                              "Emulator was running: run_until_addr needs a "
                              "paused emulator; it has been paused now, call "
@@ -4554,6 +4996,8 @@ static en_MCP_DISPATCH_RESULT _handle_run_until_addr(const st_JSONL_MESSAGE *req
     json_object_set_int_member(resp, "addr", addr);
     json_object_set_int_member(resp, "max_cycles", max_cycles);
     json_object_set_boolean_member(resp, "running", TRUE);
+    json_object_set_int_member(resp, "run_seq", (gint64)run_to_result.run_seq);
+    _deadline_to_json(resp, has_deadline, &dl);
     return _ok_response(req_id, resp, out_response);
 }
 
@@ -5342,10 +5786,11 @@ static en_MCP_DISPATCH_RESULT _handle_symbol_list(const st_JSONL_MESSAGE *req,
 /**
  * @brief `step_out` handler - run until RET z aktuální subroutine.
  *
- * Parametr v `data` (volitelný):
- *  - `max_cycles` (int, default 10000000) - informativní timeout v
- *    T-states. V V1.A.3 ne-enforced dbgapi handlerem (= temp BP nemá
- *    cycle cap), klient může pollovat get_state.
+ * Parametry v `data` (volitelné):
+ *  - `max_cycles` (int, default 10000000) - jen informativní, nic
+ *    neomezuje (validuje se a vrací kvůli kompatibilitě).
+ *  - `deadline` (objekt) - {frames|emulated_ms|ticks: N}: běh se zastaví
+ *    v emulovaném čase (reason "deadline"), pokud RET nedosáhne dřív.
  *
  * Volá `DBGAPI_CMD_STEP_OUT` se st_DBGAPI_STEP_OUT_PARAM. Handler v
  * emu vláknu vyhledá top frame v shadow callstacku, získá return_addr
@@ -5357,6 +5802,8 @@ static en_MCP_DISPATCH_RESULT _handle_symbol_list(const st_JSONL_MESSAGE *req,
  *  - `return_addr` (int)  - cílová RET adresa (hex-friendly int)
  *  - `max_cycles`  (int)  - echo
  *  - `running`     (bool) - true (emu nastartoval temp BP + run)
+ *  - `run_seq`     (int)  - číslo spuštěného běhu (čekání přes wait_stop)
+ *  - `deadline_ticks` (int, jen s deadline) - délka deadlinu v taktech GDG
  *
  * Response při chybě:
  *  - error message + status code v JSONL `error` poli (anglicky).
@@ -5366,13 +5813,24 @@ static en_MCP_DISPATCH_RESULT _handle_step_out(const st_JSONL_MESSAGE *req,
     int64_t req_id = jsonl_msg_get_req_id(req);
     JsonNode *data_node = (JsonNode *)jsonl_msg_get_data_node(req);
     gint64 max_cycles = 10000000;
+    JsonObject *data_obj = NULL;
     if (data_node && json_node_get_node_type(data_node) == JSON_NODE_OBJECT) {
-        JsonObject *data_obj = json_node_get_object(data_node);
+        data_obj = json_node_get_object(data_node);
         max_cycles = _obj_int_or(data_obj, "max_cycles", 10000000);
         if (max_cycles < 1) {
             return _err_response(req_id, "Invalid max_cycles",
                                  MCP_DISPATCH_INVALID_PARAMS, out_response);
         }
+    }
+    st_DBGAPI_RUN_DEADLINE_PARAM dl;
+    bool has_deadline = false;
+    char dl_err[128];
+    if (!_parse_deadline(data_obj, &dl, &has_deadline, dl_err, sizeof(dl_err))) {
+        return _err_response(req_id, dl_err, MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    if (has_deadline && !_arm_deadline(&dl)) {
+        return _err_response(req_id, "Invalid deadline",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
     }
     st_DBGAPI_STEP_OUT_PARAM param;
     memset(&param, 0, sizeof(param));
@@ -5380,6 +5838,7 @@ static en_MCP_DISPATCH_RESULT _handle_step_out(const st_JSONL_MESSAGE *req,
                                   ? 0xFFFFFFFFu : (uint32_t)max_cycles);
     bool ok = _submit_dbgapi(DBGAPI_CMD_STEP_OUT, &param, NULL);
     if (!ok) {
+        if (has_deadline) _clear_deadline();
         const char *msg = "step_out failed";
         switch (param.status) {
             case 1: msg = "callstack tracking required for step_out"; break;
@@ -5395,6 +5854,8 @@ static en_MCP_DISPATCH_RESULT _handle_step_out(const st_JSONL_MESSAGE *req,
     json_object_set_int_member(resp, "return_addr", (gint64)param.return_addr);
     json_object_set_int_member(resp, "max_cycles",  max_cycles);
     json_object_set_boolean_member(resp, "running", TRUE);
+    json_object_set_int_member(resp, "run_seq", (gint64)param.run_seq);
+    _deadline_to_json(resp, has_deadline, &dl);
     return _ok_response(req_id, resp, out_response);
 }
 
@@ -5523,8 +5984,11 @@ static en_MCP_DISPATCH_RESULT _handle_run_until_raster(const st_JSONL_MESSAGE *r
     /* Polling loop - STEP_INTO + raster check. */
     st_DBGAPI_RASTER_POS now = start;
     bool reached = false;
+    bool time_limited = false;
     uint32_t safety_iter = 0;
     const uint32_t SAFETY_MAX_ITER = 5000000;  /* anti-runaway hard cap */
+    const gint64 t_end = g_get_monotonic_time()
+                         + (gint64)MCP_STEP_LOOP_TIME_LIMIT_MS * G_TIME_SPAN_MILLISECOND;
     while (safety_iter < SAFETY_MAX_ITER) {
         if (!_submit_dbgapi(DBGAPI_CMD_STEP_INTO, NULL, NULL)) {
             /* emu nemůže krokovat (= ending / queue / not paused) */
@@ -5538,6 +6002,10 @@ static en_MCP_DISPATCH_RESULT _handle_run_until_raster(const st_JSONL_MESSAGE *r
             break;
         }
         if (delta >= (uint32_t)max_cycles) break;
+        if (g_get_monotonic_time() >= t_end) {
+            time_limited = true;
+            break;
+        }
         safety_iter++;
     }
 
@@ -5549,6 +6017,7 @@ static en_MCP_DISPATCH_RESULT _handle_run_until_raster(const st_JSONL_MESSAGE *r
     json_object_set_int_member(resp, "delta_cycles",
                                (gint64)(now.total_cycles - start.total_cycles));
     json_object_set_boolean_member(resp, "reached", reached ? TRUE : FALSE);
+    json_object_set_boolean_member(resp, "time_limited", time_limited ? TRUE : FALSE);
     return _ok_response(req_id, resp, out_response);
 }
 
@@ -5612,8 +6081,11 @@ static en_MCP_DISPATCH_RESULT _handle_run_until_tstate(const st_JSONL_MESSAGE *r
 
     st_DBGAPI_RASTER_POS now = start;
     bool reached = false;
+    bool time_limited = false;
     uint32_t safety_iter = 0;
     const uint32_t SAFETY_MAX_ITER = 5000000;
+    const gint64 t_end = g_get_monotonic_time()
+                         + (gint64)MCP_STEP_LOOP_TIME_LIMIT_MS * G_TIME_SPAN_MILLISECOND;
     while (safety_iter < SAFETY_MAX_ITER) {
         if (!_submit_dbgapi(DBGAPI_CMD_STEP_INTO, NULL, NULL)) break;
         if (!_get_raster_now(&now)) break;
@@ -5622,6 +6094,10 @@ static en_MCP_DISPATCH_RESULT _handle_run_until_tstate(const st_JSONL_MESSAGE *r
             break;
         }
         if ((now.total_cycles - start.total_cycles) >= (uint32_t)max_cycles) break;
+        if (g_get_monotonic_time() >= t_end) {
+            time_limited = true;
+            break;
+        }
         safety_iter++;
     }
 
@@ -5631,6 +6107,7 @@ static en_MCP_DISPATCH_RESULT _handle_run_until_tstate(const st_JSONL_MESSAGE *r
     json_object_set_int_member(resp, "delta_cycles",
                                (gint64)(now.total_cycles - start.total_cycles));
     json_object_set_boolean_member(resp, "reached", reached ? TRUE : FALSE);
+    json_object_set_boolean_member(resp, "time_limited", time_limited ? TRUE : FALSE);
     return _ok_response(req_id, resp, out_response);
 }
 
@@ -5717,9 +6194,12 @@ static en_MCP_DISPATCH_RESULT _handle_run_until_event(const st_JSONL_MESSAGE *re
         }
         st_DBGAPI_RASTER_POS now = start;
         bool reached = false;
+        bool time_limited = false;
         uint32_t safety_iter = 0;
         const uint32_t SAFETY_MAX_ITER = 5000000;
         uint32_t target_frame = start.frame_number + (uint32_t)count;
+        const gint64 t_end = g_get_monotonic_time()
+                             + (gint64)MCP_STEP_LOOP_TIME_LIMIT_MS * G_TIME_SPAN_MILLISECOND;
         while (safety_iter < SAFETY_MAX_ITER) {
             if (!_submit_dbgapi(DBGAPI_CMD_STEP_INTO, NULL, NULL)) break;
             if (!_get_raster_now(&now)) break;
@@ -5729,6 +6209,10 @@ static en_MCP_DISPATCH_RESULT _handle_run_until_event(const st_JSONL_MESSAGE *re
             }
             if ((now.total_cycles - start.total_cycles)
                     >= (uint32_t)max_cycles) break;
+            if (g_get_monotonic_time() >= t_end) {
+                time_limited = true;
+                break;
+            }
             safety_iter++;
         }
         JsonObject *resp = json_object_new();
@@ -5738,6 +6222,7 @@ static en_MCP_DISPATCH_RESULT _handle_run_until_event(const st_JSONL_MESSAGE *re
         json_object_set_int_member(resp, "delta_cycles",
             (gint64)(now.total_cycles - start.total_cycles));
         json_object_set_boolean_member(resp, "reached", reached ? TRUE : FALSE);
+        json_object_set_boolean_member(resp, "time_limited", time_limited ? TRUE : FALSE);
         return _ok_response(req_id, resp, out_response);
     }
     if (strcmp(kind, "breakpoint_hit") == 0) {
@@ -5756,9 +6241,12 @@ static en_MCP_DISPATCH_RESULT _handle_run_until_event(const st_JSONL_MESSAGE *re
         }
         st_DBGAPI_RASTER_POS now = start;
         bool reached = false;
+        bool time_limited = false;
         uint32_t safety_iter = 0;
         const uint32_t SAFETY_MAX_ITER = 100000;  /* polling round-trip
                                                    * je drahý, méně iterací */
+        const gint64 t_end = g_get_monotonic_time()
+                             + (gint64)MCP_STEP_LOOP_TIME_LIMIT_MS * G_TIME_SPAN_MILLISECOND;
         while (safety_iter < SAFETY_MAX_ITER) {
             bool running = true;
             if (!_submit_dbgapi(DBGAPI_CMD_IS_RUNNING, NULL, &running)) break;
@@ -5767,8 +6255,9 @@ static en_MCP_DISPATCH_RESULT _handle_run_until_event(const st_JSONL_MESSAGE *re
                 break;
             }
             if (!_get_raster_now(&now)) break;
-            if ((now.total_cycles - start.total_cycles)
-                    >= (uint32_t)max_cycles) {
+            bool over_cycles = (now.total_cycles - start.total_cycles) >= (uint32_t)max_cycles;
+            time_limited = !over_cycles && (g_get_monotonic_time() >= t_end);
+            if (over_cycles || time_limited) {
                 /* Timeout - zastavíme emu, aby klient měl deterministic stav. */
                 _submit_dbgapi(DBGAPI_CMD_PAUSE, NULL, NULL);
                 _get_raster_now(&now);
@@ -5782,6 +6271,7 @@ static en_MCP_DISPATCH_RESULT _handle_run_until_event(const st_JSONL_MESSAGE *re
             (gint64)(now.total_cycles - start.total_cycles));
         json_object_set_boolean_member(resp, "reached", reached ? TRUE : FALSE);
         json_object_set_boolean_member(resp, "paused",  reached ? TRUE : FALSE);
+        json_object_set_boolean_member(resp, "time_limited", time_limited ? TRUE : FALSE);
         return _ok_response(req_id, resp, out_response);
     }
 
@@ -13260,6 +13750,63 @@ static en_MCP_DISPATCH_RESULT _handle_get_frame_framebuffer_info(
 
 
 /**
+ * @brief Doplní do odpovědi hash obrazu, hash VRAM a pozici paprsku.
+ *
+ * @param resp Odpověď.
+ * @param h Výsledek z emu vlákna (st_DBGAPI_FRAME_HASH_PARAM).
+ */
+static void _frame_hash_to_json(JsonObject *resp, const st_DBGAPI_FRAME_HASH_PARAM *h) {
+    if (h->available) {
+        json_object_set_string_member(resp, "image_sha256", h->image_sha256);
+    }
+    json_object_set_string_member(resp, "vram_sha256", h->vram_sha256);
+    json_object_set_int_member(resp, "source_screen_id", (gint64)h->source_screen_id);
+    json_object_set_string_member(resp, "image_source",
+        (h->source == SCREENSHOT_SRC_GDG_LIVE) ? "gdg_live" : "sdl_snapshot");
+    JsonObject *beam = json_object_new();
+    json_object_set_int_member(beam, "frame", (gint64)h->frame);
+    json_object_set_int_member(beam, "scanline", (gint64)h->scanline);
+    json_object_set_int_member(beam, "column", (gint64)h->column);
+    json_object_set_object_member(resp, "beam", beam);
+    json_object_set_boolean_member(resp, "paused", h->paused ? TRUE : FALSE);
+}
+
+
+/**
+ * @brief `frame_hash` handler - SHA-256 obrazu a VRAM bez přenosu dat.
+ *
+ * Bez parametrů. `image_sha256` je hash obrazu ze stejného zdroje jako
+ * screenshot (SDL snímek, jinak živý framebuffer GDG): W x H bajtů indexů
+ * palety (INDEX8 & 0Fh, po řádcích), za nimi 16 položek palety po 3 bajtech
+ * R, G, B. `vram_sha256` je hash VRAM (state_hash.h: MZ-800 4 plány po
+ * 8 KB, MZ-700 a MZ-1500 znaková + atributová VRAM). Obraz závisí i na
+ * registrech GDG (paleta, režim, border), proto se hashe vracejí zvlášť.
+ * V pauze uprostřed snímku je část obrazu ještě z minulého snímku - hash
+ * pak závisí na pozici paprsku (`beam`).
+ *
+ * Response: `{available, image_sha256 (jen available), vram_sha256,
+ * source_screen_id, image_source, width, height, beam {frame, scanline,
+ * column}, paused}`.
+ */
+static en_MCP_DISPATCH_RESULT _handle_frame_hash(const st_JSONL_MESSAGE *req,
+                                                 char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    st_DBGAPI_FRAME_HASH_PARAM h;
+    memset(&h, 0, sizeof(h));
+    if (!_submit_dbgapi(DBGAPI_CMD_FRAME_HASH, &h, NULL)) {
+        return _err_response(req_id, "frame_hash failed",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    JsonObject *resp = json_object_new();
+    json_object_set_boolean_member(resp, "available", h.available ? TRUE : FALSE);
+    json_object_set_int_member(resp, "width", (gint64)h.width);
+    json_object_set_int_member(resp, "height", (gint64)h.height);
+    _frame_hash_to_json(resp, &h);
+    return _ok_response(req_id, resp, out_response);
+}
+
+
+/**
  * @brief `get_frame_screenshot_raw` handler - V1.D.4 Resource pro
  *        `emulator://frame/screenshot.raw`.
  *
@@ -13278,13 +13825,23 @@ static en_MCP_DISPATCH_RESULT _handle_get_frame_framebuffer_info(
  *    "bytes_per_pixel": 4, "pixel_format": "rgba8888",
  *    "downscale_factor": 1, "source_screen_id": int,
  *    "fallback_source": "sdl_snapshot" | "gdg_live",
- *    "data_b64": "<base64 RGBA bytes>"}
+ *    "image_sha256", "vram_sha256", "image_source", "beam", "paused"
+ *    (viz _handle_frame_hash), "data_b64": "<base64 RGBA bytes>"}
  *   pokud available=false:
  *   {"available": false, "reason": str}
+ * Parametr `want_data` (bool, default true): false = bez `data_b64`.
  */
 static en_MCP_DISPATCH_RESULT _handle_get_frame_screenshot_raw(
     const st_JSONL_MESSAGE *req, char **out_response) {
     int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonNode *raw_node = (JsonNode *)jsonl_msg_get_data_node(req);
+    JsonObject *raw_obj = (raw_node && json_node_get_node_type(raw_node) == JSON_NODE_OBJECT)
+                          ? json_node_get_object(raw_node) : NULL;
+    bool want_data = true;
+    if (!_parse_want_data(raw_obj, &want_data)) {
+        return _err_response(req_id, "want_data must be a boolean",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
     /* Alokujeme buffer dynamicky (= velký, na stack se nevejde). Cap
      * 4 MB rezerva pro factor=1 (max ~928*288*4 = 1.07 MB pro MZ-800). */
     const size_t cap = 4 * 1024 * 1024;
@@ -13311,7 +13868,7 @@ static en_MCP_DISPATCH_RESULT _handle_get_frame_screenshot_raw(
         g_free(buf);
         return _ok_response(req_id, resp, out_response);
     }
-    gchar *b64 = g_base64_encode(buf, param.buffer_size);
+    gchar *b64 = want_data ? g_base64_encode(buf, param.buffer_size) : NULL;
     g_free(buf);
     /* Mapování enum (uint8_t) -> string field pro klienta. Defaultně
      * "sdl_snapshot" (= pre-V1.E.6.C kompatibilní behavior s memset()
@@ -13328,7 +13885,10 @@ static en_MCP_DISPATCH_RESULT _handle_get_frame_screenshot_raw(
     json_object_set_int_member(resp,     "downscale_factor",  (gint64)param.downscale_factor);
     json_object_set_int_member(resp,     "source_screen_id",  (gint64)param.source_screen_id);
     json_object_set_string_member(resp,  "fallback_source",   fallback_str);
-    json_object_set_string_member(resp,  "data_b64",          b64 ? b64 : "");
+    _frame_hash_to_json(resp, &param.hash);
+    if (want_data) {
+        json_object_set_string_member(resp, "data_b64", b64 ? b64 : "");
+    }
     g_free(b64);
     return _ok_response(req_id, resp, out_response);
 }
@@ -13351,6 +13911,10 @@ static en_MCP_DISPATCH_RESULT _handle_get_frame_screenshot_raw(
  *   Bez voleb = celý framebuffer 1:1 (stejný obsah jako screenshot.raw).
  *   Viz _screenshot_opts_from_json(); neplatné volby = INVALID_PARAMS
  *   (dřív se volby tiše ignorovaly).
+ *   - `want_data` (bool, default true) - false = bez `data_b64`.
+ *   Odpověď nese i `image_sha256` (celý framebuffer ze stejného zdroje,
+ *   bez ohledu na oblast a měřítko), `vram_sha256`, `beam`, `paused`
+ *   (viz _handle_frame_hash).
  *
  * Layout response (available=true):
  *   {"available": true, "format": "png", "width": N, "height": N,
@@ -13372,6 +13936,11 @@ static en_MCP_DISPATCH_RESULT _handle_get_frame_screenshot(
     if (!_screenshot_opts_from_json(data_obj, &opts, opts_err, sizeof(opts_err))) {
         return _err_response(req_id, opts_err, MCP_DISPATCH_INVALID_PARAMS, out_response);
     }
+    bool want_data = true;
+    if (!_parse_want_data(data_obj, &want_data)) {
+        return _err_response(req_id, "want_data must be a boolean",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
 
     st_DBGAPI_FRAME_SCREENSHOT_PNG_PARAM param;
     memset(&param, 0, sizeof(param));
@@ -13392,7 +13961,7 @@ static en_MCP_DISPATCH_RESULT _handle_get_frame_screenshot(
         return _ok_response(req_id, resp, out_response);
     }
     /* Handler alokoval PNG stream (glib) - po base64 ho uvolníme. */
-    gchar *b64 = g_base64_encode(param.buffer, param.buffer_size);
+    gchar *b64 = want_data ? g_base64_encode(param.buffer, param.buffer_size) : NULL;
     g_free(param.buffer);
     json_object_set_boolean_member(resp, "available", TRUE);
     json_object_set_string_member(resp,  "format",    "png");
@@ -13404,7 +13973,10 @@ static en_MCP_DISPATCH_RESULT _handle_get_frame_screenshot(
     if (opts.scale_mode == SCREENSHOT_SCALE_NATIVE) {
         json_object_set_boolean_member(resp, "hires", param.hires ? TRUE : FALSE);
     }
-    json_object_set_string_member(resp,  "data_b64",  b64 ? b64 : "");
+    _frame_hash_to_json(resp, &param.hash);
+    if (want_data) {
+        json_object_set_string_member(resp, "data_b64", b64 ? b64 : "");
+    }
     g_free(b64);
     return _ok_response(req_id, resp, out_response);
 }
@@ -13608,6 +14180,8 @@ static en_MCP_DISPATCH_RESULT _handle_screenshot_save_to_file(
     if (opts.scale_mode == SCREENSHOT_SCALE_NATIVE) {
         json_object_set_boolean_member(resp, "hires", param.hires ? TRUE : FALSE);
     }
+    /* Hash obrazu (celý framebuffer ze stejného zdroje), VRAM, paprsek. */
+    _frame_hash_to_json(resp, &param.hash);
     g_free(path);
     return _ok_response(req_id, resp, out_response);
 }
@@ -14145,11 +14719,12 @@ static en_MCP_DISPATCH_RESULT _handle_regions_list(
  * @brief `region_read` handler - raw read N bajtů z regionu.
  *
  * Parametry: `region_id` (= z poslední `regions_list`), `offset`
- * (= 0..size-1), `length` (= 1..65536, clamp na size regionu).
+ * (= 0..size-1), `length` (= 1..65536, clamp na size regionu),
+ * `want_data` (bool, default true; false = jen hash).
  *
- * Response: `{region_id, offset, length, data_b64, kind}`. `length`
- * v response = skutečně přečtená délka (= clamped). Při chybě
- * `{error: "..."}`.
+ * Response: `{region_id, offset, length, sha256, data_b64}`. `length`
+ * v response = skutečně přečtená délka (= clamped), `sha256` je hash
+ * přečtených bajtů, `data_b64` jen s want_data. Při chybě `{error: "..."}`.
  *
  * No-side-effect read - bypass Z80 banking (= klient vidí raw paměti
  * jako GUI Memory browser, bez disruptivních io_write).
@@ -14171,6 +14746,11 @@ static en_MCP_DISPATCH_RESULT _handle_region_read(
             || offset < 0 || offset > 0xFFFFFFFFu
             || length < 1 || length > 65536) {
         return _err_response(req_id, "Invalid parameters",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    bool want_data = true;
+    if (!_parse_want_data(obj, &want_data)) {
+        return _err_response(req_id, "want_data must be a boolean",
                              MCP_DISPATCH_INVALID_PARAMS, out_response);
     }
     uint8_t *buf = g_malloc0((gsize)length);
@@ -14201,9 +14781,7 @@ static en_MCP_DISPATCH_RESULT _handle_region_read(
     json_object_set_int_member(data, "region_id", region_id);
     json_object_set_int_member(data, "offset", offset);
     json_object_set_int_member(data, "length", param.out_count);
-    gchar *b64 = g_base64_encode(buf, (gsize)param.out_count);
-    json_object_set_string_member(data, "data_b64", b64);
-    g_free(b64);
+    _read_result_to_json(data, buf, (gsize)param.out_count, want_data);
     g_free(buf);
     return _ok_response(req_id, data, out_response);
 }

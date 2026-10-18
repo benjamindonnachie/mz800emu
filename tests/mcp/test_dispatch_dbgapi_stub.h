@@ -188,7 +188,8 @@ typedef struct st_DISPATCH_STUB_STATE {
      *
      * RUN_TO - zachycená target adresa:
      *   run_to_last_addr = z uint16_t* data_ptr.
-     *   run_to_result    = hodnota, kterou stub zapíše do int* result_ptr
+     *   run_to_result    = status, který stub zapíše do result_ptr
+     *                      (st_DBGAPI_RUN_START_RESULT)
      *                      (DBGAPI_RUN_TO_STARTED = 0 default,
      *                      DBGAPI_RUN_TO_PAUSED_ONLY = emulace běžela).
      */
@@ -199,6 +200,21 @@ typedef struct st_DISPATCH_STUB_STATE {
     int                  step_over_calls;
     uint16_t             run_to_last_addr;
     int                  run_to_result;
+
+    /*
+     * run-control (M5):
+     *   run_seq        = číslo běhu, které stub vrací (RUN, RUN_TO, STEP_*, PAUSE)
+     *   step_over_runs = STEP_OVER jako CALL (běh k dočasnému BP, ne krok)
+     *   pause_last     = poslední parametr PAUSE (vstupy)
+     *   deadline_last  = poslední parametr RUN_DEADLINE
+     *   deadline_arms / deadline_clears = počty nastavení / zrušení
+     */
+    uint64_t             run_seq;
+    bool                 step_over_runs;
+    st_DBGAPI_PAUSE_PARAM pause_last;
+    st_DBGAPI_RUN_DEADLINE_PARAM deadline_last;
+    int                  deadline_arms;
+    int                  deadline_clears;
     /* Per-call fail control - pro step_n partial test:
      *   step_into_fail_after_n = pokud > 0, stub vrátí false na N+1. volání
      *   STEP_INTO. 0 = vždy success. Reset přes dispatch_stub_reset. */

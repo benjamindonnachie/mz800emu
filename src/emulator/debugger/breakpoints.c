@@ -3034,6 +3034,7 @@ bool breakpoints_run_action ( const st_BPT *bpt,
 #include "bp_zone.h"        /* D.5 - banking zone filter */
 #include "bp_event.h"       /* Vlna 1 mutant event-viewer: g_bp_fire_reason */
 #include "trace/eventlog.h" /* Vlna 1 mutant event-viewer: BP_FIRE fan-out */
+#include "run_control/run_control.h" /* detaily zastavení pro záznam a událost "paused" */
 
 #ifdef MZ800EMU_CFG_MCP_SERVER_ENABLED
 #include <json-glib/json-glib.h>
@@ -3212,7 +3213,8 @@ static void breakpoints_savecfg_fwd_default_interval ( void *e, void *data ) {
  * @param bytes Počet právě zapsaných bajtů.
  *
  * Side effects: inkrement g_bp_action_total_bytes; při překročení prahu
- * emulator_pause(true) + stderr warning + (pod MCP) "paused" event. Auto-pauza
+ * emulator_pause(true) s důvodem EMU_PAUSE_REASON_BP_SATURATION + stderr
+ * warning; událost "paused" vyšle záznam zastavení (run_control.h). Auto-pauza
  * proběhne jen jednou na hranici překročení (akumulátor dál roste, ale
  * emulator_pause(true) je idempotentní).
  * Threading: jen z emu vlákna (mezi instrukcemi, safe-point).
@@ -3238,25 +3240,18 @@ void breakpoints_fwd_account_bytes ( int bp_id, uint64_t bytes ) {
 
         /* Čistá auto-pauza přes stejný mechanismus jako DBGAPI PAUSE
          * (= konzistentní side-efekty: audio pause, MZEVENT). Jsme na emu
-         * vlákně mezi instrukcemi (safe-point), takže je to bezpečné. */
-        emulator_pause ( true );
-
-#ifdef MZ800EMU_CFG_MCP_SERVER_ENABLED
-        /* Informuj MCP klienty: "paused" event s důvodem saturace, ať uživatel
-         * ví PROČ se emulátor zastavil (vč. BP id a objemu). */
-        JsonObject *p_payload = json_object_new ( );
-        json_object_set_string_member ( p_payload, "reason",
-                                         "bp_action_saturation" );
-        json_object_set_int_member ( p_payload, "bp_id", bp_id );
-        json_object_set_int_member ( p_payload, "bytes",
-                                     (gint64) g_bp_action_total_bytes );
+         * vlákně mezi instrukcemi (safe-point), takže je to bezpečné.
+         * Událost "paused" s důvodem saturace (BP id, objem, detail) vyšle
+         * záznam zastavení na vstupu do pauzy (run_control_on_stop()). */
         char detail[128];
         snprintf ( detail, sizeof ( detail ),
                    "BP #%d forward-action saturation: auto-paused after %llu MB",
                    bp_id, total_mb );
-        json_object_set_string_member ( p_payload, "detail", detail );
-        event_bus_emit ( "paused", p_payload );
-#endif /* MZ800EMU_CFG_MCP_SERVER_ENABLED */
+        if ( !EMULATOR_TEST_PAUSED ) {
+            g_emulator.pause_reason = EMU_PAUSE_REASON_BP_SATURATION;
+            run_control_note_saturation ( bp_id, g_bp_action_total_bytes, detail );
+        };
+        emulator_pause ( true );
     };
 }
 
@@ -3274,11 +3269,12 @@ void breakpoints_fill_global_ctx ( bp_expr_ctx_t *ctx ) {
     ctx->cpu = g_mzarch_main.cpu;
     /* V1.5 fáze 2.4: zdroje z GDG (mz800 + mz1500 sdílí pattern).
      *
-     * - Frame    = g_gdg.total_elapsed.screens (= kompletní snímky od resetu;
+     * - Frame    = g_gdg.total_elapsed.screens (= kompletní snímky od startu
+     *              emulátoru, reset stroje je nenuluje;
      *              inkrementuje se v gdg_on_screen_done_event).
      * - Scanline = g_gdg.beam_row (= aktuální raster row paprsku).
      * - Cycle    = gdg_get_total_ticks() = kumulativní GDG pixel ticks od
-     *              resetu na začátku instrukce (GDGCLK2CPU_DIVIDER = 5 taktů
+     *              startu emulátoru na začátku instrukce (GDGCLK2CPU_DIVIDER = 5 taktů
      *              GDG na T-stav u PAL, 4 u NTSC). NENI čistý Z80 T-state
      *              counter. Plný T-state cycle counter = TODO V1.6+.
      * - FrameCycle = g_gdg.total_elapsed.ticks (= takty GDG od začátku
@@ -3414,6 +3410,7 @@ void breakpoints_enforce ( st_BPT *bpt, struct bp_expr_ctx_s *ctx ) {
     if ( !should_continue ) {
         if ( !is_exit ) {
             g_emulator.pause_reason = EMU_PAUSE_REASON_BREAKPOINT;
+            run_control_note_breakpoint ( bpt->id );
             emulator_pause ( true );
         };
         debugger_show_main_window ( );
@@ -3442,16 +3439,9 @@ void breakpoints_enforce ( st_BPT *bpt, struct bp_expr_ctx_s *ctx ) {
         json_object_set_int_member ( bp_payload, "trap_id", trap_id );
         event_bus_emit ( "breakpoint_hit", bp_payload );
 
-        /* Současně emit "paused" event pro klienty, kteří poslouchají
-         * obecný pause topic (= union BP/manual/fatal/quit). U exit ho
-         * pošle automation_request_exit() s reason "exit". */
-        if ( !is_exit ) {
-            JsonObject *p_payload = json_object_new ( );
-            json_object_set_string_member ( p_payload, "reason", "breakpoint" );
-            uint16_t pc_now = ctx->cpu ? (uint16_t) ctx->cpu->pc : bpt->addr;
-            json_object_set_int_member ( p_payload, "pc", pc_now );
-            event_bus_emit ( "paused", p_payload );
-        };
+        /* Událost "paused" (reason "breakpoint", u exit "exit") vyšle
+         * záznam zastavení na vstupu do pauzy (run_control_on_stop()),
+         * tedy až po "breakpoint_hit". */
 #endif /* MZ800EMU_CFG_MCP_SERVER_ENABLED */
 
         if ( is_exit ) {
@@ -3541,8 +3531,9 @@ void breakpoints_enforce_pc_exec_nonsingle ( uint16_t pc ) {
  *
  * Dočasný BP (Run to cursor, Step over přes CALL/RST/DJNZ/ED, MCP
  * `run_until_addr` a `step_out`) nemá podmínku ani akci: nastaví důvod pauzy
- * @c EMU_PAUSE_REASON_RUN_TO, pozastaví emulaci, ukáže okno debuggeru
- * a (s MCP serverem) vyšle událost `paused` s `reason: "run_to"` a `pc`.
+ * @c EMU_PAUSE_REASON_RUN_TO, pozastaví emulaci a ukáže okno debuggeru.
+ * Událost `paused` s `reason: "run_to"` a `pc` vyšle záznam zastavení na
+ * vstupu do pauzy (run_control_on_stop()).
  *
  * @param pc Adresa instrukce, na které se zastavuje (= adresa dočasného BP).
  *
@@ -3555,14 +3546,6 @@ static void breakpoints_stop_at_temporary ( uint16_t pc ) {
     g_emulator.pause_reason = EMU_PAUSE_REASON_RUN_TO;
     emulator_pause ( true );
     debugger_show_main_window ( );
-#ifdef MZ800EMU_CFG_MCP_SERVER_ENABLED
-    /* Stejný tvar jako "paused" u breakpointu a manuální pauzy, ať klient
-     * nemusí po run_until_addr / step_over / step_out pollovat stav. */
-    JsonObject *p_payload = json_object_new ( );
-    json_object_set_string_member ( p_payload, "reason", "run_to" );
-    json_object_set_int_member ( p_payload, "pc", pc );
-    event_bus_emit ( "paused", p_payload );
-#endif /* MZ800EMU_CFG_MCP_SERVER_ENABLED */
 }
 
 

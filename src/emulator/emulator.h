@@ -11,12 +11,16 @@
 #include "customspeed.h"
 
 /**
- * @brief Důvod posledního pozastavení emulace (diagnostika pro emu_run).
+ * @brief Důvod posledního pozastavení emulace.
  *
- * Slouží jen jako signál pro MCP `emu_run` (pole `stopped_by`), aby klient
- * rozlišil, zda emulace doběhla požadovaný počet framů, nebo ji zastavil
- * breakpoint / dočasný breakpoint / manuální pauza. Není to autoritativní stav emulace - pauzy
- * z jiných důvodů (HALT, fatal) ho nemusí nastavit, pak zůstane @c NONE.
+ * Nastavuje ho ten, kdo pauzu vyvolal, na emu vlákně před
+ * @c emulator_pause(true). Čte ho záznam zastavení (run_control.h) na vstupu
+ * do pauzy a MCP `emu_run` (pole `stopped_by`). Při každém rozběhu nebo
+ * kroku z pauzy se vynuluje na @c NONE (run_control_on_resume()), takže
+ * hodnota z minulé pauzy nepřežije do další. Pauza bez nastaveného důvodu
+ * (klávesa Pause v GUI z UI vlákna, příkaz fronty, který emulaci jen
+ * pozastaví) se v záznamu zastavení hlásí jako @c MANUAL, dokončený krok
+ * jako @c STEP.
  */
 typedef enum en_EMU_PAUSE_REASON
 {
@@ -26,10 +30,19 @@ typedef enum en_EMU_PAUSE_REASON
     EMU_PAUSE_REASON_MANUAL,      /**< Manuální pauza (UI nebo MCP pause). */
     EMU_PAUSE_REASON_RUN_TO,      /**< Zastaveno dočasným breakpointem (Run to cursor,
                                        Step over přes CALL, MCP run_until_addr / step_out). */
-    EMU_PAUSE_REASON_EXIT         /**< Žádost o konec běhu s návratovým kódem (akce `exit`
+    EMU_PAUSE_REASON_EXIT,        /**< Žádost o konec běhu s návratovým kódem (akce `exit`
                                        breakpointu, `--exit-after-frames`, `--timeout-*`).
                                        Kde proces skončit nesmí (GUI, MCP), zůstane jen pauza,
                                        viz automation.h. */
+    EMU_PAUSE_REASON_DEADLINE,    /**< Vypršel deadline běhu v emulovaném čase
+                                       (MCP parametr `deadline`, run_control.h). */
+    EMU_PAUSE_REASON_STEP,        /**< Dokončený krok jedné instrukce (step into,
+                                       step over bez CALL). Nastavuje záznam zastavení,
+                                       ne zdroj pauzy. */
+    EMU_PAUSE_REASON_BP_SATURATION, /**< Auto-pauza po překročení objemu zápisů akcí
+                                         breakpointů (breakpoints_fwd_account_bytes()). */
+    EMU_PAUSE_REASON_EVENT_TRIGGER  /**< Pauza triggerem záznamu událostí
+                                         (eventlog_trigger.h). */
 } en_EMU_PAUSE_REASON;
 
 /**
@@ -78,12 +91,12 @@ typedef struct st_EMULATOR
     bool snapshot_safepoint;
 
     /**
-     * @brief Důvod posledního pozastavení emulace (pro emu_run `stopped_by`).
+     * @brief Důvod posledního pozastavení emulace (záznam zastavení, emu_run `stopped_by`).
      *
      * Nastavuje ten, kdo pauzu vyvolal (frame-bounded stop, breakpoint hit,
-     * manuální pauza), na emu vlákně před @c emulator_pause(true). `emu_run`
-     * ho před spuštěním vynuluje na @c EMU_PAUSE_REASON_NONE a po doběhnutí
-     * přečte. Diagnostický signál, ne autoritativní stav (viz enum).
+     * manuální pauza, deadline), na emu vlákně před @c emulator_pause(true).
+     * Při rozběhu nebo kroku z pauzy se vynuluje na @c EMU_PAUSE_REASON_NONE
+     * (run_control_on_resume()). Viz enum.
      */
     en_EMU_PAUSE_REASON pause_reason;
 } st_EMULATOR;

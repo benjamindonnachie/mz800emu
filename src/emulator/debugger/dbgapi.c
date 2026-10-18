@@ -58,6 +58,9 @@
 #include "mhmap.h"
 #include "freeze/freeze.h"
 #include "memsearch/memsearch.h"
+#include "run_control/run_control.h"
+#include "run_control/run_log.h"
+#include "state_hash.h"
 #include "png_encode.h"
 #include "screenshot/screenshot_capture.h"
 #include "screenshot/screenshot_series.h"
@@ -849,6 +852,8 @@ const char *dbgapi_cmd_to_str(en_DBGAPI_CMD cmd)
         case DBGAPI_CMD_STEP_INTO:                 return "step_into";
         case DBGAPI_CMD_STEP_OVER:                 return "step_over";
         case DBGAPI_CMD_RUN_TO:                    return "run_to";
+        case DBGAPI_CMD_RUN_DEADLINE:              return "run_deadline";
+        case DBGAPI_CMD_FRAME_HASH:                return "frame_hash";
         case DBGAPI_CMD_RESET:                     return "reset";
         case DBGAPI_CMD_GET_REG:                   return "get_reg";
         case DBGAPI_CMD_SET_REG:                   return "set_reg";
@@ -1514,6 +1519,65 @@ static void dbgapi_test_apply_dispatch_stall(const st_DBGAPI_CMDRQ *rq,
 }
 
 
+/**
+ * @brief Vyplní hash obrazu, hash VRAM a pozici paprsku (DBGAPI_CMD_FRAME_HASH,
+ *        screenshoty).
+ *
+ * Obraz: SHA-256 W x H bajtů indexů palety (INDEX8 & 0Fh, po řádcích),
+ * za nimi 16 položek palety po 3 bajtech R, G, B (st_DBGAPI_FRAME_HASH_PARAM).
+ * VRAM: state_hash_part(STATE_HASH_VRAM).
+ *
+ * @param[out] out Výstup (přepíše se celý).
+ * @param src INDEX8 obraz VIDEO_DISPLAY_WIDTH x VIDEO_DISPLAY_HEIGHT, nebo NULL
+ *        (obraz nedostupný: available false, image_sha256 prázdný).
+ * @param source SCREENSHOT_SRC_SDL_SNAPSHOT / SCREENSHOT_SRC_GDG_LIVE.
+ * @param screen_id fbsnapshot_screen_id zdroje.
+ * @pre Emu vlákno (drain fronty); @p src platný po dobu volání (u SDL
+ *      snímku volající drží fbsnapshot_pixels_mutex).
+ */
+static void dbgapi_frame_hash_fill ( st_DBGAPI_FRAME_HASH_PARAM *out, const uint8_t *src,
+                                     uint8_t source, uint32_t screen_id )
+{
+    memset ( out, 0, sizeof ( *out ) );
+    out->source = source;
+    out->source_screen_id = screen_id;
+    out->width = (uint32_t) VIDEO_DISPLAY_WIDTH;
+    out->height = (uint32_t) VIDEO_DISPLAY_HEIGHT;
+    out->frame = (uint32_t) g_gdg.total_elapsed.screens;
+    out->scanline = (uint16_t) g_gdg.beam_row;
+    out->column = (uint16_t) VIDEO_GET_SCREEN_COL ( g_gdg.total_elapsed.ticks );
+    out->paused = EMULATOR_TEST_PAUSED ? true : false;
+    (void) state_hash_part ( STATE_HASH_VRAM, out->vram_sha256 );
+
+    uint32_t *colormap = display_get_default_color_schema ( );
+    if ( !src || !colormap ) return;
+
+    GChecksum *cs = g_checksum_new ( G_CHECKSUM_SHA256 );
+    uint8_t row[ VIDEO_DISPLAY_WIDTH ];
+    for ( uint32_t y = 0; y < (uint32_t) VIDEO_DISPLAY_HEIGHT; y++ )
+    {
+        const uint8_t *src_row = src + y * (uint32_t) VIDEO_DISPLAY_WIDTH;
+        for ( uint32_t x = 0; x < (uint32_t) VIDEO_DISPLAY_WIDTH; x++ )
+        {
+            row[ x ] = src_row[ x ] & 0x0Fu;
+        };
+        g_checksum_update ( cs, row, sizeof ( row ) );
+    };
+    for ( unsigned i = 0; i < 16; i++ )
+    {
+        uint8_t rgb[ 3 ] = {
+            (uint8_t) ( ( colormap[ i ] >> 16 ) & 0xFFu ),
+            (uint8_t) ( ( colormap[ i ] >> 8 ) & 0xFFu ),
+            (uint8_t) ( colormap[ i ] & 0xFFu ),
+        };
+        g_checksum_update ( cs, rgb, sizeof ( rgb ) );
+    };
+    g_strlcpy ( out->image_sha256, g_checksum_get_string ( cs ), sizeof ( out->image_sha256 ) );
+    g_checksum_free ( cs );
+    out->available = true;
+}
+
+
 void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
 {
     if (!rq)
@@ -1524,6 +1588,11 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
 
     /* Testovací háček (regresní test omezené odpovědi MCP). */
     dbgapi_test_apply_dispatch_stall(rq, cmd);
+
+    /* Stav před příkazem pro záznam, kdo emulaci rozběhl / pozastavil
+     * (run_control_after_cmd() za switchem). */
+    const bool rc_was_paused = EMULATOR_TEST_PAUSED ? true : false;
+    const bool rc_was_step = TEST_DEBUGGER_STEP_CALL ? true : false;
 
     /*
      * Dispatch příkazů — zatím základní implementace.
@@ -1591,27 +1660,44 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
             break;
 
         case DBGAPI_CMD_PAUSE:
+        {
             /* Pozastaví emulaci. Forward na emulator_pause(true).
              * Side effecty (z emulator.c:273): MZ800_MAIN_SET_EVENT
              * BREAK_EMULATION_PAUSED, audio pause, UI state update,
              * pokud TEST_DEBUGGER_ACTIVE pak hide spinner + reset
-             * temporary BP. */
-            g_emulator.pause_reason = EMU_PAUSE_REASON_MANUAL;
-            emulator_pause ( true );
-            rq->success = true;
-#ifdef MZ800EMU_CFG_MCP_SERVER_ENABLED
-            /* V1.A.4: MCP EVENT emit "paused" pro klienty na topicu.
-             * Reason rozlišuje BP hit vs manual pause vs fatal -
-             * tady jsme v dbgapi PAUSE handleru, takže reason=manual. */
+             * temporary BP.
+             *
+             * data_ptr (volitelný st_DBGAPI_PAUSE_PARAM*): s if_run_seq
+             * zastaví jen běžící běh s tímto číslem (run_control).
+             * Událost "paused" vyšle záznam zastavení na vstupu do pauzy
+             * (run_control_on_stop()), jen když emulace opravdu stála
+             * (pauza už pozastavené emulace žádné zastavení není). */
+            st_DBGAPI_PAUSE_PARAM *pp = (st_DBGAPI_PAUSE_PARAM *) rq->data_ptr;
+            bool running_now = !EMULATOR_TEST_PAUSED;
+            bool do_pause = true;
+            if ( pp )
             {
-                JsonObject *p = json_object_new ( );
-                json_object_set_string_member ( p, "reason", "manual" );
-                json_object_set_int_member ( p, "pc",
-                                              (int) g_mzarch_main.cpu->pc );
-                event_bus_emit ( "paused", p );
-            }
-#endif
+                pp->was_running = running_now;
+                pp->run_seq = run_log_current ( NULL );
+                pp->paused_now = false;
+                if ( pp->has_if_run_seq
+                     && ( !running_now || pp->run_seq != pp->if_run_seq ) )
+                {
+                    do_pause = false;
+                };
+            };
+            if ( do_pause )
+            {
+                if ( running_now )
+                {
+                    g_emulator.pause_reason = EMU_PAUSE_REASON_MANUAL;
+                };
+                emulator_pause ( true );
+                if ( pp ) pp->paused_now = running_now;
+            };
+            rq->success = true;
             break;
+        }
 
         case DBGAPI_CMD_FORCE_PAUSE:
             /* Vynutí pauzu emulace. V současné implementaci shodné
@@ -1629,7 +1715,17 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
              * Side effecty (z emulator.c:273): audio resume, UI state
              * update, pokud TEST_DEBUGGER_ACTIVE pak show spinner +
              * window focus. Také vynuluje run_to_temporary_breakpoint
-             * flag. */
+             * flag.
+             *
+             * result_ptr (volitelný st_DBGAPI_RUN_START_RESULT*): číslo
+             * spuštěného (nebo už běžícího) běhu. */
+            if ( rq->result_ptr )
+            {
+                st_DBGAPI_RUN_START_RESULT *r = (st_DBGAPI_RUN_START_RESULT *) rq->result_ptr;
+                r->status = EMULATOR_TEST_PAUSED ? DBGAPI_RUN_TO_STARTED : DBGAPI_RUN_START_NOT_PAUSED;
+                r->step = false;
+                r->run_seq = run_control_seq_for_start ( );
+            };
             emulator_pause ( false );
             rq->success = true;
             break;
@@ -1708,6 +1804,14 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
              * Side effecty: g_debugger.step_call = 1 → hot loop
              * mzarch.c:758 detekuje TEST_DEBUGGER_STEP_CALL po jedné
              * instrukci a opět zastaví. */
+            if ( rq->result_ptr )
+            {
+                /* Za běhu debugger_step_call() nic neudělá (ani nepauzne). */
+                st_DBGAPI_RUN_START_RESULT *r = (st_DBGAPI_RUN_START_RESULT *) rq->result_ptr;
+                r->status = EMULATOR_TEST_PAUSED ? DBGAPI_RUN_TO_STARTED : DBGAPI_RUN_START_NOT_PAUSED;
+                r->step = EMULATOR_TEST_PAUSED ? true : false;
+                r->run_seq = run_control_seq_for_start ( );
+            };
             debugger_step_call ( 1 );
             rq->success = true;
             break;
@@ -1717,13 +1821,32 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
              * na addr+length a spustí run-to-temp-BP. Ostatní: step into.
              * Interní helper dbgapi_emu_do_step_over() (= replika logiky
              * z dbg_iconbar.cpp). Pokud emu běží, caller musí pause před
-             * voláním (default UX). */
+             * voláním (default UX).
+             *
+             * result_ptr (volitelný st_DBGAPI_RUN_START_RESULT*): krok
+             * (step = true), běh k dočasnému BP (step = false), nebo jen
+             * pauza (PAUSED_ONLY), a číslo běhu. */
             if ( EMULATOR_TEST_PAUSED )
             {
+                uint64_t seq = run_control_seq_for_start ( );
                 dbgapi_emu_do_step_over ( );
+                if ( rq->result_ptr )
+                {
+                    st_DBGAPI_RUN_START_RESULT *r = (st_DBGAPI_RUN_START_RESULT *) rq->result_ptr;
+                    r->status = DBGAPI_RUN_TO_STARTED;
+                    r->step = TEST_DEBUGGER_STEP_CALL ? true : false;
+                    r->run_seq = seq;
+                };
             }
             else
             {
+                if ( rq->result_ptr )
+                {
+                    st_DBGAPI_RUN_START_RESULT *r = (st_DBGAPI_RUN_START_RESULT *) rq->result_ptr;
+                    r->status = DBGAPI_RUN_TO_PAUSED_ONLY;
+                    r->step = false;
+                    r->run_seq = run_log_current ( NULL );
+                };
                 emulator_pause ( true );
             };
             rq->success = true;
@@ -1736,10 +1859,11 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
              * data_ptr (= uint16_t*). Pokud emu běží, pause + return
              * (= UX z dbg_iconbar.cpp::dbg_do_run_to_cursor).
              *
-             * result_ptr (volitelný int*, mcp-inbox-fixes): co se stalo -
-             * DBGAPI_RUN_TO_STARTED, nebo DBGAPI_RUN_TO_PAUSED_ONLY (emu
-             * běžel, jen se pauzl). MCP podle něj pozná, že cíl nespustil,
-             * i když emu mezi jeho kontrolou pauzy a drainem někdo rozběhl. */
+             * result_ptr (volitelný st_DBGAPI_RUN_START_RESULT*,
+             * mcp-inbox-fixes): co se stalo - DBGAPI_RUN_TO_STARTED, nebo
+             * DBGAPI_RUN_TO_PAUSED_ONLY (emu běžel, jen se pauzl), a číslo
+             * běhu. MCP podle něj pozná, že cíl nespustil, i když emu mezi
+             * jeho kontrolou pauzy a drainem někdo rozběhl. */
             if ( !rq->data_ptr )
             {
                 rq->success = false;
@@ -1747,17 +1871,23 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
             };
             if ( !EMULATOR_TEST_PAUSED )
             {
-                emulator_pause ( true );
                 if ( rq->result_ptr )
                 {
-                    *((int *)rq->result_ptr) = DBGAPI_RUN_TO_PAUSED_ONLY;
+                    st_DBGAPI_RUN_START_RESULT *r = (st_DBGAPI_RUN_START_RESULT *) rq->result_ptr;
+                    r->status = DBGAPI_RUN_TO_PAUSED_ONLY;
+                    r->step = false;
+                    r->run_seq = run_log_current ( NULL );
                 };
+                emulator_pause ( true );
                 rq->success = true;
                 break;
             };
             if ( rq->result_ptr )
             {
-                *((int *)rq->result_ptr) = DBGAPI_RUN_TO_STARTED;
+                st_DBGAPI_RUN_START_RESULT *r = (st_DBGAPI_RUN_START_RESULT *) rq->result_ptr;
+                r->status = DBGAPI_RUN_TO_STARTED;
+                r->step = false;
+                r->run_seq = run_control_seq_for_start ( );
             };
             {
                 uint16_t target = *((uint16_t *)rq->data_ptr);
@@ -3799,12 +3929,13 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
             callstack_snapshot_free ( entries );
 
             p->return_addr = target;
+            p->run_seq = run_control_seq_for_start ( );
             bptmap_set_temporary_event ( target );
             debugger_step_call ( 0 );
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
             mzarch_run_to_temporary_breakpoint ( );
 #endif
-            (void) p->max_cycles; /* informativní; ne-enforced v V1.A.3 */
+            (void) p->max_cycles; /* informativní; omezení běhu je deadline (run_control.h) */
             p->status   = 0;
             rq->success = true;
             break;
@@ -4576,6 +4707,61 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
                 it->sub_id = e->sub_id;
                 it->offset = e->offset;
                 it->value = e->value;
+            };
+            rq->success = true;
+            break;
+        }
+
+        /* --- Deadline běhu v emulovaném čase (run-control) ---
+         * MCP ho nastaví v pauze těsně před příkazem, který spustí běh,
+         * a při selhání toho příkazu ho zruší. Platí do nejbližší pauzy. */
+        case DBGAPI_CMD_RUN_DEADLINE:
+        {
+            st_DBGAPI_RUN_DEADLINE_PARAM *p = (st_DBGAPI_RUN_DEADLINE_PARAM *) rq->data_ptr;
+            if ( !p )
+            {
+                rq->success = false;
+                break;
+            };
+            p->ticks = 0;
+            if ( p->arm )
+            {
+                p->valid = run_control_deadline_arm ( (en_RUN_DEADLINE_KIND) p->kind, p->value, &p->ticks );
+            }
+            else
+            {
+                run_control_deadline_clear ( );
+                p->valid = true;
+            };
+            rq->success = p->valid;
+            break;
+        }
+
+        /* --- Hash obrazu a VRAM bez přenosu dat (run-control) ---
+         * Zdroj obrazu stejný jako u screenshotu (SDL snímek, jinak živý
+         * framebuffer GDG). */
+        case DBGAPI_CMD_FRAME_HASH:
+        {
+            st_DBGAPI_FRAME_HASH_PARAM *p = (st_DBGAPI_FRAME_HASH_PARAM *) rq->data_ptr;
+            if ( !p )
+            {
+                rq->success = false;
+                break;
+            };
+            APP_MUTEX_LOCK ( g_iface_video->fbsnapshot_pixels_mutex );
+            if ( g_iface_video->fbsnapshot_pixels != NULL )
+            {
+                dbgapi_frame_hash_fill ( p, g_iface_video->fbsnapshot_pixels,
+                                         (uint8_t) SCREENSHOT_SRC_SDL_SNAPSHOT,
+                                         g_iface_video->fbsnapshot_screen_id );
+                APP_MUTEX_UNLOCK ( g_iface_video->fbsnapshot_pixels_mutex );
+            }
+            else
+            {
+                uint32_t screen_id = g_iface_video->fbsnapshot_screen_id;
+                APP_MUTEX_UNLOCK ( g_iface_video->fbsnapshot_pixels_mutex );
+                dbgapi_frame_hash_fill ( p, g_framebuffer.pixels,
+                                         (uint8_t) SCREENSHOT_SRC_GDG_LIVE, screen_id );
             };
             rq->success = true;
             break;
@@ -7373,6 +7559,9 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
                 rq->success = true;
                 break;
             };
+            /* Hash obrazu ze stejného zdroje (plná velikost), dokud je
+             * zdroj platný (u SDL snímku pod zámkem). */
+            dbgapi_frame_hash_fill ( &p->hash, src, p->fallback_source, src_screen_id );
             uint8_t *dst = p->buffer;
             for ( uint32_t y = 0; y < h; y++ )
             {
@@ -7441,8 +7630,10 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
             /* Výběr zdroje pixelů - viz raw handler pro threading detaily. */
             const uint8_t *src = NULL;
             bool sdl_locked = false;
+            uint8_t src_kind = (uint8_t) SCREENSHOT_SRC_SDL_SNAPSHOT;
             APP_MUTEX_LOCK ( g_iface_video->fbsnapshot_pixels_mutex );
             sdl_locked = true;
+            uint32_t src_screen_id = g_iface_video->fbsnapshot_screen_id;
             if ( g_iface_video->fbsnapshot_pixels != NULL )
             {
                 src = g_iface_video->fbsnapshot_pixels;
@@ -7452,6 +7643,7 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
                 APP_MUTEX_UNLOCK ( g_iface_video->fbsnapshot_pixels_mutex );
                 sdl_locked = false;
                 src = g_framebuffer.pixels;
+                src_kind = (uint8_t) SCREENSHOT_SRC_GDG_LIVE;
             };
             if ( !src )
             {
@@ -7464,6 +7656,10 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
                 rq->success = true;
                 break;
             };
+
+            /* Hash obrazu ze stejného zdroje (celý framebuffer), dokud je
+             * zdroj platný. */
+            dbgapi_frame_hash_fill ( &p->hash, src, src_kind, src_screen_id );
 
             st_SCREENSHOT_PNG png;
             bool encoded = screenshot_encode_png ( src, VIDEO_DISPLAY_WIDTH, &opts, &png,
@@ -8136,6 +8332,8 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
             break;
     };
 
+    run_control_after_cmd ( (unsigned) cmd, (int) rq->cmd_origin, rc_was_paused, rc_was_step );
+
     /* MCP_ACTION broadcast hook - po úspěšném zpracování CMDRQ od MCP
      * klienta emitujeme notifikaci do UI (= budoucí Activity Log panel
      * V1.C). Pro chybové průchody (success == false) broadcast neposíláme,
@@ -8144,6 +8342,25 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
     {
         dbgapi_emit_mcp_action(rq);
     };
+}
+
+unsigned dbgapi_emu_drain_paused(st_DBGAPI_CMDRQ_QUEUE *queue,
+                                 void (*dispatch_fn)(st_DBGAPI_CMDRQ *rq))
+{
+    unsigned n = 0;
+    while (!TEST_DEBUGGER_STEP_CALL && dbgapi_emu_has_pending(queue))
+    {
+        st_DBGAPI_CMDRQ *rq = dbgapi_emu_dequeue(queue);
+        if (!rq)
+            continue;
+        if (dispatch_fn)
+            dispatch_fn(rq);
+        else
+            dbgapi_emu_dispatch(rq);
+        dbgapi_emu_complete(rq);
+        n++;
+    };
+    return n;
 }
 
 void dbgapi_emu_complete(st_DBGAPI_CMDRQ *rq)

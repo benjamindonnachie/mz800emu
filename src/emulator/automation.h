@@ -182,10 +182,11 @@ extern "C"
      * @brief Žádost o konec běhu s kódem (emu vlákno, i uprostřed instrukce).
      *
      * Zapamatuje první žádost (další do vyřízení ignoruje), vypíše ji na
-     * stderr, nastaví důvod pauzy @c EMU_PAUSE_REASON_EXIT, pozastaví
-     * emulaci a v buildu s MCP pošle událost `paused` (`reason: "exit"`,
-     * `exit_code`, `exit_reason`, `message`, `pc`). Vyřízení dělá
-     * automation_on_paused().
+     * stderr, nastaví důvod pauzy @c EMU_PAUSE_REASON_EXIT, předá kód,
+     * důvod a zprávu záznamu zastavení (run_control_note_exit()) a pozastaví
+     * emulaci. Událost `paused` (`reason: "exit"`, `exit_code`,
+     * `exit_reason`, `message`, `pc`) pošle v buildu s MCP záznam zastavení
+     * na vstupu do pauzy. Vyřízení dělá automation_on_paused().
      *
      * Funguje i bez automatizačních voleb (akce `exit` breakpointu).
      *

@@ -180,7 +180,7 @@ stav rastru a tempo generátoru GDG.
 |------|--------|
 | `Scanline` | Aktuální řádek paprsku (0 až plný počet řádků snímku) |
 | `Pixel clock` | Pozice v rámci aktuálního řádku (počet hodinových ticků od začátku snímku) |
-| `VBLN count` | Počet snímků od resetu / loadnutí snapshotu (frame counter) |
+| `VBLN count` | Počet snímků od startu emulátoru / loadnutí snapshotu (frame counter; reset stroje ho nenuluje) |
 
 ### Blanking a sync flagy
 

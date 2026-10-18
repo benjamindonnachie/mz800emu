@@ -1,4 +1,14 @@
 
+	- MCP - řízení běhu: každý běh (rozběh, běh k adrese, krok) má číslo run_seq a každé zastavení záznam (důvod, PC, breakpoint, kdo a čím běh spustil, čas v taktech GDG). Nové nástroje emu_resume (volný běh bez blokování), emu_wait_stop (počká na konec běhu, nejvýš 25 s na volání) a emu_get_stop_history (resource emulator://run/history). emu_resume, emu_run_until_addr a emu_step_out mají deadline v emulovaném čase (deadline_frames, deadline_ms, deadline_ticks), deterministický i přes reset. emu_pause(if_run_seq) nezastaví běh, který mezitím spustil uživatel v GUI. Viz mcp-server/tools-overview.md a emulator://docs/run_control.
+
+	- MCP - událost paused přijde právě jednou na každé zastavení včetně kroku, deadlinu a saturace akcí breakpointů a nese run_seq, takty GDG a kdo běh spustil; pauza už pozastavené emulace žádnou událost nepošle. Nová událost resumed ohlásí rozběh, i z GUI. emu_step_into a emu_step_over vracejí completed (krok opravdu proběhl) a running; krok jedné instrukce se vrací až po provedení. emu_run_until_raster, emu_run_until_tstate a emu_run_until_event skončí nejpozději po 20 s (time_limited).
+
+	- MCP - SHA-256 místo přenosu dat: emu_mem_read a emu_region_read vracejí sha256 přečtených bajtů (s want_data=false jen hash), nový emu_frame_hash vrátí hash obrazu a hash VRAM s pozicí paprsku; screenshoty nesou stejný image_sha256.
+
+	- BUGFIX: MCP emu_run(frames) přerušený breakpointem nebo pauzou nechal svůj limit aktivní: další běh (i Continue / F5 v GUI) se po zbytku snímků sám zastavil.
+
+	- BUGFIX: Debugger - krok (Step Into, MCP emu_step_into a emu_step_n), který dokončil snímek, mohl ztratit následující krok: emu_step_n pak hlásil všechny kroky, ale provedl o jeden méně, a příkaz poslaný hned po kroku mohl vidět stav před krokem.
+
 	- Nová funkce: Memory Search (Debugger -> Memory Search, Alt+Shift+E) najde, kde program drží hodnotu (životy, skóre, časovač), zužováním kandidátů: User RAM, Logical Z80, VRAM, banky MemExt, RAM disky nebo všechna zapisovatelná paměť; u8-s32 (LE/BE), packed BCD a řetězce číslic (holé, ASCII, display kód); filtry rovno, menší, větší, mezi, zvýšilo / snížilo se (o N), změnilo se (o N), nezměnilo se a bity pod maskou proti hodnotě, předchozímu nebo prvnímu vzorku; Undo / Redo, náhled filtru. Kandidáta jde otevřít v Memory Browseru, přidat do Watch, hlídat breakpointem na zápis ve správné zóně nebo zmrazit. Viz debugger/memory-search.md.
 
 	- MCP - hledání proměnných: emu_memsearch_start, emu_memsearch_filter, emu_memsearch_sample, emu_memsearch_undo, emu_memsearch_redo, emu_memsearch_list (hodnoty, CPU adresa a hotový breakpoint na zápis pro emu_bp_create_with_init), emu_memsearch_eliminate, emu_memsearch_close; Freeze Bytes přes MCP: emu_freeze_add, emu_freeze_remove, emu_freeze_list. Viz mcp-server/tools-overview.md a emulator://docs/memsearch_workflow.

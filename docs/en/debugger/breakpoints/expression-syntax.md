@@ -142,9 +142,9 @@ see [hw-events.md](hw-events.md#cpu-events).
 
 | Identifier | Meaning |
 |------------|---------|
-| `Cycle` | GDG pixel ticks since reset at the start of the current instruction. **Note:** not a Z80 T-state counter: one T-state is 5 GDG ticks on PAL machines (MZ-800, MZ-700 PAL) and 4 on NTSC (MZ-700 NTSC, MZ-1500). Like every value it is truncated to 32 bits and wraps to negative numbers after 2^31 ticks, about 121 s of emulated time on PAL (17 721 600 ticks per second) and about 150 s on NTSC. |
+| `Cycle` | GDG pixel ticks since the emulator started, at the start of the current instruction (a machine reset does not restart the counter, loading a snapshot sets the saved value). **Note:** not a Z80 T-state counter: one T-state is 5 GDG ticks on PAL machines (MZ-800, MZ-700 PAL) and 4 on NTSC (MZ-700 NTSC, MZ-1500). Like every value it is truncated to 32 bits and wraps to negative numbers after 2^31 ticks, about 121 s of emulated time on PAL (17 721 600 ticks per second) and about 150 s on NTSC. |
 | `FrameCycle` | GDG pixel ticks since the start of the current frame, at the start of the current instruction: 0 .. ticks per frame - 1 (354 432 per frame on PAL, 238 944 on NTSC). Does not wrap; use it for timing within a frame. `Cycle = Frame * ticks per frame + FrameCycle` while `Cycle` does not wrap. |
-| `Frame` | Number of complete frames since reset. Incremented at the end of a frame. |
+| `Frame` | Number of complete frames since the emulator started (a machine reset does not restart it). Incremented at the end of a frame. |
 | `Scanline` | Current GDG raster row (0..frame_height-1). |
 
 Per-arch source: mz800 and mz1500 share the GDG structure; mz700

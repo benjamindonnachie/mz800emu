@@ -8,6 +8,7 @@ Read individual topics on demand via `resources/read`.
 | URI | What to look up here |
 |-----|----------------------|
 | `emulator://docs/error_handling` | How to read a failed tool response: which errors mean "not executed, safe to retry" (`Emulator busy: ...`), "partially executed" or a real failure; request timing, the 10 s queue timeout and the ~20 s limit for a started command. |
+| `emulator://docs/run_control` | Run control: start a run and wait until it stops (`emu_wait_stop`, `run_seq`, events `paused` / `resumed` with reason, PC, who started the run), deadlines in emulated time (`deadline_frames` / `deadline_ms`), `emu_pause(if_run_seq)` so as not to stop the user's run, `completed` of steps, 20 s limit of stepping loops, SHA-256 of memory and of the screen (`want_data=false`, `emu_frame_hash`). |
 | `emulator://docs/memory_layout` | Z80 64 KB address space layout per platform (MZ-700 / MZ-800 native / MZ-800 700-compat / MZ-1500). Banking ports `0xE0..0xE6`. Memory expansion (Memext) replacing the RAM, memory files inside a `.mzs` snapshot. Key ROM entry points, IRQ vectors, text/color VRAM regions. |
 | `emulator://docs/bp_dsl` | Breakpoint condition expression language: registers, memory deref `[addr]`, port read `port[N]`, operators, built-in functions, `$user_vars`, examples. Same language is used by Watch expressions and Action DSL arguments. |
 | `emulator://docs/smart_vars` | `$name` user variables: how to create / read / write from BP action DSL, persistence rules (`.bpt` + `.vars`), lifecycle, reading via `emulator://vars`. |
@@ -29,6 +30,8 @@ Read individual topics on demand via `resources/read`.
 
 - A tool returned an `error` and you are deciding whether to retry ->
   `error_handling`.
+- Running the emulator and waiting for it to stop, limiting a run in
+  emulated time, comparing memory or the screen by hash -> `run_control`.
 - Setting up a breakpoint with a non-trivial condition -> `bp_dsl`.
 - Writing the action that runs when a BP fires (log, poke, set,
   conditional) -> `action_dsl`.

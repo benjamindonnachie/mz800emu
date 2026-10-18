@@ -1208,14 +1208,150 @@ async def emu_ping() -> str:
     return json.dumps(_data_or_error(resp))
 
 
+def _deadline_arg(deadline_frames: int | None, deadline_ms: int | None,
+                  deadline_ticks: int | None) -> tuple[dict | None, str | None]:
+    """Sestaví parametr ``deadline`` z nejvýš jedné z hodnot (frames / ms / ticks).
+
+    Returns:
+        (deadline dict nebo None, chybová hláška nebo None).
+    """
+    given = [(k, v) for k, v in (("frames", deadline_frames),
+                                 ("emulated_ms", deadline_ms),
+                                 ("ticks", deadline_ticks)) if v is not None]
+    if not given:
+        return None, None
+    if len(given) > 1:
+        return None, ("give at most one of deadline_frames, deadline_ms, "
+                      "deadline_ticks")
+    key, value = given[0]
+    if not isinstance(value, int) or value < 1:
+        return None, f"deadline {key} must be a positive integer"
+    return {key: value}, None
+
+
 @mcp.tool()
-async def emu_pause() -> str:
+async def emu_pause(if_run_seq: int | None = None) -> str:
     """Pause emulation (stop the CPU instruction stream).
 
-    Returns ``{"paused": true}`` on success. Idempotent (safe to call
-    when emulator is already paused).
+    Returns ``{"paused": true, "was_running": <bool>, "paused_now": <bool>,
+    "run_seq": <int>}``. Idempotent (safe to call when emulator is already
+    paused; a pause of a paused emulator is not a new stop and sends no
+    ``paused`` event).
+
+    With ``if_run_seq`` the call pauses only while run number
+    ``if_run_seq`` is running (the number returned by ``emu_resume``,
+    ``emu_run_until_addr``, ``emu_step_out`` or ``emu_get_state``). It
+    never stops a run that someone else started meanwhile, e.g. the user
+    in the GUI; then ``paused`` is false and ``skipped`` is
+    ``"run_seq_mismatch"`` (or ``"not_running"``).
+
+    Args:
+        if_run_seq: pause only this run (optional).
     """
-    resp = await _send_request("pause")
+    args: dict[str, Any] = {}
+    if if_run_seq is not None:
+        if not isinstance(if_run_seq, int) or if_run_seq < 0:
+            return json.dumps({"error": "if_run_seq must be >= 0"})
+        args["if_run_seq"] = if_run_seq
+    resp = await _send_request("pause", args or None)
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_resume(deadline_frames: int | None = None,
+                     deadline_ms: int | None = None,
+                     deadline_ticks: int | None = None) -> str:
+    """Resume emulation without blocking (free run), optionally with a deadline.
+
+    Returns at once with ``{"running": true, "run_seq": <int>,
+    "already_running": <bool>}``. The run continues until a breakpoint,
+    a pause or the deadline stops it. Wait for the stop with
+    ``emu_wait_stop(run_seq)``; the stop also sends the event ``paused``.
+
+    A deadline limits the run in emulated time (not wall clock) and is
+    deterministic: ``deadline_frames`` stops exactly at the N-th frame
+    boundary, ``deadline_ms`` / ``deadline_ticks`` stop at the first
+    emulation event point at or after the deadline (less than one frame
+    late). The stop has the reason ``"deadline"``. A deadline holds until
+    the next pause. Give at most one of the three.
+
+    Args:
+        deadline_frames: stop after N frame boundaries (1..1000000).
+        deadline_ms: stop after N ms of emulated time (1..86400000).
+        deadline_ticks: stop after N GDG clock ticks.
+
+    Returns:
+        JSON as above plus ``deadline_ticks`` (deadline length in GDG ticks)
+        when a deadline was given.
+    """
+    deadline, err = _deadline_arg(deadline_frames, deadline_ms, deadline_ticks)
+    if err:
+        return json.dumps({"error": err})
+    args: dict[str, Any] = {"frames": 0}
+    if deadline is not None:
+        args["deadline"] = deadline
+    resp = await _send_request("run", args)
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_wait_stop(run_seq: int | None = None,
+                        timeout_ms: int = 5000) -> str:
+    """Wait until a run of the emulator stops, and tell why and where.
+
+    A run is the time between leaving a pause (resume, a step, a run to an
+    address) and the next pause. Every run has a number ``run_seq``
+    (returned by ``emu_resume``, ``emu_run_until_addr``, ``emu_step_out``,
+    ``emu_step_into``, ``emu_step_over``, ``emu_pause``, ``emu_get_state``).
+    Without ``run_seq`` the tool waits for the current run (or returns the
+    last one when the emulator is paused).
+
+    Returns ``{"done": true, "run_seq", "record": {...}}`` once the run
+    stopped, or ``{"done": false, "running": true, ...}`` after
+    ``timeout_ms``; then call the tool again. The record has ``reason``
+    (``"run_to"``, ``"breakpoint"``, ``"deadline"``, ``"frames"``,
+    ``"step"``, ``"manual"``, ``"exit"``, ``"bp_action_saturation"``,
+    ``"event_trigger"``), ``pc``, ``bp_id`` (breakpoint), ``started_by`` /
+    ``start_cmd`` (who started the run: ``"mcp"`` or ``"user"`` in the
+    GUI), ``stopped_by`` (who paused it, for ``"manual"``),
+    ``start_ticks`` / ``stop_ticks`` (GDG ticks since the emulator started -
+    a machine reset does not restart them; same as ``Cycle`` in breakpoint
+    expressions), ``elapsed_ticks`` and ``frame``.
+    ``history_lost: true`` means the run stopped but its record is no longer
+    in the history (32 newest).
+
+    Args:
+        run_seq: run number to wait for (optional).
+        timeout_ms: longest wait in ms (0..25000, default 5000).
+    """
+    if not isinstance(timeout_ms, int) or timeout_ms < 0 or timeout_ms > 25000:
+        return json.dumps({"error": "timeout_ms must be in range 0..25000"})
+    args: dict[str, Any] = {"timeout_ms": timeout_ms}
+    if run_seq is not None:
+        if not isinstance(run_seq, int) or run_seq < 0:
+            return json.dumps({"error": "run_seq must be >= 0"})
+        args["run_seq"] = run_seq
+    resp = await _send_request(
+        "wait_stop", args, timeout_s=SEND_TIMEOUT_S + timeout_ms / 1000.0)
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_get_stop_history(limit: int = 32) -> str:
+    """Return the newest stop records of the emulator (oldest first).
+
+    Each record describes one run: why and where it stopped, who started
+    it (``started_by``: ``"mcp"`` for the agent, ``"user"`` for the GUI)
+    and how long it ran, see ``emu_wait_stop``. Use it to notice that the
+    user started or paused the emulator in the GUI. Also available as the
+    resource ``emulator://run/history``.
+
+    Args:
+        limit: number of newest records (1..32, default 32).
+    """
+    if not isinstance(limit, int) or limit < 1 or limit > 32:
+        return json.dumps({"error": "limit must be in range 1..32"})
+    resp = await _send_request("get_stop_history", {"limit": limit})
     return json.dumps(_data_or_error(resp))
 
 
@@ -1306,12 +1442,16 @@ async def emu_history_get() -> str:
 
 
 @mcp.tool()
-async def emu_mem_read(addr: int, length: int = 16) -> str:
+async def emu_mem_read(addr: int, length: int = 16, want_data: bool = True) -> str:
     """Read N bytes from Z80 memory at a given address.
 
     The address is interpreted via the current Z80 memory map (banking
     state applies). Returns a JSON object with fields ``addr`` (int),
-    ``len`` (int) and ``data_b64`` (base64-encoded raw bytes).
+    ``len`` (int), ``sha256`` (SHA-256 of the bytes, 64 lowercase hex
+    digits) and ``data_b64`` (base64-encoded raw bytes). With
+    ``want_data=False`` only the hash is returned - compare it with a
+    previous read to see whether the memory changed without downloading
+    it.
 
     See ``emulator://docs/memory_layout`` for per-platform memory maps,
     banking via IORQ ports 0xE0..0xE6 and key ROM entry points; live
@@ -1320,8 +1460,10 @@ async def emu_mem_read(addr: int, length: int = 16) -> str:
     Args:
         addr: Z80 memory address (0-65535).
         length: number of bytes to read (1-256). Defaults to 16.
+        want_data: False = only ``sha256``, no ``data_b64``.
     """
-    resp = await _send_request("mem_read", {"addr": addr, "len": length})
+    resp = await _send_request("mem_read", {"addr": addr, "len": length,
+                                            "want_data": bool(want_data)})
     return json.dumps(_data_or_error(resp))
 
 
@@ -1586,12 +1728,16 @@ async def emu_step_into() -> str:
     address (= the tool steps INTO the subroutine, unlike
     ``emu_step_over``).
 
-    The emulator must be paused before calling this tool; otherwise the
-    backend pauses it first and the step does NOT execute (caller must
-    invoke ``emu_step_into`` again after the pause settles).
+    The emulator must be paused before calling this tool. In a paused
+    emulator the tool returns after the step executed (``completed:
+    true``). On a running emulator nothing happens and the emulator keeps
+    running (``completed: false``, ``running: true``); call ``emu_pause``
+    first.
 
     Returns:
-        JSON ``{"stepped": true}`` on success.
+        JSON ``{"stepped": true, "completed": <bool>, "running": <bool>,
+        "run_seq": <int>}``. ``stepped`` is always true (compatibility);
+        ``completed`` tells whether the step really executed.
     """
     resp = await _send_request("step_into")
     if not resp.get("success", False):
@@ -1603,18 +1749,22 @@ async def emu_step_into() -> str:
 async def emu_step_over() -> str:
     """Execute one instruction, treating CALL/RST as atomic.
 
-    For ordinary instructions behaves like ``emu_step_into``. For
-    CALL/RST/DJNZ and block instructions, a temporary breakpoint is
-    placed at the return address and the emulator runs until it hits
-    that BP (= the subroutine is executed as one logical step). The stop
-    emits the event ``paused`` with ``reason: "run_to"`` (subscribe via
-    ``emu_event_subscribe``, wait with ``emu_event_poll``).
+    For ordinary instructions behaves like ``emu_step_into`` (returns
+    after the step executed, ``completed: true``). For CALL/RST/DJNZ and
+    block instructions, a temporary breakpoint is placed at the return
+    address and the emulator runs until it hits that BP (= the subroutine
+    is executed as one logical step): the tool returns at once with
+    ``completed: false``, ``running: true`` and the stop emits the event
+    ``paused`` with ``reason: "run_to"``. Wait for it with
+    ``emu_wait_stop(run_seq)``.
 
-    Requires paused state; the backend rejects the call when emulation
-    is running.
+    Requires paused state; on a running emulator the call only pauses it
+    (``paused_only: true``, nothing stepped).
 
     Returns:
-        JSON ``{"stepped": true}`` on success.
+        JSON ``{"stepped": true, "completed": <bool>, "running": <bool>,
+        "run_seq": <int>}`` (plus ``paused_only``). ``stepped`` is always
+        true (compatibility).
     """
     resp = await _send_request("step_over")
     if not resp.get("success", False):
@@ -1638,7 +1788,8 @@ async def emu_step_n(count: int) -> str:
 
     Returns:
         JSON ``{"count": <int>, "requested": <int>, "partial": <bool>}``
-        where ``count`` is the actual number of executed steps.
+        where ``count`` is the actual number of executed steps. The tool
+        returns after the last step executed.
     """
     if not isinstance(count, int):
         return json.dumps({"error": "count must be an integer"})
@@ -1651,18 +1802,25 @@ async def emu_step_n(count: int) -> str:
 
 
 @mcp.tool()
-async def emu_run_until_addr(addr: int, max_cycles: int = 10_000_000) -> str:
+async def emu_run_until_addr(addr: int, max_cycles: int = 10_000_000,
+                             deadline_frames: int | None = None,
+                             deadline_ms: int | None = None,
+                             deadline_ticks: int | None = None) -> str:
     """Run emulation until PC reaches the given address.
 
     Places a temporary breakpoint at ``addr`` and resumes emulation.
     The backend pauses when PC equals ``addr`` (or when a permanent
     breakpoint hits first) and emits the event ``paused`` with
     ``{"reason": "run_to", "pc": addr}`` (a permanent breakpoint that
-    stops instead gives ``reason: "breakpoint"``, never both). Subscribe
-    to ``paused`` via ``emu_event_subscribe`` and wait with
-    ``emu_event_poll``, or poll ``emu_status``; the emulator currently
-    does not automatically time out (the ``max_cycles`` argument is
-    reserved for future timeout support).
+    stops instead gives ``reason: "breakpoint"``, never both). Wait for
+    the stop with ``emu_wait_stop(run_seq)`` (or the ``paused`` event).
+
+    Without a deadline the run has no limit: when ``addr`` is never
+    reached, the emulator runs until paused. Give a deadline in emulated
+    time (``deadline_frames``, ``deadline_ms`` or ``deadline_ticks``, at
+    most one, see ``emu_resume``) to stop it deterministically with the
+    reason ``"deadline"``. ``max_cycles`` is informative only (echoed,
+    never enforced).
 
     The emulator must be paused before calling this tool. If it is
     running, the call returns an error ("Emulator is running ...") and
@@ -1671,19 +1829,26 @@ async def emu_run_until_addr(addr: int, max_cycles: int = 10_000_000) -> str:
 
     Args:
         addr: target Z80 PC address (0-65535).
-        max_cycles: informative timeout in Z80 T-states; in V0.B.6 it
-            is echoed back but not enforced by the backend.
+        max_cycles: informative value in Z80 T-states (echoed back).
+        deadline_frames: stop after N frame boundaries.
+        deadline_ms: stop after N ms of emulated time.
+        deadline_ticks: stop after N GDG clock ticks.
 
     Returns:
-        JSON ``{"addr": <int>, "max_cycles": <int>, "running": true}``
-        on success.
+        JSON ``{"addr": <int>, "max_cycles": <int>, "running": true,
+        "run_seq": <int>}`` (plus ``deadline_ticks``) on success.
     """
     if not isinstance(addr, int) or addr < 0 or addr > 0xFFFF:
         return json.dumps({"error": "addr must be in range 0..65535"})
     if not isinstance(max_cycles, int) or max_cycles < 1:
         return json.dumps({"error": "max_cycles must be a positive integer"})
-    resp = await _send_request(
-        "run_until_addr", {"addr": addr, "max_cycles": max_cycles})
+    deadline, err = _deadline_arg(deadline_frames, deadline_ms, deadline_ticks)
+    if err:
+        return json.dumps({"error": err})
+    args: dict[str, Any] = {"addr": addr, "max_cycles": max_cycles}
+    if deadline is not None:
+        args["deadline"] = deadline
+    resp = await _send_request("run_until_addr", args)
     if not resp.get("success", False):
         return json.dumps(
             {"error": resp.get("error", "run_until_addr failed")})
@@ -2595,7 +2760,10 @@ async def emu_symbol_list(prefix: str = "", limit: int = 100) -> str:
 
 
 @mcp.tool()
-async def emu_step_out(max_cycles: int = 10_000_000) -> str:
+async def emu_step_out(max_cycles: int = 10_000_000,
+                       deadline_frames: int | None = None,
+                       deadline_ms: int | None = None,
+                       deadline_ticks: int | None = None) -> str:
     """Run until RET from current Z80 subroutine (callstack frame pop).
 
     Uses shadow callstack tracking to look up the return address of the
@@ -2607,21 +2775,33 @@ async def emu_step_out(max_cycles: int = 10_000_000) -> str:
     debugger window or the --callstack CLI flag). Requires emulator
     to be paused before invocation.
 
+    Wait for the stop with ``emu_wait_stop(run_seq)``. When the function
+    may never return, give a deadline in emulated time (at most one of
+    ``deadline_frames``, ``deadline_ms``, ``deadline_ticks``, see
+    ``emu_resume``); the run then stops with the reason ``"deadline"``.
+
     Args:
-        max_cycles: informational T-state cap (default 10M). Not strictly
-            enforced in V1.A.3 - the temporary breakpoint mechanism runs
-            until hit; the client should poll ``emu_get_state`` and pause
-            manually if the function never returns.
+        max_cycles: informative value (default 10M), echoed back, never
+            enforced.
+        deadline_frames: stop after N frame boundaries.
+        deadline_ms: stop after N ms of emulated time.
+        deadline_ticks: stop after N GDG clock ticks.
 
     Returns:
         JSON ``{"return_addr": <int>, "max_cycles": <int>, "running":
-        true}`` on success, or ``{"error": "..."}`` if callstack tracking
-        is inactive, the stack is empty, or the emulator is already
-        running.
+        true, "run_seq": <int>}`` (plus ``deadline_ticks``) on success, or
+        ``{"error": "..."}`` if callstack tracking is inactive, the stack
+        is empty, or the emulator is already running.
     """
     if not isinstance(max_cycles, int) or max_cycles < 1:
         return json.dumps({"error": "max_cycles must be >= 1"})
-    resp = await _send_request("step_out", {"max_cycles": max_cycles})
+    deadline, err = _deadline_arg(deadline_frames, deadline_ms, deadline_ticks)
+    if err:
+        return json.dumps({"error": err})
+    args: dict[str, Any] = {"max_cycles": max_cycles}
+    if deadline is not None:
+        args["deadline"] = deadline
+    resp = await _send_request("step_out", args)
     if not resp.get("success", False):
         return json.dumps({"error": resp.get("error", "step_out failed")})
     return json.dumps(_data_or_error(resp))
@@ -2647,11 +2827,16 @@ async def emu_run_until_raster(line: int, col: int = -1,
         col: target raster column on the target line (-1 = any column).
         max_cycles: safety cap on T-states spent polling (default 10M).
 
+    The loop runs in the emulator's request thread and cannot be
+    cancelled; it ends after at most 20 s of wall-clock time
+    (``time_limited: true``) so that the call answers before the 30 s
+    transport limit. The emulator then stays paused where the loop got.
+
     Returns:
         JSON ``{"scanline": <int>, "column_pixel": <int>, "frame_number":
         <int>, "total_cycles": <int>, "delta_cycles": <int>, "reached":
-        <bool>}``. ``reached=false`` means the loop timed out at the
-        safety cap.
+        <bool>, "time_limited": <bool>}``. ``reached=false`` means the
+        loop stopped at the safety cap or at the time limit.
     """
     if not isinstance(line, int) or line < 0 or line > 511:
         return json.dumps({"error": "line must be 0..511"})
@@ -2689,9 +2874,12 @@ async def emu_run_until_tstate(target_total_cycles: int,
         max_cycles: safety cap on delta T-states from the start of the
             polling loop (default 10M).
 
+    Like ``emu_run_until_raster`` the loop ends after at most 20 s of
+    wall-clock time (``time_limited: true``).
+
     Returns:
         JSON ``{"total_cycles": <int>, "target": <int>, "delta_cycles":
-        <int>, "reached": <bool>}``.
+        <int>, "reached": <bool>, "time_limited": <bool>}``.
     """
     if not isinstance(target_total_cycles, int) or target_total_cycles < 0:
         return json.dumps(
@@ -2731,10 +2919,16 @@ async def emu_run_until_event(kind: str,
         params: kind-specific parameters (optional).
         max_cycles: safety cap on T-states (default 10M).
 
+    The wait ends after at most 20 s of wall-clock time
+    (``time_limited: true``; for ``breakpoint_hit`` the emulator is then
+    paused). For long waits prefer ``emu_resume`` with a deadline and
+    ``emu_wait_stop``.
+
     Returns:
         JSON ``{"kind": <str>, "reached": <bool>, "delta_cycles": <int>,
-        ...}`` plus kind-specific fields (``frames_done`` for
-        ``frame_done``, ``paused`` for ``breakpoint_hit``).
+        "time_limited": <bool>, ...}`` plus kind-specific fields
+        (``frames_done`` for ``frame_done``, ``paused`` for
+        ``breakpoint_hit``).
     """
     if kind not in ("frame_done", "breakpoint_hit", "io_write"):
         return json.dumps(
@@ -2774,10 +2968,21 @@ async def emu_event_subscribe(topics: list[str]) -> str:
       BP would otherwise stop the emulator). Payload:
       ``{id, addr, type, hits, trap_id}``. The ``trap_id`` is used in
       ``emu_trap_respond``.
-    * ``paused`` - emulator paused for any reason (BP hit, manual pause,
-      step complete). Payload: ``{reason, pc}``.
-    * ``step_done`` - declared topic, emit hook scheduled for V1.A.5+
-      (requires mzarch step-complete hook).
+    * ``paused`` - exactly one event for every stop of the emulator
+      (breakpoint, temporary breakpoint, step, ``emu_run`` frames,
+      deadline, manual pause, exit). Payload: ``{reason, pc, run_seq,
+      step, start_ticks, stop_ticks, elapsed_ticks, frame, started_by,
+      start_cmd, stopped_by}`` plus ``bp_id`` (breakpoint), ``exit_code`` /
+      ``exit_reason`` / ``message`` (exit), ``bytes`` / ``detail``
+      (``bp_action_saturation``). Same fields as the record of
+      ``emu_wait_stop``.
+    * ``resumed`` - the emulator left a pause into a run (not for a single
+      step), also when the user resumed it in the GUI. Payload:
+      ``{run_seq, pc, started_by, start_cmd, start_ticks, deadline}``.
+    * ``step_done`` - a single step finished. Payload: ``{pc, cycles,
+      ticks, run_seq}`` (``cycles`` is a 32-bit T-state counter that wraps
+      after about 20 minutes of emulation, ``ticks`` are 64-bit GDG ticks
+      since the emulator started).
     * ``io_write`` - declared topic, emit hook scheduled for V1.A.5+
       (requires Z80 OUT hot-path hook).
 
@@ -5994,7 +6199,7 @@ async def emu_regions_list() -> str:
 
 @mcp.tool()
 async def emu_region_read(region_id: int, offset: int = 0,
-                          length: int = 256) -> str:
+                          length: int = 256, want_data: bool = True) -> str:
     """Read raw bytes from a physical memory region (bypass Z80
     banking).
 
@@ -6008,11 +6213,13 @@ async def emu_region_read(region_id: int, offset: int = 0,
         offset: Byte offset within the region (0..size-1).
         length: Number of bytes to read (1..65536). Clamps to region
             size if ``offset+length > size``.
+        want_data: False = only ``sha256``, no ``data_b64``.
 
     Returns:
         JSON ``{"region_id": int, "offset": int, "length": int,
-        "data_b64": "..."}``. ``length`` reflects the actual number of
-        bytes read after clamping. On error: ``{"error": "..."}``.
+        "sha256": "...", "data_b64": "..."}``. ``length`` reflects the
+        actual number of bytes read after clamping, ``sha256`` is the
+        SHA-256 of those bytes. On error: ``{"error": "..."}``.
     """
     if region_id < 0:
         return json.dumps({"error": "region_id must be >= 0"})
@@ -6022,7 +6229,8 @@ async def emu_region_read(region_id: int, offset: int = 0,
         return json.dumps({"error": "length must be in range 1..65536"})
     resp = await _send_request("region_read",
                                {"region_id": region_id,
-                                "offset": offset, "length": length})
+                                "offset": offset, "length": length,
+                                "want_data": bool(want_data)})
     return json.dumps(_data_or_error(resp))
 
 
@@ -6357,6 +6565,17 @@ async def resource_state() -> str:
     data = resp.get("data", {}) or {}
     data["transport"] = TRANSPORT_KIND
     return json.dumps(data)
+
+
+@mcp.resource("emulator://run/history")
+async def resource_run_history() -> str:
+    """Newest stop records of the emulator (oldest first, up to 32).
+
+    Same content as ``emu_get_stop_history``: why and where each run
+    stopped, who started it and how long it ran.
+    """
+    resp = await _send_request("get_stop_history", {"limit": 32})
+    return json.dumps(_data_or_error(resp))
 
 
 @mcp.resource("emulator://cpu/registers")
@@ -7460,7 +7679,9 @@ async def resource_frame_screenshot_raw() -> str:
     and reports the value actually used.
 
     ``source_screen_id`` is the frame counter at the moment of the
-    snapshot - lets the client deduplicate identical screenshots.
+    snapshot - lets the client deduplicate identical screenshots. The
+    reply also carries ``image_sha256``, ``vram_sha256``, ``beam`` and
+    ``paused`` (see ``emu_frame_hash``).
 
     ``available=false`` is returned only when the emulator has not yet
     emitted a single frame (``fbsnapshot_pixels`` is NULL).
@@ -7495,6 +7716,33 @@ async def resource_frame_screenshot() -> str:
     if _transport is None or not _transport.is_alive():
         return json.dumps({"connected": False})
     resp = await _send_request("get_frame_screenshot")
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_frame_hash() -> str:
+    """SHA-256 of the screen picture and of the video memory, without the data.
+
+    ``image_sha256`` hashes the picture from the same source as a
+    screenshot: the palette index of every pixel (row by row), then the
+    16 palette colours as R, G, B. ``vram_sha256`` hashes the video
+    memory (MZ-800: all four planes; MZ-700 / MZ-1500: character and
+    attribute VRAM). The picture also depends on GDG registers (palette,
+    mode, border), the VRAM hash does not - compare both when needed.
+
+    Paused in the middle of a frame, part of the picture is still from
+    the previous frame and the hash depends on the beam position
+    (``beam``: ``frame``, ``scanline``, ``column``); compare pictures at a
+    frame boundary (after ``emu_run(frames)`` or ``deadline_frames``).
+    The screenshot resources return the same ``image_sha256``.
+
+    Returns:
+        JSON ``{"available": <bool>, "image_sha256": str, "vram_sha256":
+        str, "source_screen_id": int, "image_source": "sdl_snapshot" |
+        "gdg_live", "width": int, "height": int, "beam": {...},
+        "paused": <bool>}``.
+    """
+    resp = await _send_request("frame_hash")
     return json.dumps(_data_or_error(resp))
 
 

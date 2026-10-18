@@ -190,7 +190,7 @@ current raster state and the GDG tempo generator.
 |-------|---------|
 | `Scanline` | Current beam row (0 to the full frame line count) |
 | `Pixel clock` | Position within the current row (clock ticks since the start of the frame) |
-| `VBLN count` | Frames since reset / snapshot load (frame counter) |
+| `VBLN count` | Frames since the emulator started / snapshot load (frame counter; a machine reset does not restart it) |
 
 ### Blanking and sync flags
 

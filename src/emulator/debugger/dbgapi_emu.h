@@ -116,6 +116,30 @@ st_DBGAPI_CMDRQ *dbgapi_emu_dequeue(st_DBGAPI_CMDRQ_QUEUE *queue);
  */
 void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq);
 
+/**
+ * @brief Drain fronty v paused smyčce: skončí po příkazu, který vyžádal krok.
+ *
+ * Vyzvedává a vykonává příkazy, dokud je fronta neprázdná a není vyžádaný
+ * krok (TEST_DEBUGGER_STEP_CALL). Jakmile příkaz krok vyžádá (STEP_INTO,
+ * step over bez CALL), další příkazy nechá ve frontě na dobu po kroku.
+ * Bez toho by se příkaz, který klient poslal hned po dokončení kroku a který
+ * dorazil ještě před koncem drainu, zpracoval před provedením kroku: druhý
+ * STEP_INTO by se ztratil (debugger_step_call(1) při nastaveném kroku nic
+ * neudělá) a čtení by vidělo stav před krokem. Okno je jen mezi dokončením
+ * příkazu kroku a další kontrolou fronty (ze zdroje, neměřeno). Stejnou
+ * ztrátu na hranici snímku (změřeno) řeší vynechání drainu konce snímku
+ * během kroku (mzarch.c).
+ *
+ * @param queue Fronta.
+ * @param dispatch_fn Provede jeden vyzvednutý příkaz (dispatch a úklid
+ *        platformy); NULL = dbgapi_emu_dispatch(). Dokončení dělá tato funkce.
+ * @return Počet vykonaných příkazů.
+ * @pre EMU vlákno, paused smyčka (bod mezi instrukcemi).
+ * @post Fronta je prázdná, nebo je vyžádaný krok.
+ */
+unsigned dbgapi_emu_drain_paused(st_DBGAPI_CMDRQ_QUEUE *queue,
+                                 void (*dispatch_fn)(st_DBGAPI_CMDRQ *rq));
+
 /*
  * Signalizace dokončení zpracování příkazu.
  * Nastaví cmd_state = PROCESSED a signalizuje slot->cond.

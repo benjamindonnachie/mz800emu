@@ -32,11 +32,11 @@
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
 #include "debugger/breakpoints.h"
 #include "debugger/dbgapi_emu.h"
+#include "debugger/run_control/run_control.h"
 #endif
 
 #ifdef MZ800EMU_CFG_MCP_SERVER_ENABLED
 #include "mcp/dispatch.h"
-#include "mcp/event_bus.h"
 #ifdef MZ800EMU_CFG_MCP_TCP_ENABLED
 #include "mcp/tcp_server.h"
 #endif
@@ -1061,17 +1061,12 @@ void automation_request_exit(int code, en_AUTOMATION_REASON reason, const char *
             message ? ": " : "", message ? message : "");
 
     g_emulator.pause_reason = EMU_PAUSE_REASON_EXIT;
-    emulator_pause(true);
-
-#ifdef MZ800EMU_CFG_MCP_SERVER_ENABLED
-    JsonObject *ev = json_object_new();
-    json_object_set_string_member(ev, "reason", "exit");
-    json_object_set_int_member(ev, "exit_code", s_am.code);
-    json_object_set_string_member(ev, "exit_reason", am_reason_name(reason));
-    if (message) json_object_set_string_member(ev, "message", message);
-    json_object_set_int_member(ev, "pc", g_mzarch_main.cpu ? g_mzarch_main.cpu->pc : 0);
-    event_bus_emit("paused", ev);
+#ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
+    /* Událost "paused" s reason "exit", exit_code, exit_reason a message
+     * vyšle záznam zastavení na vstupu do pauzy (run_control_on_stop()). */
+    run_control_note_exit(s_am.code, am_reason_name(reason), message);
 #endif
+    emulator_pause(true);
 }
 
 

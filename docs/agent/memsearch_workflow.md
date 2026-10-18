@@ -54,7 +54,8 @@ samples; use it when a filter removed too much.
 
 Strict `dec` / `inc` per round removes a counter that did not change in
 that round (a game timer can stand still for a moment; measured on a
-MZ-700 game: the timer did not move during one of eight 50-frame rounds).
+MZ-700 game: sampled every 50 frames, the timer did not move in 2 of 11
+intervals).
 The `le` + `lt first` pair keeps it and still removes constants.
 
 Arithmetic has no wrap-around: an u8 going 00h -> FFh is not `dec_by 1`.

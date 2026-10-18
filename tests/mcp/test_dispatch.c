@@ -114,8 +114,12 @@
  * memsearch doplnil freeze_add/remove/list a memsearch_start/filter/sample/
  * undo/redo/list/eliminate/close (Freeze Bytes a postupné hledání proměnných,
  * na KONEC cmd_map[]) = 191 + 11 = 202.
+ *
+ * run-control doplnil wait_stop a get_stop_history (čekání na zastavení
+ * běhu a historie zastavení, na KONEC cmd_map[]) = 202 + 2 = 204, a
+ * frame_hash (SHA-256 obrazu a VRAM, na KONEC cmd_map[]) = 204 + 1 = 205.
  */
-#define MCP_EXPECTED_CMD_COUNT 202
+#define MCP_EXPECTED_CMD_COUNT 205
 
 
 /* ====================================================================== */
@@ -1817,7 +1821,9 @@ void test_step_into_increments_counter(void) {
     en_MCP_DISPATCH_RESULT rc = mcp_dispatch_request(req, &resp);
 
     TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
-    TEST_ASSERT_EQUAL_INT(DBGAPI_CMD_STEP_INTO, g_stub_state.last_cmd);
+    /* STEP_INTO a po něm prázdný příkaz (čekání na provedení kroku). */
+    TEST_ASSERT_EQUAL_INT(DBGAPI_CMD_NONE, g_stub_state.last_cmd);
+    TEST_ASSERT_EQUAL_INT(2, g_stub_state.call_count);
     TEST_ASSERT_EQUAL_INT(DBGAPI_CMD_ORIGIN_MCP, g_stub_state.last_origin);
     TEST_ASSERT_EQUAL_INT(1, g_stub_state.step_into_calls);
 
@@ -1825,6 +1831,8 @@ void test_step_into_increments_counter(void) {
     JsonObject *obj = _parse_response_object(resp, &parser);
     JsonObject *data = json_object_get_object_member(obj, "data");
     TEST_ASSERT_TRUE(json_object_get_boolean_member(data, "stepped"));
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(data, "completed"));
+    TEST_ASSERT_FALSE(json_object_get_boolean_member(data, "running"));
     g_object_unref(parser);
 
     free(resp);
@@ -1840,7 +1848,8 @@ void test_step_over_increments_counter(void) {
     en_MCP_DISPATCH_RESULT rc = mcp_dispatch_request(req, &resp);
 
     TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
-    TEST_ASSERT_EQUAL_INT(DBGAPI_CMD_STEP_OVER, g_stub_state.last_cmd);
+    /* Krok bez CALL: STEP_OVER a čekání na provedení (prázdný příkaz). */
+    TEST_ASSERT_EQUAL_INT(DBGAPI_CMD_NONE, g_stub_state.last_cmd);
     TEST_ASSERT_EQUAL_INT(DBGAPI_CMD_ORIGIN_MCP, g_stub_state.last_origin);
     TEST_ASSERT_EQUAL_INT(1, g_stub_state.step_over_calls);
 
@@ -1858,9 +1867,9 @@ void test_step_n_loops_count_times(void) {
     en_MCP_DISPATCH_RESULT rc = mcp_dispatch_request(req, &resp);
 
     TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
-    /* Stub musel vidět STEP_INTO 5x. */
+    /* Stub musel vidět STEP_INTO 5x a jedno čekání na poslední krok. */
     TEST_ASSERT_EQUAL_INT(5, g_stub_state.step_into_calls);
-    TEST_ASSERT_EQUAL_INT(5, g_stub_state.call_count);
+    TEST_ASSERT_EQUAL_INT(6, g_stub_state.call_count);
 
     JsonParser *parser = NULL;
     JsonObject *obj = _parse_response_object(resp, &parser);
@@ -7994,6 +8003,334 @@ void test_memsearch_mcp_errors(void) {
 }
 
 
+
+/* ====================================================================== */
+/* run-control (M5): wait_stop, historie, deadline, pause(if_run_seq), kroky */
+/* ====================================================================== */
+
+#include "../../src/emulator/debugger/run_control/run_log.h"
+
+/**
+ * @brief Pošle požadavek a vrátí objekt `data` odpovědi (parser uvolní volající).
+ */
+static JsonObject *_rc_call(const char *json, en_MCP_DISPATCH_RESULT *rc_out,
+                            JsonParser **parser, char **resp_out) {
+    st_JSONL_MESSAGE *req = _make_request(json);
+    char *resp = NULL;
+    *rc_out = mcp_dispatch_request(req, &resp);
+    jsonl_msg_free(req);
+    *resp_out = resp;
+    if (*rc_out != MCP_DISPATCH_OK) return NULL;
+    JsonObject *obj = _parse_response_object(resp, parser);
+    return json_object_get_object_member(obj, "data");
+}
+
+
+/** @brief Ukončí aktuální běh v run_log záznamem s důvodem a PC. */
+static void _rc_end_run(const char *reason, uint16_t pc) {
+    st_RUN_LOG_RECORD r;
+    run_log_record_clear(&r);
+    r.reason = reason;
+    r.started_by = "mcp";
+    r.start_cmd = "run_to";
+    r.stopped_by = "emulator";
+    r.pc = pc;
+    r.bp_id = 7;
+    run_log_end(&r);
+}
+
+
+/**
+ * @brief wait_stop: skončený běh vrátí hned se záznamem, běžící po timeoutu.
+ */
+void test_wait_stop_done_and_timeout(void) {
+    dispatch_stub_reset();
+    run_log_reset_for_tests();
+    run_log_begin();                       /* běh 1 */
+    _rc_end_run("breakpoint", 0x1234);
+
+    en_MCP_DISPATCH_RESULT rc;
+    JsonParser *parser = NULL;
+    char *resp = NULL;
+    JsonObject *d = _rc_call("{\"type\":\"request\",\"req_id\":9001,\"cmd\":\"wait_stop\","
+                             "\"data\":{\"run_seq\":1,\"timeout_ms\":0}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(d, "done"));
+    JsonObject *rec = json_object_get_object_member(d, "record");
+    TEST_ASSERT_NOT_NULL(rec);
+    TEST_ASSERT_EQUAL_STRING("breakpoint", json_object_get_string_member(rec, "reason"));
+    TEST_ASSERT_EQUAL_INT(0x1234, json_object_get_int_member(rec, "pc"));
+    TEST_ASSERT_EQUAL_INT(7, json_object_get_int_member(rec, "bp_id"));
+    TEST_ASSERT_EQUAL_INT(1, json_object_get_int_member(rec, "run_seq"));
+    /* wait_stop je lokální, frontu dbgapi nevolá. */
+    TEST_ASSERT_EQUAL_INT(0, g_stub_state.call_count);
+    g_object_unref(parser);
+    free(resp);
+
+    run_log_begin();                       /* běh 2 běží */
+    parser = NULL;
+    d = _rc_call("{\"type\":\"request\",\"req_id\":9002,\"cmd\":\"wait_stop\","
+                 "\"data\":{\"timeout_ms\":20}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_FALSE(json_object_get_boolean_member(d, "done"));
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(d, "running"));
+    TEST_ASSERT_EQUAL_INT(2, json_object_get_int_member(d, "run_seq"));
+    TEST_ASSERT_FALSE(json_object_has_member(d, "record"));
+    g_object_unref(parser);
+    free(resp);
+
+    /* Neplatný timeout. */
+    d = _rc_call("{\"type\":\"request\",\"req_id\":9003,\"cmd\":\"wait_stop\","
+                 "\"data\":{\"timeout_ms\":30000}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, rc);
+    free(resp);
+    run_log_reset_for_tests();
+}
+
+
+/**
+ * @brief get_stop_history: limit a pořadí od nejstaršího.
+ */
+void test_get_stop_history_limit(void) {
+    dispatch_stub_reset();
+    run_log_reset_for_tests();
+    _rc_end_run("manual", 0x0100);         /* běh 0 */
+    run_log_begin();
+    _rc_end_run("step", 0x0101);           /* běh 1 */
+    run_log_begin();
+    _rc_end_run("deadline", 0x0102);       /* běh 2 */
+
+    en_MCP_DISPATCH_RESULT rc;
+    JsonParser *parser = NULL;
+    char *resp = NULL;
+    JsonObject *d = _rc_call("{\"type\":\"request\",\"req_id\":9010,\"cmd\":\"get_stop_history\","
+                             "\"data\":{\"limit\":2}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_EQUAL_INT(2, json_object_get_int_member(d, "count"));
+    JsonArray *arr = json_object_get_array_member(d, "records");
+    TEST_ASSERT_EQUAL_UINT(2, json_array_get_length(arr));
+    TEST_ASSERT_EQUAL_STRING("step", json_object_get_string_member(
+        json_array_get_object_element(arr, 0), "reason"));
+    TEST_ASSERT_EQUAL_STRING("deadline", json_object_get_string_member(
+        json_array_get_object_element(arr, 1), "reason"));
+    g_object_unref(parser);
+    free(resp);
+
+    d = _rc_call("{\"type\":\"request\",\"req_id\":9011,\"cmd\":\"get_stop_history\","
+                 "\"data\":{\"limit\":0}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, rc);
+    free(resp);
+    run_log_reset_for_tests();
+}
+
+
+/**
+ * @brief pause(if_run_seq): jiný běh se nezastaví, stejný ano.
+ */
+void test_pause_if_run_seq(void) {
+    dispatch_stub_reset();
+    g_stub_state.is_running = true;
+    g_stub_state.run_seq = 5;
+
+    en_MCP_DISPATCH_RESULT rc;
+    JsonParser *parser = NULL;
+    char *resp = NULL;
+    JsonObject *d = _rc_call("{\"type\":\"request\",\"req_id\":9020,\"cmd\":\"pause\","
+                             "\"data\":{\"if_run_seq\":4}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_TRUE(g_stub_state.pause_last.has_if_run_seq);
+    TEST_ASSERT_EQUAL_UINT64(4, g_stub_state.pause_last.if_run_seq);
+    TEST_ASSERT_FALSE(json_object_get_boolean_member(d, "paused"));
+    TEST_ASSERT_FALSE(json_object_get_boolean_member(d, "paused_now"));
+    TEST_ASSERT_EQUAL_STRING("run_seq_mismatch", json_object_get_string_member(d, "skipped"));
+    g_object_unref(parser);
+    free(resp);
+
+    parser = NULL;
+    d = _rc_call("{\"type\":\"request\",\"req_id\":9021,\"cmd\":\"pause\","
+                 "\"data\":{\"if_run_seq\":5}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(d, "paused"));
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(d, "paused_now"));
+    TEST_ASSERT_FALSE(json_object_has_member(d, "skipped"));
+    g_object_unref(parser);
+    free(resp);
+
+    /* Bez if_run_seq: pauza platí vždy, odpověď paused true. */
+    parser = NULL;
+    d = _rc_call("{\"type\":\"request\",\"req_id\":9022,\"cmd\":\"pause\"}",
+                 &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_FALSE(g_stub_state.pause_last.has_if_run_seq);
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(d, "paused"));
+    g_object_unref(parser);
+    free(resp);
+}
+
+
+/**
+ * @brief deadline u run_until_addr: nastaví se před RUN_TO, při
+ *        PAUSED_ONLY se zruší; neplatný tvar je chyba bez volání.
+ */
+void test_run_until_addr_deadline(void) {
+    dispatch_stub_reset();
+    g_stub_state.run_seq = 3;
+
+    en_MCP_DISPATCH_RESULT rc;
+    JsonParser *parser = NULL;
+    char *resp = NULL;
+    JsonObject *d = _rc_call("{\"type\":\"request\",\"req_id\":9030,\"cmd\":\"run_until_addr\","
+                             "\"data\":{\"addr\":512,\"deadline\":{\"frames\":5}}}",
+                             &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_EQUAL_INT(1, g_stub_state.deadline_arms);
+    TEST_ASSERT_EQUAL_INT(0, g_stub_state.deadline_last.kind);   /* RUN_DEADLINE_FRAMES */
+    TEST_ASSERT_EQUAL_UINT64(5, g_stub_state.deadline_last.value);
+    TEST_ASSERT_EQUAL_INT(DBGAPI_CMD_RUN_TO, g_stub_state.last_cmd);
+    TEST_ASSERT_EQUAL_INT(50, json_object_get_int_member(d, "deadline_ticks"));
+    TEST_ASSERT_EQUAL_INT(3, json_object_get_int_member(d, "run_seq"));
+    g_object_unref(parser);
+    free(resp);
+
+    /* Emulace běžela: RUN_TO jen pauzne, deadline se zruší. */
+    dispatch_stub_reset();
+    g_stub_state.run_to_result = DBGAPI_RUN_TO_PAUSED_ONLY;
+    d = _rc_call("{\"type\":\"request\",\"req_id\":9031,\"cmd\":\"run_until_addr\","
+                 "\"data\":{\"addr\":512,\"deadline\":{\"emulated_ms\":100}}}",
+                 &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_EMU_ERROR, rc);
+    TEST_ASSERT_EQUAL_INT(1, g_stub_state.deadline_arms);
+    TEST_ASSERT_EQUAL_INT(1, g_stub_state.deadline_clears);
+    free(resp);
+
+    /* Dva klíče = chyba parametrů, nic se nevolá. */
+    dispatch_stub_reset();
+    d = _rc_call("{\"type\":\"request\",\"req_id\":9032,\"cmd\":\"run_until_addr\","
+                 "\"data\":{\"addr\":512,\"deadline\":{\"frames\":5,\"ticks\":9}}}",
+                 &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, rc);
+    TEST_ASSERT_EQUAL_INT(0, g_stub_state.call_count);
+    free(resp);
+
+    /* run s frames i deadline = chyba parametrů. */
+    dispatch_stub_reset();
+    d = _rc_call("{\"type\":\"request\",\"req_id\":9033,\"cmd\":\"run\","
+                 "\"data\":{\"frames\":10,\"deadline\":{\"frames\":5}}}",
+                 &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, rc);
+    TEST_ASSERT_EQUAL_INT(0, g_stub_state.call_count);
+    free(resp);
+    (void)d;
+}
+
+
+/**
+ * @brief Kroky (N4): step_over přes CALL a step_into za běhu nejsou dokončené.
+ */
+void test_step_completed_flags(void) {
+    dispatch_stub_reset();
+    g_stub_state.step_over_runs = true;
+    g_stub_state.run_seq = 9;
+
+    en_MCP_DISPATCH_RESULT rc;
+    JsonParser *parser = NULL;
+    char *resp = NULL;
+    JsonObject *d = _rc_call("{\"type\":\"request\",\"req_id\":9040,\"cmd\":\"step_over\"}",
+                             &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    /* Běh k dočasnému BP: bez čekání na krok. */
+    TEST_ASSERT_EQUAL_INT(DBGAPI_CMD_STEP_OVER, g_stub_state.last_cmd);
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(d, "stepped"));
+    TEST_ASSERT_FALSE(json_object_get_boolean_member(d, "completed"));
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(d, "running"));
+    TEST_ASSERT_EQUAL_INT(9, json_object_get_int_member(d, "run_seq"));
+    g_object_unref(parser);
+    free(resp);
+
+    dispatch_stub_reset();
+    g_stub_state.is_running = true;
+    parser = NULL;
+    d = _rc_call("{\"type\":\"request\",\"req_id\":9041,\"cmd\":\"step_into\"}",
+                 &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_EQUAL_INT(DBGAPI_CMD_STEP_INTO, g_stub_state.last_cmd);
+    TEST_ASSERT_FALSE(json_object_get_boolean_member(d, "completed"));
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(d, "running"));
+    g_object_unref(parser);
+    free(resp);
+
+    /* step_over za běhu: emulaci jen pauzne. */
+    dispatch_stub_reset();
+    g_stub_state.is_running = true;
+    parser = NULL;
+    d = _rc_call("{\"type\":\"request\",\"req_id\":9042,\"cmd\":\"step_over\"}",
+                 &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_FALSE(json_object_get_boolean_member(d, "completed"));
+    TEST_ASSERT_FALSE(json_object_get_boolean_member(d, "running"));
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(d, "paused_only"));
+    g_object_unref(parser);
+    free(resp);
+}
+
+
+
+/**
+ * @brief mem_read: sha256 přečtených bajtů (proti GLib), want_data false bez dat.
+ */
+void test_mem_read_sha256_and_want_data(void) {
+    dispatch_stub_reset();
+    /* Stub plní bajty 0xA0 + (i & 0x0F). */
+    uint8_t expect[20];
+    for (int i = 0; i < 20; i++) expect[i] = (uint8_t)(0xA0 + (i & 0x0F));
+    gchar *want = g_compute_checksum_for_data(G_CHECKSUM_SHA256, expect, sizeof(expect));
+
+    en_MCP_DISPATCH_RESULT rc;
+    JsonParser *parser = NULL;
+    char *resp = NULL;
+    JsonObject *d = _rc_call("{\"type\":\"request\",\"req_id\":9050,\"cmd\":\"mem_read\","
+                             "\"data\":{\"addr\":4096,\"len\":20}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_EQUAL_STRING(want, json_object_get_string_member(d, "sha256"));
+    TEST_ASSERT_TRUE(json_object_has_member(d, "data_b64"));
+    g_object_unref(parser);
+    free(resp);
+
+    parser = NULL;
+    d = _rc_call("{\"type\":\"request\",\"req_id\":9051,\"cmd\":\"mem_read\","
+                 "\"data\":{\"addr\":4096,\"len\":20,\"want_data\":false}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_EQUAL_STRING(want, json_object_get_string_member(d, "sha256"));
+    TEST_ASSERT_FALSE(json_object_has_member(d, "data_b64"));
+    g_object_unref(parser);
+    free(resp);
+
+    d = _rc_call("{\"type\":\"request\",\"req_id\":9052,\"cmd\":\"mem_read\","
+                 "\"data\":{\"addr\":4096,\"len\":20,\"want_data\":1}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, rc);
+    free(resp);
+    g_free(want);
+}
+
+
+/**
+ * @brief frame_hash: příkaz se předá emu vláknu (DBGAPI_CMD_FRAME_HASH).
+ */
+void test_frame_hash_submits(void) {
+    dispatch_stub_reset();
+    en_MCP_DISPATCH_RESULT rc;
+    JsonParser *parser = NULL;
+    char *resp = NULL;
+    JsonObject *d = _rc_call("{\"type\":\"request\",\"req_id\":9060,\"cmd\":\"frame_hash\"}",
+                             &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_EQUAL_INT(DBGAPI_CMD_FRAME_HASH, g_stub_state.last_cmd);
+    TEST_ASSERT_TRUE(json_object_has_member(d, "vram_sha256"));
+    TEST_ASSERT_TRUE(json_object_has_member(d, "beam"));
+    g_object_unref(parser);
+    free(resp);
+}
+
 int main(void) {
     UNITY_BEGIN();
 
@@ -8079,6 +8416,13 @@ int main(void) {
     RUN_TEST(test_snapshot_load_buffer_roundtrip);
     RUN_TEST(test_snapshot_load_buffer_invalid_b64);
     RUN_TEST(test_run_until_addr_running_is_error);
+    RUN_TEST(test_wait_stop_done_and_timeout);
+    RUN_TEST(test_get_stop_history_limit);
+    RUN_TEST(test_pause_if_run_seq);
+    RUN_TEST(test_run_until_addr_deadline);
+    RUN_TEST(test_step_completed_flags);
+    RUN_TEST(test_mem_read_sha256_and_want_data);
+    RUN_TEST(test_frame_hash_submits);
     RUN_TEST(test_snapshot_load_not_paused_reason);
     RUN_TEST(test_cooperation_hint_set_modes);
 

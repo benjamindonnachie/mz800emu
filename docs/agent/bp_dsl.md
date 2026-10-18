@@ -67,9 +67,9 @@ Filled by the BP enforcement layer at hit time. Zero outside a hit
 
 | Identifier | Meaning |
 |------------|---------|
-| `Cycle` | GDG pixel ticks since reset at instruction start (5 per Z80 T-state on PAL, 4 on NTSC). Truncated to int32: wraps negative after about 121 s of emulated time (PAL). |
+| `Cycle` | GDG pixel ticks since the emulator started (not restarted by a machine reset; a snapshot load sets the saved value), at instruction start (5 per Z80 T-state on PAL, 4 on NTSC). Truncated to int32: wraps negative after about 121 s of emulated time (PAL). |
 | `FrameCycle` | GDG pixel ticks since the start of the current frame (0..354431 on PAL, 0..238943 on NTSC). Never wraps; prefer it for in-frame timing. |
-| `Frame` | Completed frames since reset. |
+| `Frame` | Completed frames since the emulator started (not restarted by a machine reset). |
 | `Scanline` | Current GDG raster row (0..frame_height-1). |
 
 ### User variables

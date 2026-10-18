@@ -395,6 +395,26 @@ if(TARGET test_ramlog)
     target_include_directories(test_ramlog PRIVATE ${CMAKE_SOURCE_DIR}/src/emulator/debugger/trace)
 endif()
 
+# Čísla běhů a kruh záznamů zastavení (run_log, run-control): číslování,
+# čekání s timeoutem a probuzením, přepsání kruhu, ukončení - bez emulátoru.
+mz_add_test(run_log
+    TYPE     STANDALONE
+    SOURCES  test_run_log.c
+             ${CMAKE_SOURCE_DIR}/src/emulator/debugger/run_control/run_log.c
+    LABELS   "standalone;debugger"
+)
+if(TARGET test_run_log)
+    target_include_directories(test_run_log PRIVATE ${CMAKE_SOURCE_DIR}/src/emulator/debugger/run_control)
+endif()
+
+# Drain fronty v pauze skončí po příkazu kroku: příkaz poslaný hned po
+# kroku se zpracuje až po jeho provedení (MCP step_n ztrácel kroky).
+mz_add_test(dbgapi_drain_paused
+    TYPE     EMU
+    SOURCES  test_dbgapi_drain_paused.c
+    LABELS   "emu;debugger"
+)
+
 # Napojení záznamu zápisů (ramlog_hook) na jádro MZ-800: callback, maska
 # RAM fast-path, RAM / ROM / plány VRAM, zdroje, reset.
 mz_add_test(ramlog_hook
