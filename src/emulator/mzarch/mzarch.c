@@ -33,6 +33,7 @@
 #include "videorec/videorec.h"
 #include "screenshot/screenshot_series.h"
 #include "audio_capture.h"
+#include "automation.h"
 
 #if CFG_HWEXT_HAVE_FDC
 #include "hw-generic/fdc/fdc.h"
@@ -210,6 +211,15 @@ static inline void mz800_main_event_callback_screen_done(void)
 
     /* Série screenshotů: per-frame bod (1 atomické čtení, když neběží). */
     screenshot_series_on_screen_done();
+
+    /* Automatizace: čítač snímků a časové podmínky (--exit-after-frames,
+     * --timeout-*). Až po videu a sérii, aby poslední snímek byl v záznamu.
+     * Bez automatizačních voleb jen čtení příznaku. Konec se tu jen vyžádá
+     * (pauza), vyřídí ho paused smyčka (automation_on_paused). */
+    if (g_automation_frame_hook)
+    {
+        automation_on_screen_done();
+    };
 
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
     /* dbgapi CMDRQ drain a Freeze Bytes se tady jen OHLÁSÍ. Samotné
@@ -984,6 +994,11 @@ static inline void mzzarch_main_do_emulator_paused(void)
      * v první iteraci smyčky by jinak příznak nechalo přežít do volného běhu. */
     videorec_on_emulation_stopped();
 
+    /* Automatizace: čekající žádost o konec (akce exit, --exit-after-frames,
+     * --timeout-*) se vyřídí tady, mezi instrukcemi a v pauze (snapshot
+     * smí vzniknout). Kde smí proces skončit, se odtud nevrací. */
+    automation_on_paused();
+
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
 
     debugger_update_all();
@@ -1398,6 +1413,10 @@ void mzarch_main(void)
             fprintf(stderr, "CLI --audio-capture: %s\n", cap_err);
         };
     }
+
+    /* Automatizace: začátek počítání snímků (po --run-mzf a ostatních
+     * volbách), breakpointy z --bpt / --exit-on-*. */
+    automation_start();
 
     g_print("%s main loop started\n", g_mzarch_full_name);
 

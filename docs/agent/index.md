@@ -11,7 +11,7 @@ Read individual topics on demand via `resources/read`.
 | `emulator://docs/memory_layout` | Z80 64 KB address space layout per platform (MZ-700 / MZ-800 native / MZ-800 700-compat / MZ-1500). Banking ports `0xE0..0xE6`. Memory expansion (Memext) replacing the RAM, memory files inside a `.mzs` snapshot. Key ROM entry points, IRQ vectors, text/color VRAM regions. |
 | `emulator://docs/bp_dsl` | Breakpoint condition expression language: registers, memory deref `[addr]`, port read `port[N]`, operators, built-in functions, `$user_vars`, examples. Same language is used by Watch expressions and Action DSL arguments. |
 | `emulator://docs/smart_vars` | `$name` user variables: how to create / read / write from BP action DSL, persistence rules (`.bpt` + `.vars`), lifecycle, reading via `emulator://vars`. |
-| `emulator://docs/action_dsl` | BP Action DSL grammar - what runs when a breakpoint fires. Commands: `log`, `set <reg>`, `poke`, `mark`, `$var` writes, `if/then/else`, `enable` / `disable` / `disable_self`, `clear_vars`, `continue`, plus the forwarding commands `cdl_start` / `cdl_stop` / `cdl_reset` / `cdl_export`, `trace_start` / `trace_stop` / `trace_save`, `snapshot` (one smart BP instead of repeated MCP calls). `log` format specs, stop vs continue semantics. |
+| `emulator://docs/action_dsl` | BP Action DSL grammar - what runs when a breakpoint fires. Commands: `log`, `set <reg>`, `poke`, `mark`, `$var` writes, `if/then/else`, `enable` / `disable` / `disable_self`, `clear_vars`, `continue`, `stop`, `exit`, plus the forwarding commands `cdl_start` / `cdl_stop` / `cdl_reset` / `cdl_export`, `trace_start` / `trace_stop` / `trace_save`, `snapshot` (one smart BP instead of repeated MCP calls). `log` format specs, stop vs continue semantics. |
 | `emulator://docs/watch_dsl` | Watch expression syntax: three watch modes (`address` / `expr_scalar` / `expr_deref`), supported type tags (`u8`, `i16le`, `ascii`, ...), reading via `emulator://watch`. |
 | `emulator://docs/eventlog_mask` | EventLog 64-bit category mask: bit assignments per `en_EVENTLOG_CATEGORY`, common mask recipes ("memory writes only", "IRQ only"), how to pass via `emu_eventlog_set_mask`. |
 | `emulator://docs/sharp_display_code` | Sharp MZ ASCII vs display code vs standard ASCII. Mapping tables, inverse video, decoding `emulator://video/text_dump`. |
@@ -21,6 +21,7 @@ Read individual topics on demand via `resources/read`.
 | `emulator://docs/trace_read` | Reading trace records page by page: `emu_trace_status` / `emu_trace_read` for cputrack, iorqlog, intlog, hwlog, marklog and the Event Viewer ring - recipe, cursor, filters, character budget, columns (time `t`, `asm` from recorded bytes, `INT ACK`), `segment_replaced` and `gap`. |
 | `emulator://docs/ramlog` | Who wrote a byte: RAM write log `emu_ramlog_start` / `_who_wrote` / `_writers` / `_stop`, channel `ramlog` of `emu_trace_read` - recipe, record fields (`pc` of the writing instruction, physical cell, old / new, source), banking and VRAM planes, hidden unchanged writes, last-writer map after ring wrap. |
 | `emulator://docs/audio_capture_read` | Analysing sound without hearing it: audio capture memory read via MCP - `emu_audio_capture_summary` (silence, PSG notes, speaker tone or PCM estimate, reference vs output path delay and difference), `emu_trace_read` channels `audio_psg_writes` / `audio_levels` / `audio_frames`, `emu_audio_capture_pcm` (short WAV window, exact 44100 Hz copy); recipe, memory limits, what is heuristic. |
+| `emulator://docs/unattended_runs` | Unattended runs for CI without an MCP client: `--headless` with `--exit-on-pc` / `--fail-on-pc` / `--exit-on-write` / `--exit-on-out` / `--exit-after-frames` / `--timeout-*` / `--bpt`, exit codes 0-3, `result.json` (reason, time, registers, SHA-256 hashes, artifacts); the breakpoint action `exit` in an MCP session only pauses (`stopped_by: "exit"`). |
 | `emulator://docs/screenshot_workflow` | Saving and comparing pictures of the screen: `emu_screenshot_save_to_file` with `area` (full / canvas), `scale` (framebuffer / native dots / window 1-4) and `crop`, picture sizes per build, recipes (what the program drew, a part of the screen, a picture for a person); frame series `emu_screenshot_series_*` - every changed emulated frame as PNG for finding animation bugs. |
 
 ## When to read what
@@ -51,6 +52,9 @@ Read individual topics on demand via `resources/read`.
   into an area -> `ramlog`.
 - Finding out what a program plays (notes, silence, speaker PCM) or whether
   the audio output differs from the emulated sound -> `audio_capture_read`.
+- Preparing a test run for CI or a script that ends by itself with an exit
+  code and a result file, or a breakpoint action `exit` stopped your MCP
+  session with `stopped_by: "exit"` -> `unattended_runs`.
 - Checking what a program draws, comparing the screen with expected pixels
   or saving a part of the screen, or catching an animation bug frame by
   frame (frame series) -> `screenshot_workflow`.

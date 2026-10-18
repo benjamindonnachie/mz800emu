@@ -218,6 +218,39 @@ void dbgapi_emu_register_msg_dispatcher(dbgapi_msg_dispatcher_t dispatcher,
 void dbgapi_emu_send_msg(en_DBGAPI_MSG msg, st_DBGAPI_MSG_DATA *data);
 
 
+/* ============================================================================
+ * BREAKPOINTY PŘÍMO Z EMU VLÁKNA
+ *
+ * Pro kód, který už běží v emu vlákně (automatizace z příkazové řádky)
+ * a nepotřebuje frontu příkazů. Sdílí implementaci s MCP / UI příkazem
+ * DBGAPI_CMD_BP_CREATE_WITH_INIT.
+ * ============================================================================ */
+
+/**
+ * @brief Založí breakpoint a aplikuje pole podle masky (jako CMD_BP_CREATE_WITH_INIT).
+ *
+ * Po založení přepočítá gating logovacích callbacků, takže MEM_W / IORQ_W
+ * breakpoint střílí i bez otevřeného okna debuggeru.
+ *
+ * @param p Vstup s @c id == -1 a @c update_mask; po úspěchu @c p->id = nové ID.
+ * @return true = založeno a všechny settery uspěly. Na obsazené adrese
+ *         může vzniknout vypnutý breakpoint (breakpoints_add_auto()),
+ *         volající to pozná podle @c enabled.
+ * @pre Volat jen z emu vlákna.
+ */
+bool dbgapi_emu_bp_create(st_DBGAPI_BP_UPDATE_PARAM *p);
+
+/**
+ * @brief Přepočítá gating logovacích callbacků po změně breakpointů.
+ *
+ * Totéž, co dělají MCP / UI příkazy po změně breakpointů (existence
+ * MEM_R/W, IORQ_R/W breakpointu vynutí logovací callbacky).
+ *
+ * @pre Volat jen z emu vlákna.
+ */
+void dbgapi_emu_bp_recompute_gating(void);
+
+
 #ifdef __cplusplus
 }
 #endif

@@ -888,6 +888,69 @@ static void test_fwd_parse_errors ( void ) {
     assert_parse_fails ( "snapshot foo" );
 }
 
+/* --- stop / exit: parser --- */
+static void test_halt_parse ( void ) {
+    assert_parse_ok ( "stop" );
+    assert_parse_ok ( "stop \"done\"" );
+    assert_parse_ok ( "stop \"a=%d\", $a" );
+    assert_parse_ok ( "exit 1" );
+    assert_parse_ok ( "exit A" );
+    assert_parse_ok ( "exit (Value & 0x0F), \"code %X at %X\", Value, PC" );
+    assert_parse_ok ( "if $a == 1 then exit 2 else stop" );
+
+    assert_parse_fails ( "exit" );
+    assert_parse_fails ( "exit 1, 2" );
+    assert_parse_fails ( "exit 1 \"msg\"" );
+    assert_parse_fails ( "stop 5" );
+}
+
+/* --- stop: zastaví a ukončí akci, další příkazy se nevykonají --- */
+static void test_halt_stop_execute ( void ) {
+    TEST_ASSERT_FALSE ( exec_action ( "$a = 1\nstop \"msg %d\", $a\n$a = 2" ) );
+    TEST_ASSERT_EQUAL_INT32 ( 1, bp_var_get ( "a" ) );
+    st_BP_ACTION_HALT h;
+    TEST_ASSERT_TRUE ( bp_action_last_halt ( &h ) );
+    TEST_ASSERT_EQUAL_INT ( BP_ACTION_HALT_STOP, h.kind );
+    TEST_ASSERT_EQUAL_STRING ( "msg 1", h.message );
+}
+
+/* --- exit: kód z výrazu, dolních 8 bitů, hláška; uvnitř if --- */
+static void test_halt_exit_execute ( void ) {
+    st_BP_ACTION_HALT h;
+    TEST_ASSERT_FALSE ( exec_action ( "$v = 66\nexit $v, \"v=%d\", $v" ) );
+    TEST_ASSERT_TRUE ( bp_action_last_halt ( &h ) );
+    TEST_ASSERT_EQUAL_INT ( BP_ACTION_HALT_EXIT, h.kind );
+    TEST_ASSERT_EQUAL_INT ( 66, h.code );
+    TEST_ASSERT_EQUAL_STRING ( "v=66", h.message );
+
+    TEST_ASSERT_FALSE ( exec_action ( "exit 0x1FF" ) );
+    TEST_ASSERT_TRUE ( bp_action_last_halt ( &h ) );
+    TEST_ASSERT_EQUAL_INT ( 0xFF, h.code );
+    TEST_ASSERT_NULL ( h.message );
+
+    TEST_ASSERT_FALSE ( exec_action ( "$b = 0\nif 1 then exit 3\n$b = 9" ) );
+    TEST_ASSERT_EQUAL_INT32 ( 0, bp_var_get ( "b" ) );
+    TEST_ASSERT_TRUE ( bp_action_last_halt ( &h ) );
+    TEST_ASSERT_EQUAL_INT ( 3, h.code );
+
+    /* Akce bez stop / exit: výsledek předchozí akce neplatí. */
+    TEST_ASSERT_TRUE ( exec_action ( "if 0 then exit 4" ) );
+    TEST_ASSERT_FALSE ( bp_action_last_halt ( &h ) );
+    TEST_ASSERT_EQUAL_INT ( BP_ACTION_HALT_NONE, h.kind );
+}
+
+/* --- klasifikace: stop / exit = HALT i vedle jiných příkazů --- */
+static void test_halt_classify ( void ) {
+    const char *srcs[] = { "log \"x\"; exit 1", "if 0 then stop", "mark \"m\"; stop" };
+    for ( size_t i = 0; i < sizeof ( srcs ) / sizeof ( srcs[0] ); i++ ) {
+        char err[160] = {0};
+        bp_action_t *a = bp_action_parse ( srcs[i], err, sizeof ( err ) );
+        TEST_ASSERT_NOT_NULL ( a );
+        TEST_ASSERT_EQUAL_INT ( BP_ACTION_SUB_HALT, bp_action_classify_subtype ( a ) );
+        bp_action_free ( a );
+    };
+}
+
 /* --- klasifikace: forward příkazy = CONTINUE subtype --- */
 static void test_fwd_classify_continue ( void ) {
     char err[160] = {0};
@@ -1175,6 +1238,12 @@ int main ( int argc, char *argv[] ) {
     /* FWD_SNAPSHOT exekuce z continuing BP - 0018 (S18MAIN) */
     RUN_TEST ( test_fwd_snapshot_continuing_bp_writes_mzs );
     RUN_TEST ( test_fwd_snapshot_from_paused_no_regression );
+
+    /* Akce stop / exit (M4 headless-exit) */
+    RUN_TEST ( test_halt_parse );
+    RUN_TEST ( test_halt_stop_execute );
+    RUN_TEST ( test_halt_exit_execute );
+    RUN_TEST ( test_halt_classify );
 
     int result = UNITY_END ( );
 

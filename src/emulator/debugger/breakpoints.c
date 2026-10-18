@@ -40,6 +40,7 @@
 #include "bp_vars.h"
 #include "bptmap.h"
 #include "cfgmain.h"
+#include "automation.h" /* automatický běh: bez výchozí sady, akce exit */
 #include "main.h"   /* g_sdlapp */
 #include "libs/sdlapp/sdlapp_paths.h"
 
@@ -346,8 +347,10 @@ void breakpoints_init ( void ) {
      * periodické trace_save akce roste neohraničený (V19B disk-flood vektor). */
     bp_action_install_disk_flush_guard ( );
 
-    /* Automatické načtení breakpointů ze souboru */
-    if ( g_breakpoints.auto_load ) {
+    /* Automatické načtení breakpointů ze souboru. Ne v automatickém běhu
+     * (--exit-*, --result-json, ...): zbytek z GUI relace by ovlivnil
+     * výsledek testu; sada je jen z --bpt (automation_start). */
+    if ( g_breakpoints.auto_load && !automation_is_active ( ) ) {
         breakpoints_load_from_file ( );
     };
 
@@ -360,17 +363,32 @@ void breakpoints_init ( void ) {
 }
 
 
+/**
+ * @brief Automatické uložení při konci je pro tento běh vypnuté
+ *        (breakpoints_suppress_auto_save()).
+ */
+static bool s_breakpoints_auto_save_suppressed = false;
+
+
+void breakpoints_suppress_auto_save ( void ) {
+    s_breakpoints_auto_save_suppressed = true;
+}
+
+
 void breakpoints_exit ( void ) {
 
-    /* Automatické uložení breakpointů do souboru */
-    if ( g_breakpoints.auto_save ) {
+    /* Automatické uložení breakpointů do souboru (ne s testovací sadou
+     * automatizace, viz breakpoints_suppress_auto_save). */
+    if ( g_breakpoints.auto_save && !s_breakpoints_auto_save_suppressed ) {
         breakpoints_save_to_file ( );
     };
 
     /* V1.5.B: auto-save standalone .vars souboru (nezávisle na .bpt).
      * Vars jsou v .bpt vždy součástí (= sdílené persist), separate
      * .vars je pro export/share/per-arch izolaci. */
-    bp_vars_cfg_auto_save ( );
+    if ( !s_breakpoints_auto_save_suppressed ) {
+        bp_vars_cfg_auto_save ( );
+    };
 
     /* Uvolnění paměti breakpointů */
     unsigned i;
@@ -3387,10 +3405,17 @@ void breakpoints_enforce ( st_BPT *bpt, struct bp_expr_ctx_s *ctx ) {
         should_continue = breakpoints_run_action ( bpt, ctx );
     };
 
-    /* 7) Stop nebo continue. */
+    /* 7) Stop nebo continue. Akce s příkazem exit = žádost o konec běhu:
+     * pauzu, důvod EXIT a událost "paused" udělá automation_request_exit()
+     * níže (po breakpoint_hit, stejné pořadí událostí jako u stopu). */
+    st_BP_ACTION_HALT halt = { BP_ACTION_HALT_NONE, 0, NULL };
+    bool is_exit = !should_continue && bpt->action && bpt->action[0] != '\0' && bpt->parsed_action
+                   && bp_action_last_halt ( &halt ) && halt.kind == BP_ACTION_HALT_EXIT;
     if ( !should_continue ) {
-        g_emulator.pause_reason = EMU_PAUSE_REASON_BREAKPOINT;
-        emulator_pause ( true );
+        if ( !is_exit ) {
+            g_emulator.pause_reason = EMU_PAUSE_REASON_BREAKPOINT;
+            emulator_pause ( true );
+        };
         debugger_show_main_window ( );
 
         /* MSG do UI vlákna - heap alloc per dbgapi_msg.h kontraktu
@@ -3418,13 +3443,26 @@ void breakpoints_enforce ( st_BPT *bpt, struct bp_expr_ctx_s *ctx ) {
         event_bus_emit ( "breakpoint_hit", bp_payload );
 
         /* Současně emit "paused" event pro klienty, kteří poslouchají
-         * obecný pause topic (= union BP/manual/fatal/quit). */
-        JsonObject *p_payload = json_object_new ( );
-        json_object_set_string_member ( p_payload, "reason", "breakpoint" );
-        uint16_t pc_now = ctx->cpu ? (uint16_t) ctx->cpu->pc : bpt->addr;
-        json_object_set_int_member ( p_payload, "pc", pc_now );
-        event_bus_emit ( "paused", p_payload );
+         * obecný pause topic (= union BP/manual/fatal/quit). U exit ho
+         * pošle automation_request_exit() s reason "exit". */
+        if ( !is_exit ) {
+            JsonObject *p_payload = json_object_new ( );
+            json_object_set_string_member ( p_payload, "reason", "breakpoint" );
+            uint16_t pc_now = ctx->cpu ? (uint16_t) ctx->cpu->pc : bpt->addr;
+            json_object_set_int_member ( p_payload, "pc", pc_now );
+            event_bus_emit ( "paused", p_payload );
+        };
 #endif /* MZ800EMU_CFG_MCP_SERVER_ENABLED */
+
+        if ( is_exit ) {
+            st_AUTOMATION_TRIGGER trig = {
+                .bp_id = bpt->id,
+                .bp_name = bpt->name,
+                .bp_type = bpt_type_to_string ( bpt->type ),
+                .hits = bpt->hits,
+            };
+            automation_request_exit ( halt.code, AUTOMATION_REASON_EXIT_ACTION, halt.message, &trig );
+        };
     } else {
         /* 8) Vrstva 1 (0019) control-plane garance: akce proběhla a vrací
          * continue (= off-hot-path hranice). Obsloužíme pending řídicí

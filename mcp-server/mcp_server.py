@@ -1392,7 +1392,9 @@ async def emu_run(frames: int) -> str:
     Response includes ``actual_frames`` (frames actually run), ``stopped_by``
     (why it stopped: ``"frames"`` = ran the full count, ``"breakpoint"`` = a
     breakpoint paused it first, ``"manual"`` = a manual/UI pause, ``"run_to"`` = a
-    temporary breakpoint (run-to-cursor / step over), ``"timeout"``
+    temporary breakpoint (run-to-cursor / step over), ``"exit"`` = an exit
+    condition (breakpoint action ``exit``; the emulator only pauses, the event
+    ``paused`` carries ``exit_code``), ``"timeout"``
     = safety timeout, ``"unknown"`` = other) and ``complete`` (= true only when
     the full requested count was reached, i.e. ``stopped_by == "frames"``).
 

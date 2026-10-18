@@ -1606,7 +1606,7 @@ static en_MCP_DISPATCH_RESULT _handle_run(const st_JSONL_MESSAGE *req,
 
     /* stopped_by: proč se emulace zastavila. !done = safety timeout; jinak
      * důvod, který nastavil ten, kdo emu pausnul (frame target / breakpoint /
-     * dočasný breakpoint / manuální pauza). "unknown" = emu se zastavil z jiného důvodu, který
+     * dočasný breakpoint / manuální pauza / žádost o konec "exit"). "unknown" = emu se zastavil z jiného důvodu, který
      * pause_reason nenastavuje (HALT, fatal). */
     const char *stopped_by;
     bool reached;
@@ -1620,6 +1620,7 @@ static en_MCP_DISPATCH_RESULT _handle_run(const st_JSONL_MESSAGE *req,
             case EMU_PAUSE_REASON_BREAKPOINT: stopped_by = "breakpoint"; break;
             case EMU_PAUSE_REASON_MANUAL:     stopped_by = "manual";     break;
             case EMU_PAUSE_REASON_RUN_TO:     stopped_by = "run_to";     break;
+            case EMU_PAUSE_REASON_EXIT:       stopped_by = "exit";       break;
             default:                          stopped_by = "unknown";    break;
         }
         reached = (g_emulator.pause_reason == EMU_PAUSE_REASON_FRAMES);

@@ -9,16 +9,17 @@ For the authoritative document with all corner cases see
 
 ## Stop vs continue semantics
 
-No explicit `stop` command exists. The decision to halt the emulator
-is driven solely by whether the action string is empty:
-
 - **action == NULL or whitespace-only** -> emulator stops (classic BP).
 - **action with any non-empty content** -> after evaluating all
-  commands the emulator continues (implicit continue).
+  commands the emulator continues (implicit continue), unless it ran
+  `stop` or `exit`.
+- `stop` stops like an empty action, `exit <code>` ends the run with an
+  exit code (headless) or only pauses (GUI, MCP: `emu_run` returns
+  `stopped_by: "exit"`, the `paused` event has `reason: "exit"` and
+  `exit_code`). Both end the action - commands after them do not run.
 
-Consequence: a "log and then stop" BP is **not expressible directly**
-in one BP. Workaround: increment `$hits` and add a separate Stop BP
-on `$hits >= N`, or use Stop mode without a Custom script.
+"Log and then stop": `stop "A=%X", A`. Stop on the 5th pass:
+`$hits += 1; if $hits >= 5 then stop`.
 
 ## Lexical rules
 
@@ -49,6 +50,8 @@ on `$hits >= N`, or use Stop mode without a Custom script.
 | `$name = <expr>` (+ compound ops) | Assign to user variable | `$hits += 1` |
 | `clear_vars` | Reset all `$name` values to 0 (entries preserved) | `clear_vars` |
 | `if <expr> then <stmt> [else <stmt>]` | Single-line conditional | `if $hits >= 5 then disable_self` |
+| `stop ["fmt"[, expr...]]` | Stop the emulator (optional message `[BP-STOP] ...`), ends the action | `stop "HL=%X", HL` |
+| `exit <expr>[, "fmt"[, expr...]]` | End the run with exit code 0-255 (headless without MCP; elsewhere only pause), ends the action | `exit Value` |
 | `cdl_start` / `cdl_stop` / `cdl_reset` | CDL (Memory Heatmap) lifecycle | `cdl_start` |
 | `cdl_export "fmt"[, expr...]` | Export CDL data to file (templated name) | `cdl_export "dump-%d.cdl", $id` |
 | `trace_start <chan>` | Start a trace channel | `trace_start cputrack` |

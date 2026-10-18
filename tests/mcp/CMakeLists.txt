@@ -528,6 +528,24 @@ if(Python3_FOUND)
     message(STATUS "  tests/mcp: registered mcp_ramlog "
                    "(Python ${Python3_VERSION})")
 
+    # Běh ukončený podmínkou (headless): návratové kódy, result.json,
+    # --exit-after-frames, --timeout-*, --exit-on-pc/--fail-on-pc/
+    # --exit-on-write/--exit-on-out, --bpt, chyby voleb (kód 3), dopsání
+    # artefaktů při nenulovém kódu, determinismus, všechny 4 binárky,
+    # akce exit / stop v pipe a přes MCP TCP (jen pauza).
+    add_test(
+        NAME    mcp_headless_exit
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_headless_exit.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_headless_exit PROPERTIES
+        LABELS  "e2e;mcp;cli;automation"
+        TIMEOUT 300
+    )
+    message(STATUS "  tests/mcp: registered mcp_headless_exit "
+                   "(Python ${Python3_VERSION})")
+
     # Snapshot uloží a obnoví skrytý stav Z80 (WZ, čekající INT/NMI,
     # total_cycles); starý snapshot bez hidden_state nastaví výchozí
     # hodnoty resetu; snapshot hned po EI s aktivní linkou INT dá stejný

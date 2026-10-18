@@ -31,3 +31,11 @@ mz_add_test(mapped_io_peek
     SOURCES  test_mapped_io_peek.c
     LABELS   "emu;memory;debugger"
 )
+
+# Sdílený hash SHA-256 částí stavu (state_hash.c): testovací vektory a co
+# patří do hashe RAM / MemExt / VRAM / PCG / obrazu (result.json automatizace).
+mz_add_test(state_hash
+    TYPE     EMU
+    SOURCES  test_state_hash.c
+    LABELS   "emu;memory"
+)

@@ -107,7 +107,7 @@ are rejected with an error - use `--help` for a generated listing.
 | `--all-traces-dir` | `<dirpath>` | Shorthand: set the target directory for ALL four trace-suite subsystems. Per-subsystem `--<sys>-dir` takes precedence. |
 | `--no-save-ini` | - | Do not write the `.ini` file at exit. CLI overrides become session-only. |
 | `--no-first-run-windows` | - | Suppress automatic opening of About + Version Check Setup windows on first run (when no `.ini` file exists). Useful for headless / scripted launches. |
-| `--headless` | - | Run the emulator without a GUI window and without audio output. The SDL3 video and audio subsystems run in no-op mode (no SDL window, no audio device opened). The framebuffer is still rendered into memory (ready for later MCP frame Resources). Intended for CI / batch / subprocess scenarios with no display or audio device available. The process keeps running until SIGINT (Ctrl+C) or an SDL quit event. Recommended to combine with `--no-first-run-windows`. |
+| `--headless` | - | Run the emulator without a GUI window and without audio output. The SDL3 video and audio subsystems run in no-op mode (no SDL window, no audio device opened). The framebuffer is still rendered into memory (ready for later MCP frame Resources). Intended for CI / batch / subprocess scenarios with no display or audio device available. The process keeps running until SIGINT (Ctrl+C), an SDL quit event or an exit condition of an unattended run (see below). Recommended to combine with `--no-first-run-windows`. |
 | `--maxspeed-bench` | - | Start directly in MAX SPEED and periodically (every 5 s) print the MAX SPEED benchmark report to the console (efficiency %, throughput, FB-FPS, distribution). Intended for headless emulation efficiency measurement. Combine with `--headless` and `--run-mzf`. See [`maxspeed-benchmark.md`](maxspeed-benchmark.md). |
 | `--speed` | `<percent\|max>` | Set the emulation speed at start: `max` = MAX SPEED (no real-time pacing), an integer 1-4000 = custom speed in percent (100 = normal). Works in the window and with `--headless` (where emulation otherwise runs in real time). Invalid value = error and exit. Combined with `--maxspeed-bench`, MAX SPEED wins. |
 | `--mode-switch` | `<700\|800>` | MZ-800 only: position of the rear mode switch (SW1) - `700` = MZ-700 mode, `800` = MZ-800 mode. The ROM reads the switch when it starts a program. Overrides the `[MZ800] mode_switch` value from the `.ini` (same as the Rear DIP Switch menu). Invalid value = error and exit. |
@@ -115,6 +115,13 @@ are rejected with an error - use `--help` for a generated listing.
 | `--record-frames` | `<count>` | Stop video recording after the given number of frames; with `--headless` the emulator then exits. |
 | `--audio-capture` | `<folder>` | Start an audio capture into the folder right after startup (channel levels, PSG writes, reference.wav, sdl.wav; the files are selected in Tools -> Audio Capture -> Settings...). See [`audio-capture.md`](audio-capture.md). |
 | `--audio-capture-frames` | `<count>` | Stop the audio capture after the given number of frames; with `--headless` the emulator then exits. |
+| `--exit-after-frames` | `<N>` | Unattended run: end after N emulated frames, exit code 0. See [Unattended runs](mcp-server/headless-mode.md#unattended-runs). |
+| `--timeout-frames`, `--timeout-seconds` | `<N>`, `<S>` | Unattended run: exit code 2 (timeout) after N frames / S emulated seconds, unless another condition came first. |
+| `--exit-on-pc`, `--fail-on-pc` | `<addr>[,skip=N][,code=C]` | Unattended run: end when the CPU executes the address; exit code C (default 0), or 1 for `--fail-on-pc`. Can be repeated. |
+| `--exit-on-write`, `--exit-on-out` | `<addr>[=VAL]...`, `<port>...` | Unattended run: end when the program writes to the memory address / I/O port; exit code = the written value, or `code=C`. Can be repeated. |
+| `--bpt` | `<file.bpt>` | Unattended run: load breakpoints from the file (the automatically loaded set and variables are not used in an unattended run, nothing is saved at exit). A breakpoint with the action `exit` ends the run. |
+| `--result-json`, `--automation-dir` | `<file>`, `<folder>` | Unattended run: write the result (reason, exit code, time, registers, hashes, artifacts) as JSON; `--automation-dir` also saves `screen.png`. |
+| `--exit-screenshot`, `--exit-snapshot` | `<file>` | Unattended run: save the final screen as PNG / the final state as a snapshot. |
 
 ### CDL export layout
 

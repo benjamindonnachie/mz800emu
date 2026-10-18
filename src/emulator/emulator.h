@@ -24,8 +24,12 @@ typedef enum en_EMU_PAUSE_REASON
     EMU_PAUSE_REASON_FRAMES,      /**< Doběhl požadovaný počet framů (emu_run). */
     EMU_PAUSE_REASON_BREAKPOINT,  /**< Zastaveno breakpointem. */
     EMU_PAUSE_REASON_MANUAL,      /**< Manuální pauza (UI nebo MCP pause). */
-    EMU_PAUSE_REASON_RUN_TO       /**< Zastaveno dočasným breakpointem (Run to cursor,
+    EMU_PAUSE_REASON_RUN_TO,      /**< Zastaveno dočasným breakpointem (Run to cursor,
                                        Step over přes CALL, MCP run_until_addr / step_out). */
+    EMU_PAUSE_REASON_EXIT         /**< Žádost o konec běhu s návratovým kódem (akce `exit`
+                                       breakpointu, `--exit-after-frames`, `--timeout-*`).
+                                       Kde proces skončit nesmí (GUI, MCP), zůstane jen pauza,
+                                       viz automation.h. */
 } en_EMU_PAUSE_REASON;
 
 /**
@@ -107,7 +111,42 @@ extern st_EMULATOR g_emulator;
 extern "C"
 {
 #endif
+    /**
+     * @brief Ukončí emulátor (emu vlákno se vrátí do emulator_thread()).
+     *
+     * - @p exit_value == 0: běžný konec. Projde úklidem (dopsání videa,
+     *   série screenshotů, zachycení zvuku, uložení snapshotu a INI).
+     *   Při zapnuté automatizaci se předtím zapíše `result.json` s důvodem
+     *   `quit`, pokud ho nezapsal už řízený konec.
+     * - @p exit_value != 0: havarijní konec. Úklid se přeskočí (stav může
+     *   být rozbitý). Při zapnuté automatizaci se zapíše `result.json`
+     *   s důvodem `error` a návratový kód se změní na
+     *   @c AUTOMATION_EXIT_ERROR. Na Windows se mimo `--headless` čeká 5 s,
+     *   aby uživatel viděl výpis; v `--headless` se nečeká.
+     *
+     * Volá se jen z emu vlákna mimo rozpracovanou instrukci (paused smyčka,
+     * 20ms událost, háček konce snímku, inicializace).
+     *
+     * @param exit_value Návratový kód procesu (0 = úspěch).
+     * @post Funkce se nevrací (longjmp do emulator_thread()).
+     */
     void emulator_quit(int exit_value);
+
+    /**
+     * @brief Řízený konec s libovolným návratovým kódem a s úklidem.
+     *
+     * Na rozdíl od emulator_quit() s nenulovým kódem projde stejným úklidem
+     * jako běžný konec (video, zvuk, screenshoty, snapshot, INI), takže
+     * artefakty jsou po skončení procesu úplné. `result.json` sem nezapisuje,
+     * to dělá volající (automation_finish()) předem.
+     *
+     * Kontext volání stejný jako u emulator_quit().
+     *
+     * @param exit_value Návratový kód procesu (0-255).
+     * @post Funkce se nevrací (longjmp do emulator_thread()).
+     */
+    void emulator_quit_with_code(int exit_value);
+
     gpointer emulator_thread(gpointer ptr);
 
     /**

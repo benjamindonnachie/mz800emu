@@ -297,6 +297,9 @@ Response contains:
 - `stopped_by` (string) - why it stopped: `"frames"` (ran the full count),
   `"breakpoint"` (a breakpoint paused it), `"manual"` (manual/UI pause),
   `"run_to"` (a temporary breakpoint: run to cursor, step over),
+  `"exit"` (an exit condition: breakpoint action `exit`, `--exit-after-frames`,
+  `--timeout-*` - the emulator only paused, see
+  [Headless mode](headless-mode.md#unattended-runs)),
   `"timeout"` (safety timeout), `"unknown"` (other)
 - `complete` (bool) - true only if the full frame count was reached
   (= `stopped_by` is `"frames"`)

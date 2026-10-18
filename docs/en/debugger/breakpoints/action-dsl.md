@@ -16,19 +16,17 @@ breakpoint system.
 
 ## "Stop vs continue" semantics
 
-The action mini-DSL has no explicit `stop` command. The decision to
-halt the emulator is driven solely by whether the action string is
-empty:
-
 - **action == NULL or whitespace-only** -> the emulator stops
   (= classic BP stop).
 - **action with any non-empty content** -> after evaluating all the
-  commands the emulator continues (= implicit continue).
+  commands the emulator continues (= implicit continue), unless the
+  action ran `stop` or `exit`.
+- **`stop`** stops the emulator like an empty action; **`exit`** ends the
+  run with an exit code (see below). Both end the action: the commands
+  after them do not run.
 
-Consequence: if you want a BP that logs and then stops, it is **not
-possible** to express that directly (it would require `stop`). The
-workaround for stop-on-N is incrementing `$hits` plus an external Stop
-BP, or Stop mode without a Custom script.
+A BP that logs and then stops: `log "A=%X", A; stop`, or shorter
+`stop "A=%X", A`. Stop on a condition: `if $hits >= 5 then stop`.
 
 ## Basic rules
 
@@ -47,9 +45,9 @@ BP, or Stop mode without a Custom script.
 
 ## Commands
 
-The action mini-DSL provides 22 commands: 11 basic ones (log, continue,
+The action mini-DSL provides 24 commands: 13 basic ones (log, continue,
 disable_self, enable, disable, poke, set, mark, `$name` assignment,
-clear_vars, if) and 11 forward commands for recording control (cdl_start,
+clear_vars, if, stop, exit) and 11 forward commands for recording control (cdl_start,
 cdl_stop, cdl_reset, cdl_export, trace_start, trace_stop, trace_save,
 snapshot, ramlog_start, ramlog_stop, ramlog_clear - see the "Forward
 commands" section below).
@@ -315,6 +313,44 @@ if $hits >= 5 then disable_self
 if HL == 0 then mark "HL underflow"
 if A == 0 then log "zero" else log "nonzero=%X", A
 if $state == 1 then enable trace_bp else disable trace_bp
+```
+
+### `stop ["fmt"[, args...]]`
+
+Stops the emulator like a BP with an empty action. The optional message
+is a format string as in `log` and is printed as `[BP-STOP] ...`. The
+commands after `stop` do not run.
+
+```
+stop
+stop "buffer full at %X, HL=%X", PC, HL
+if $hits >= 5 then stop "5th pass"
+```
+
+### `exit <expr>[, "fmt"[, args...]]`
+
+Ends the run with the exit code `<expr>` (0-255; another value is
+reduced to its low 8 bits with a warning). The optional message is a
+format string as in `log`. The commands after `exit` do not run.
+
+- In `--headless` without an MCP server (or with an unattended-run option,
+  see [Headless mode](../../mcp-server/headless-mode.md#unattended-runs))
+  the process ends with this code, writes the result file and finishes
+  the video and audio recording.
+- In the GUI, with `--mcp-pipe` and with an MCP TCP session the emulator
+  only pauses: stderr shows the code, MCP clients get the event `paused`
+  with `reason: "exit"` and `exit_code`, `emu_run` returns
+  `stopped_by: "exit"`. The process keeps running.
+
+Codes 0 (success), 1 (test failed), 2 (timeout) and 3 (error) have a
+meaning in unattended runs; 64-255 are free for values reported by the
+program.
+
+```
+exit 0
+exit 1, "checksum mismatch: %X", HL
+exit Value                     # IORQ_W / MEM_W BP: the code the program wrote
+if A != 0 then exit 1 else exit 0
 ```
 
 ## Forward commands (recording control from a BP)

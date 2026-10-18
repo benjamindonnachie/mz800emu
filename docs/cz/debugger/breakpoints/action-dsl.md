@@ -14,18 +14,17 @@ Tento dokument popisuje syntaxi mini-DSL pro Custom mode v breakpoint systému.
 
 ## Sémantika "stop vs continue"
 
-Action mini-DSL nemá explicit `stop` příkaz. Rozhodnutí o zastavení emulátoru se
-řídí pouze podle toho, zda action string je prázdný:
-
 - **action == NULL nebo whitespace-only** -> emulátor zastaví
   (= klasický BP stop).
 - **action s libovolným non-empty obsahem** -> po vyhodnocení všech
-  příkazů emulátor pokračuje (= implicit continue).
+  příkazů emulátor pokračuje (= implicit continue), pokud akce
+  nevykonala `stop` nebo `exit`.
+- **`stop`** zastaví emulátor stejně jako prázdná akce; **`exit`** ukončí
+  běh s návratovým kódem (viz níže). Oba ukončí akci: příkazy za nimi se
+  nevykonají.
 
-Důsledek: pokud chcete BP, který logne a pak zastaví, **není možné**
-to vyjádřit přímo (vyžadovalo by `stop`). Workaround pro stop-on-N
-je inkrement `$hits` a externí Stop BP, nebo Stop mode bez Custom
-skriptu.
+BP, který zaloguje a zastaví: `log "A=%X", A; stop`, nebo kratší
+`stop "A=%X", A`. Zastavení při podmínce: `if $hits >= 5 then stop`.
 
 ## Základní pravidla
 
@@ -44,9 +43,9 @@ skriptu.
 
 ## Příkazy
 
-Action mini-DSL poskytuje 22 příkazů: 11 základních (log, continue,
+Action mini-DSL poskytuje 24 příkazů: 13 základních (log, continue,
 disable_self, enable, disable, poke, set, mark, přiřazení `$name`,
-clear_vars, if) a 11 forward příkazů pro řízení záznamu (cdl_start, cdl_stop,
+clear_vars, if, stop, exit) a 11 forward příkazů pro řízení záznamu (cdl_start, cdl_stop,
 cdl_reset, cdl_export, trace_start, trace_stop, trace_save, snapshot,
 ramlog_start, ramlog_stop, ramlog_clear - viz sekce "Forward příkazy"
 níže).
@@ -303,6 +302,44 @@ if $hits >= 5 then disable_self
 if HL == 0 then mark "HL underflow"
 if A == 0 then log "zero" else log "nonzero=%X", A
 if $state == 1 then enable trace_bp else disable trace_bp
+```
+
+### `stop ["fmt"[, args...]]`
+
+Zastaví emulátor stejně jako BP s prázdnou akcí. Volitelná hláška je
+formátovací řetězec jako u `log` a vypíše se jako `[BP-STOP] ...`.
+Příkazy za `stop` se nevykonají.
+
+```
+stop
+stop "buffer plný na %X, HL=%X", PC, HL
+if $hits >= 5 then stop "5. průchod"
+```
+
+### `exit <expr>[, "fmt"[, args...]]`
+
+Ukončí běh s návratovým kódem `<expr>` (0-255; jiná hodnota se s
+varováním zkrátí na dolních 8 bitů). Volitelná hláška je formátovací
+řetězec jako u `log`. Příkazy za `exit` se nevykonají.
+
+- V `--headless` bez MCP serveru (nebo s volbou automatického běhu, viz
+  [Headless režim](../../mcp-server/headless-mode.md#automatické-běhy))
+  proces skončí s tímto kódem, zapíše soubor s výsledkem a dokončí
+  nahrávání videa a zvuku.
+- V GUI, s `--mcp-pipe` a v relaci MCP TCP se emulátor jen pozastaví:
+  na stderr je kód, klienti MCP dostanou událost `paused` s
+  `reason: "exit"` a `exit_code`, `emu_run` vrátí `stopped_by: "exit"`.
+  Proces běží dál.
+
+Kódy 0 (úspěch), 1 (test selhal), 2 (timeout) a 3 (chyba) mají
+v automatických bězích význam; 64-255 jsou volné pro hodnoty, které
+hlásí program.
+
+```
+exit 0
+exit 1, "nesouhlasí kontrolní součet: %X", HL
+exit Value                     # IORQ_W / MEM_W BP: kód zapsaný programem
+if A != 0 then exit 1 else exit 0
 ```
 
 ## Forward příkazy (řízení záznamu z BP)

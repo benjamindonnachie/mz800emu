@@ -389,7 +389,11 @@ mz_add_test(ramlog
              ${CMAKE_SOURCE_DIR}/src/emulator/debugger/trace/ramlog.c
     LABELS   "standalone;debugger;ramlog"
 )
-target_include_directories(test_ramlog PRIVATE ${CMAKE_SOURCE_DIR}/src/emulator/debugger/trace)
+# if(TARGET): při MZ_NO_DEBUGGER se test neregistruje a konfigurace by jinak
+# skončila chybou "target not built by this project".
+if(TARGET test_ramlog)
+    target_include_directories(test_ramlog PRIVATE ${CMAKE_SOURCE_DIR}/src/emulator/debugger/trace)
+endif()
 
 # Napojení záznamu zápisů (ramlog_hook) na jádro MZ-800: callback, maska
 # RAM fast-path, RAM / ROM / plány VRAM, zdroje, reset.

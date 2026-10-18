@@ -1271,6 +1271,20 @@ static void dbgapi_bp_recompute_cb_gating ( void )
 }
 
 
+bool dbgapi_emu_bp_create ( st_DBGAPI_BP_UPDATE_PARAM *p )
+{
+    bool ok = dbgapi_emu_bp_apply_update ( p, /* allow_create */ true );
+    dbgapi_bp_recompute_cb_gating ( );
+    return ok;
+}
+
+
+void dbgapi_emu_bp_recompute_gating ( void )
+{
+    dbgapi_bp_recompute_cb_gating ( );
+}
+
+
 /* Struktura st_DBGAPI_VIDEOREC_PARAM nese stav a druh události číselně (bez
  * závislosti na videorec.h); hlídáme, že čísla odpovídají enumům jádra. */
 G_STATIC_ASSERT ( VIDEOREC_STATE_IDLE == 0 && VIDEOREC_STATE_RECORDING == 1 && VIDEOREC_STATE_PAUSED == 2 );

@@ -107,7 +107,7 @@ jsou odmítnuty s chybou - pro vygenerovaný výpis použijte `--help`.
 | `--all-traces-dir` | `<dirpath>` | Shorthand: nastavit cílový adresář pro VŠECHNY čtyři trace-suite subsystémy. Per-subsystém `--<sys>-dir` má precedenci. |
 | `--no-save-ini` | - | Nezapisovat `.ini` soubor při ukončení. CLI override pak platí jen pro aktuální session. |
 | `--no-first-run-windows` | - | Potlačit automatické otevření oken About + Version Check Setup při prvním spuštění (kdy neexistuje `.ini` soubor). Užitečné pro headless / scriptované spouštění. |
-| `--headless` | - | Spustit emulátor bez GUI okna a bez audio výstupu. SDL3 video a audio subsystémy běží v no-op módu (žádné SDL okno, žádný audio device se neotevírá). Framebuffer se stále renderuje do paměti (= připraveno pro pozdější MCP frame Resources). Určeno pro CI / batch / subprocess scénáře bez displeje nebo audio zařízení. Proces běží do SIGINT (Ctrl+C) nebo SDL quit eventu. Doporučeno kombinovat s `--no-first-run-windows`. |
+| `--headless` | - | Spustit emulátor bez GUI okna a bez audio výstupu. SDL3 video a audio subsystémy běží v no-op módu (žádné SDL okno, žádný audio device se neotevírá). Framebuffer se stále renderuje do paměti (= připraveno pro pozdější MCP frame Resources). Určeno pro CI / batch / subprocess scénáře bez displeje nebo audio zařízení. Proces běží do SIGINT (Ctrl+C), SDL quit eventu nebo podmínky konce automatického běhu (viz níže). Doporučeno kombinovat s `--no-first-run-windows`. |
 | `--maxspeed-bench` | - | Spustit rovnou v MAX SPEED a periodicky (každých 5 s) vypisovat report MAX SPEED benchmarku na konzoli (efektivita %, throughput, FB-FPS, distribuce). Určeno pro headless měření efektivity emulace. Kombinujte s `--headless` a `--run-mzf`. Viz [`maxspeed-benchmark.md`](maxspeed-benchmark.md). |
 | `--speed` | `<procenta\|max>` | Nastavit rychlost emulace při startu: `max` = MAX SPEED (bez synchronizace na reálný čas), celé číslo 1-4000 = vlastní rychlost v procentech (100 = normální). Funguje v okně i v `--headless` (kde jinak emulace běží v reálném čase). Neplatná hodnota = chyba a konec. Při souběhu s `--maxspeed-bench` vyhrává MAX SPEED. |
 | `--mode-switch` | `<700\|800>` | Jen MZ-800: poloha zadního přepínače režimu (SW1) - `700` = MZ-700 mód, `800` = MZ-800 mód. Přepínač čte ROM při spouštění programu. Přepíše hodnotu `[MZ800] mode_switch` z `.ini` (stejně jako menu Rear DIP Switch). Neplatná hodnota = chyba a konec. |
@@ -115,6 +115,13 @@ jsou odmítnuty s chybou - pro vygenerovaný výpis použijte `--help`.
 | `--record-frames` | `<počet>` | Ukončit nahrávání videa po zadaném počtu snímků; v režimu `--headless` pak emulátor skončí. |
 | `--audio-capture` | `<složka>` | Spustit zachycení zvuku do složky hned po startu (úrovně kanálů, zápisy do PSG, reference.wav, sdl.wav; soubory se vybírají v Tools -> Audio Capture -> Settings...). Viz [`audio-capture.md`](audio-capture.md). |
 | `--audio-capture-frames` | `<počet>` | Ukončit zachycení zvuku po zadaném počtu snímků; v režimu `--headless` pak emulátor skončí. |
+| `--exit-after-frames` | `<N>` | Automatický běh: konec po N emulovaných snímcích, návratový kód 0. Viz [Automatické běhy](mcp-server/headless-mode.md#automatické-běhy). |
+| `--timeout-frames`, `--timeout-seconds` | `<N>`, `<S>` | Automatický běh: návratový kód 2 (timeout) po N snímcích / S emulovaných sekundách, pokud dřív nenastala jiná podmínka. |
+| `--exit-on-pc`, `--fail-on-pc` | `<adresa>[,skip=N][,code=C]` | Automatický běh: konec, když CPU vykoná adresu; návratový kód C (výchozí 0), u `--fail-on-pc` 1. Jde zadat víckrát. |
+| `--exit-on-write`, `--exit-on-out` | `<adresa>[=VAL]...`, `<port>...` | Automatický běh: konec, když program zapíše na adresu paměti / port; návratový kód = zapsaná hodnota, nebo `code=C`. Jde zadat víckrát. |
+| `--bpt` | `<soubor.bpt>` | Automatický běh: načíst breakpointy ze souboru (automaticky načítaná sada a proměnné se v automatickém běhu nepoužijí, při konci se nic neukládá). Breakpoint s akcí `exit` běh ukončí. |
+| `--result-json`, `--automation-dir` | `<soubor>`, `<složka>` | Automatický běh: zapsat výsledek (důvod, návratový kód, čas, registry, hashe, artefakty) jako JSON; `--automation-dir` uloží i `screen.png`. |
+| `--exit-screenshot`, `--exit-snapshot` | `<soubor>` | Automatický běh: uložit konečnou obrazovku jako PNG / konečný stav jako snapshot. |
 
 ### Layout CDL exportu
 

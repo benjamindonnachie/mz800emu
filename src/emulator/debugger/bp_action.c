@@ -74,7 +74,9 @@ typedef enum {
     STMT_VAR_ASSIGN,     /**< $name op= expr (op je kód níže) */
     STMT_CLEAR_VARS,     /**< clear_vars */
     STMT_IF,             /**< if expr then <stmt> */
-    STMT_FWD             /**< forward na dbgapi: cdl_/trace_/snapshot (0017 FÁZE 3b) */
+    STMT_FWD,            /**< forward na dbgapi: cdl_/trace_/snapshot (0017 FÁZE 3b) */
+    STMT_STOP,           /**< stop ["fmt", args] - zastavit (ukončí akci) */
+    STMT_EXIT            /**< exit <expr> [, "fmt", args] - konec běhu s kódem (ukončí akci) */
 } stmt_kind_t;
 
 
@@ -189,6 +191,14 @@ struct bp_action_stmt_s {
             bp_expr_t  *args[BP_ACTION_LOG_MAX_ARGS]; /**< $var / expr argumenty šablony */
             int         n_args;
         } fwd;
+        /* STMT_STOP / STMT_EXIT: volitelná hláška (šablona jako log),
+         * u EXIT výraz návratového kódu. */
+        struct {
+            bp_expr_t  *code;                         /**< jen EXIT, vždy non-NULL; STOP = NULL */
+            char       *fmt;                          /**< hláška nebo NULL */
+            bp_expr_t  *args[BP_ACTION_LOG_MAX_ARGS]; /**< argumenty hlášky */
+            int         n_args;
+        } halt;
     };
 };
 
@@ -272,6 +282,14 @@ static void bp_action_stmt_free_inner ( bp_action_stmt_t *s ) {
             free ( s->fwd.fmt );
             for ( int i = 0; i < s->fwd.n_args; i++ ) {
                 bp_expr_free ( s->fwd.args[i] );
+            };
+            break;
+        case STMT_STOP:
+        case STMT_EXIT:
+            bp_expr_free ( s->halt.code );
+            free ( s->halt.fmt );
+            for ( int i = 0; i < s->halt.n_args; i++ ) {
+                bp_expr_free ( s->halt.args[i] );
             };
             break;
         case STMT_CONTINUE:
@@ -612,6 +630,85 @@ static bool parse_log_stmt ( const char *args_str,
 
     return parse_comma_args ( &cur, out->log.args, &out->log.n_args,
                                BP_ACTION_LOG_MAX_ARGS, "log",
+                               errbuf, errbuf_size );
+}
+
+
+/**
+ * @brief Index první čárky na nejvyšší úrovni (mimo závorky a řetězce).
+ *
+ * @return Index v @p s, nebo -1, když taková čárka není.
+ */
+static int find_top_level_comma ( const char *s ) {
+    int depth = 0;
+    bool in_str = false;
+    char sq = 0;
+    for ( int i = 0; s[i]; i++ ) {
+        char c = s[i];
+        if ( in_str ) {
+            if ( c == '\\' && s[i + 1] ) { i++; continue; };
+            if ( c == sq ) in_str = false;
+            continue;
+        };
+        if ( c == '"' || c == '\'' ) { in_str = true; sq = c; continue; };
+        if ( c == '(' || c == '[' || c == '{' ) depth++;
+        else if ( c == ')' || c == ']' || c == '}' ) depth--;
+        else if ( c == ',' && depth == 0 ) return i;
+    };
+    return -1;
+}
+
+
+/**
+ * @brief Parsuje STOP / EXIT statement.
+ *
+ * - `stop` [ "fmt" [, expr]* ]
+ * - `exit` <expr> [ , "fmt" [, expr]* ]
+ *
+ * Hláška je printf šablona stejně jako u `log`.
+ *
+ * @param args_str Text za klíčovým slovem.
+ * @param is_exit  true = `exit`, false = `stop`.
+ * @return true při úspěchu (výstup naplněn), false při chybě (errbuf).
+ */
+static bool parse_halt_stmt ( const char *args_str, bool is_exit,
+                               bp_action_stmt_t *out,
+                               char *errbuf, size_t errbuf_size ) {
+    const char *what = is_exit ? "exit" : "stop";
+    const char *cur = skip_ws ( args_str );
+    out->kind = is_exit ? STMT_EXIT : STMT_STOP;
+    out->halt.code = NULL;
+    out->halt.fmt = NULL;
+    out->halt.n_args = 0;
+
+    if ( is_exit ) {
+        int split = find_top_level_comma ( cur );
+        size_t n = ( split < 0 ) ? strlen ( cur ) : (size_t) split;
+        char *expr_buf = (char *) malloc ( n + 1 );
+        if ( !expr_buf ) return ac_err ( errbuf, errbuf_size, "out of memory" );
+        memcpy ( expr_buf, cur, n );
+        expr_buf[n] = '\0';
+        rtrim ( expr_buf );
+        if ( !*expr_buf ) {
+            free ( expr_buf );
+            return ac_err ( errbuf, errbuf_size, "exit: expected exit code expression" );
+        };
+        out->halt.code = parse_expr_str ( expr_buf, errbuf, errbuf_size );
+        free ( expr_buf );
+        if ( !out->halt.code ) return false;
+        if ( split < 0 ) return true;
+        cur = skip_ws ( cur + split + 1 );
+        if ( *cur != '"' ) {
+            return ac_err ( errbuf, errbuf_size, "exit: expected message string after ','" );
+        };
+    } else if ( !*cur ) {
+        return true;
+    };
+
+    out->halt.fmt = read_string_literal ( &cur, errbuf, errbuf_size );
+    if ( !out->halt.fmt ) return false;
+    return parse_comma_args ( &cur, out->halt.args, &out->halt.n_args,
+                               BP_ACTION_LOG_MAX_ARGS, what,
                                errbuf, errbuf_size );
 }
 
@@ -1216,6 +1313,13 @@ static bool parse_stmt ( const char *src,
         return parse_if_stmt ( skip_ws ( p + 2 ), out, errbuf, errbuf_size );
     };
 
+    if ( match_keyword ( p, "stop" ) ) {
+        return parse_halt_stmt ( p + 4, false, out, errbuf, errbuf_size );
+    };
+    if ( match_keyword ( p, "exit" ) ) {
+        return parse_halt_stmt ( p + 4, true, out, errbuf, errbuf_size );
+    };
+
     return ac_err ( errbuf, errbuf_size, "unknown action statement: '%s'", p );
 }
 
@@ -1317,7 +1421,9 @@ void bp_action_free ( bp_action_t *action ) {
  */
 static int classify_priority ( en_BP_ACTION_SUB sub ) {
     switch ( sub ) {
-        case BP_ACTION_SUB_HALT:     return 0;
+        /* HALT z příkazu stop / exit má přednost před vším (BP zastaví).
+         * Prázdná akce vrací HALT dřív, než se priority porovnávají. */
+        case BP_ACTION_SUB_HALT:     return 6;
         case BP_ACTION_SUB_CONTINUE: return 1;
         case BP_ACTION_SUB_IGNORE:   return 2;
         case BP_ACTION_SUB_ENABLE:   return 3;
@@ -1346,6 +1452,9 @@ static en_BP_ACTION_SUB classify_stmt ( const bp_action_stmt_t *s ) {
             return BP_ACTION_SUB_DISABLE;
         case STMT_ENABLE:
             return BP_ACTION_SUB_ENABLE;
+        case STMT_STOP:
+        case STMT_EXIT:
+            return BP_ACTION_SUB_HALT;
         case STMT_IF: {
             /* Rekurzivně zvol nejvyšší prioritu z then/else větví.
              * Pokud žádná větev neexistuje (nemělo by se stát po validním
@@ -2027,6 +2136,76 @@ static void execute_fwd ( const bp_action_stmt_t *s,
 
 
 /**
+ * @brief Stav `stop` / `exit` jednoho volání bp_action_execute().
+ *
+ * Vlastnictví: @c message je g_malloc (bp_action_render_fmt), uvolňuje se
+ * při přepsání výsledku.
+ */
+typedef struct bp_halt_state_s {
+    en_BP_ACTION_HALT kind; /**< Druh zastavení, NONE = bez stop / exit. */
+    int code;               /**< Návratový kód (EXIT). */
+    char *message;          /**< Vykreslená hláška nebo NULL. */
+} bp_halt_state_t;
+
+/**
+ * @brief Stav právě vykonávané akce (lokální proměnná bp_action_execute()).
+ *
+ * Vnořené volání (poke -> MEM_W BP s akcí) si uloží předchozí ukazatel
+ * a po skončení ho vrátí, takže vnořená akce nepřepíše výsledek vnější.
+ * NULL mimo bp_action_execute().
+ */
+static bp_halt_state_t *s_halt_cur = NULL;
+
+/** @brief Výsledek posledního ukončeného bp_action_execute() (bp_action_last_halt()). */
+static bp_halt_state_t s_halt_last = { BP_ACTION_HALT_NONE, 0, NULL };
+
+
+/**
+ * @brief Vykoná STOP / EXIT: vyhodnotí kód a hlášku a zapíše je do s_halt_cur.
+ *
+ * Akce pak skončí (smyčka v bp_action_execute() další příkazy nevykoná).
+ * Hlášku `stop` vypíše na stdout jako `log`; konec `exit` vypisuje
+ * automatizace (automation_request_exit()).
+ */
+static void execute_halt ( const bp_action_stmt_t *s,
+                           const struct bp_expr_ctx_s *ctx ) {
+    char *msg = s->halt.fmt
+                ? bp_action_render_fmt ( s->halt.fmt, s->halt.args, s->halt.n_args, ctx )
+                : NULL;
+    int code = 0;
+    if ( s->kind == STMT_EXIT ) {
+        int32_t v = eval_arg ( s->halt.code, ctx );
+        code = (int) ( (uint32_t) v & 0xFFu );
+        if ( v < 0 || v > 255 ) {
+            fprintf ( stderr, "[BP-ACTION] exit: code %d out of range 0-255, using %d\n",
+                      (int) v, code );
+        };
+    } else if ( msg ) {
+        fprintf ( stdout, "[BP-STOP] %s\n", msg );
+        fflush ( stdout );
+    };
+    if ( !s_halt_cur ) {
+        g_free ( msg );
+        return;
+    };
+    g_free ( s_halt_cur->message );
+    s_halt_cur->kind = ( s->kind == STMT_EXIT ) ? BP_ACTION_HALT_EXIT : BP_ACTION_HALT_STOP;
+    s_halt_cur->code = code;
+    s_halt_cur->message = msg;
+}
+
+
+bool bp_action_last_halt ( st_BP_ACTION_HALT *out ) {
+    if ( out ) {
+        out->kind = s_halt_last.kind;
+        out->code = s_halt_last.code;
+        out->message = s_halt_last.message;
+    };
+    return s_halt_last.kind != BP_ACTION_HALT_NONE;
+}
+
+
+/**
  * @brief Forward decl pro rekurzivní eval (= IF body).
  */
 static void execute_stmt ( const bp_action_stmt_t *s,
@@ -2130,6 +2309,10 @@ static void execute_stmt ( const bp_action_stmt_t *s,
         case STMT_FWD:
             execute_fwd ( s, ctx );
             break;
+        case STMT_STOP:
+        case STMT_EXIT:
+            execute_halt ( s, ctx );
+            break;
     };
 }
 
@@ -2159,6 +2342,12 @@ static int g_bp_action_depth = 0;
 
 bool bp_action_execute ( const bp_action_t *action,
                           const struct bp_expr_ctx_s *ctx ) {
+    /* Výsledek stop / exit předchozí akce neplatí (i pro předčasné návraty). */
+    g_free ( s_halt_last.message );
+    s_halt_last.kind = BP_ACTION_HALT_NONE;
+    s_halt_last.code = 0;
+    s_halt_last.message = NULL;
+
     /* NULL nebo prázdná action → stop. */
     if ( !action || action->n_stmts == 0 ) return false;
     if ( !ctx ) return false;
@@ -2176,16 +2365,28 @@ bool bp_action_execute ( const bp_action_t *action,
 
     g_bp_action_depth++;
 
+    bp_halt_state_t local = { BP_ACTION_HALT_NONE, 0, NULL };
+    bp_halt_state_t *saved = s_halt_cur;
+    s_halt_cur = &local;
+
     int i;
     for ( i = 0; i < action->n_stmts; i++ ) {
         execute_stmt ( &action->stmts[i], ctx );
+        /* stop / exit ukončí akci, další příkazy se nevykonají. */
+        if ( local.kind != BP_ACTION_HALT_NONE ) break;
     };
 
+    s_halt_cur = saved;
     g_bp_action_depth--;
 
-    /* V1 implicit continue: jakákoliv non-empty action způsobí continue.
-     * Žádný explicit `stop` v V1 neexistuje. */
-    return true;
+    /* Výsledek pro bp_action_last_halt(): vnořené akce během smyčky ho
+     * mohly přepsat, platí ten vnější. */
+    g_free ( s_halt_last.message );
+    s_halt_last = local;
+
+    /* Implicit continue: neprázdná action pokračuje, pokud nevykonala
+     * stop / exit. */
+    return local.kind == BP_ACTION_HALT_NONE;
 }
 
 #endif /* MZ800EMU_CFG_DEBUGGER_ENABLED */

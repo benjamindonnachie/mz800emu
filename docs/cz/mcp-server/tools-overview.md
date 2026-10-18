@@ -293,6 +293,9 @@ Response obsahuje:
 - `stopped_by` (string) - důvod zastavení: `"frames"` (doběhl počet snímků),
   `"breakpoint"` (zastavil breakpoint), `"manual"` (manuální/UI pauza),
   `"run_to"` (dočasný breakpoint: run to cursor, step over),
+  `"exit"` (podmínka konce: akce breakpointu `exit`, `--exit-after-frames`,
+  `--timeout-*` - emulátor se jen pozastavil, viz
+  [Headless režim](headless-mode.md#automatické-běhy)),
   `"timeout"` (safety timeout), `"unknown"` (jiný důvod)
 - `complete` (bool) - true jen pokud doběhl plný počet snímků (= `stopped_by`
   je `"frames"`)

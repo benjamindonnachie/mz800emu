@@ -528,6 +528,18 @@ struct st_BP_ACTION;
     extern void breakpoints_load_from_filepath ( const char *filepath );
 
 
+    /**
+     * @brief Vypne automatické uložení breakpointů a proměnných při konci.
+     *
+     * Jen pro tento běh (INI `[BREAKPOINTS] auto_save` se nemění). Používá
+     * automatizace (`--bpt`, `--exit-on-*`): sada breakpointů pro test nesmí
+     * při konci přepsat uživatelův soubor `.bpt` ani `.vars`.
+     *
+     * @post breakpoints_exit() nic neukládá.
+     */
+    extern void breakpoints_suppress_auto_save ( void );
+
+
     /* === CRUD skupiny === */
 
     /* Vytvoří novou skupinu. Vrátí ID nové skupiny. */
