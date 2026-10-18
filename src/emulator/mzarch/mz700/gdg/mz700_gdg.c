@@ -115,7 +115,6 @@ void gdg_init(void)
     cfgelement_set_handlers(kp, &g_gdg.suc80_kp_interface, &g_gdg.suc80_kp_interface);
     cfgmodule_parse(suc);
     cfgmodule_propagate(suc);
-    if (g_gdg.suc80_kp_interface) g_gdg.suc80_enabled = 1;
     kp80_reset();
     g_gdg.suc80_mode80 = 0;
 

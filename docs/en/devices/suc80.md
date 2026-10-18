@@ -90,7 +90,7 @@ suc80_enabled = 1
 suc80_kp_interface = 1
 ```
 
-The default is 0 (SUC). Selecting 1 also fits the existing SUC expansion.
+The default is 0 (SUC). The expansion must be enabled separately.
 The K&P ports are unclaimed when that interface or the expansion is off.
 Only the low I/O address byte is decoded, so Z80 OUT(C),r/OTIR and immediate
 OUT instructions may use arbitrary high bytes.

@@ -48,7 +48,17 @@ def main():
   e.mode(0xe00c,0x50);assert_canvas(e,raw,80)
   checks.append('Default SUC interface leaves K&P ports unclaimed and native scanout unchanged')
  finally:e.close()
- e=Emu(exe,work/'kp',True,'[VIDEO_MZ700]\nsuc80_kp_interface=1\n')
+ # A remembered interface is not permission to fit a disabled expansion.
+ e=Emu(exe,work/'disabled-kp',False,'[VIDEO_MZ700]\nsuc80_enabled=0\nsuc80_kp_interface=1\n')
+ try:
+  raw=bytearray(4096);raw[2048:]=bytes([0x70])*2048
+  e.call('mem_write',{'addr':0xd000,'data_hex':raw.hex()})
+  e.cpu(init()+ptr(0)+out(0x71,65))
+  assert vram(e)==raw
+  assert_canvas(e,raw,40)
+  checks.append('Explicitly disabled SUC remains absent with a remembered K&P interface')
+ finally:e.close()
+ e=Emu(exe,work/'kp',True,'[VIDEO_MZ700]\nsuc80_enabled=1\nsuc80_kp_interface=1\n')
  try:
   raw=bytearray(4096);raw[2048:]=bytes([0x70])*2048
   e.call('mem_write',{'addr':0xd000,'data_hex':raw.hex()})
@@ -111,7 +121,7 @@ def main():
  # Author's preserved unmodified MZF body, when supplied by the workspace.
  sample=REPO.parents[1]/'sources/kp80/library/KuPTest.MZF'
  if sample.is_file():
-  e=Emu(exe,work/'author-demo',True,'[VIDEO_MZ700]\nsuc80_kp_interface=1\n')
+  e=Emu(exe,work/'author-demo',True,'[VIDEO_MZ700]\nsuc80_enabled=1\nsuc80_kp_interface=1\n')
   try:
    blob=sample.read_bytes();size=int.from_bytes(blob[18:20],'little');load=int.from_bytes(blob[20:22],'little');entry=int.from_bytes(blob[22:24],'little')
    e.call('mem_write',{'addr':load,'data_hex':blob[128:128+size].hex()});e.call('set_register',{'reg':'PC','value':entry});e.call('run',{'frames':100})
