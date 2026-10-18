@@ -58,6 +58,8 @@
 #endif
 
 #include "../debugger/dbgapi_cmdrq.h"
+/* mcp-trace-read: čtenář proudu záznamů (kurzor, stránka) */
+#include "../debugger/trace/trace_reader.h"
 /* CMTSPEED_CUSTOM pro cmt_tape_block_speed s vlastními pulzy */
 #include "libs/cmtspeed/cmtspeed.h"
 /* history_get potřebuje st_DEBUGGER_HISTORY_ROW + g_debugger_history +
@@ -470,6 +472,11 @@ static en_MCP_DISPATCH_RESULT _handle_trace_stop(const st_JSONL_MESSAGE *req,
 static en_MCP_DISPATCH_RESULT _handle_trace_reset(const st_JSONL_MESSAGE *req,
                                                   char **out_response);
 static en_MCP_DISPATCH_RESULT _handle_trace_save(const st_JSONL_MESSAGE *req,
+                                                 char **out_response);
+/* mcp-trace-read - stránkované čtení trace fwd decls */
+static en_MCP_DISPATCH_RESULT _handle_trace_status(const st_JSONL_MESSAGE *req,
+                                                   char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_trace_read(const st_JSONL_MESSAGE *req,
                                                  char **out_response);
 
 /* video-capture Task 15 - video záznam fwd decls */
@@ -1113,6 +1120,8 @@ static const st_MCP_CMD_MAP_ENTRY g_cmd_map[] = {
     { "trace_stop",              DBGAPI_CMD_TRACE_STOP,               _handle_trace_stop              },
     { "trace_reset",             DBGAPI_CMD_TRACE_RESET,              _handle_trace_reset             },
     { "trace_save",              DBGAPI_CMD_TRACE_SAVE,               _handle_trace_save              },
+    { "trace_status",            DBGAPI_CMD_TRACE_SNAPSHOT,           _handle_trace_status            },
+    { "trace_read",              DBGAPI_CMD_TRACE_SNAPSHOT,           _handle_trace_read              },
     /* video-capture Task 15 - video záznam (všechny platformy). Přidáno na KONEC
      * tabulky kvůli stabilitě pozičního indexu v hello supported_commands. */
     { "videorec_start",          DBGAPI_CMD_VIDEOREC,                 _handle_videorec_start          },
@@ -7136,6 +7145,457 @@ static en_MCP_DISPATCH_RESULT _handle_trace_save(const st_JSONL_MESSAGE *req,
     } else {
         json_object_set_null_member(resp, "path");
     }
+    return _ok_response(req_id, resp, out_response);
+}
+
+
+/* ===========================================================================
+ *  mcp-trace-read: trace_status / trace_read (devdoc/trace/stream-read.md)
+ * =========================================================================== */
+
+/** @brief Čitelné kanály v pořadí výpisu trace_status (= en_DBGAPI_TRACE_CHANNEL = en_TRACE_KIND). */
+static const char *const s_trace_read_channels[] = {
+    "cputrack", "iorqlog", "intlog", "hwlog", "marklog", "eventlog"
+};
+
+G_STATIC_ASSERT(G_N_ELEMENTS(s_trace_read_channels) == TRACE_KIND_COUNT);
+G_STATIC_ASSERT((int)DBGAPI_TRACE_CHANNEL_EVENTLOG == (int)TRACE_KIND_EVENTLOG);
+G_STATIC_ASSERT(DBGAPI_EVENT_TEXT_MAX == TRACE_RESOLVE_TEXT_SIZE);
+G_STATIC_ASSERT(DBGAPI_MARKER_NAME_MAX == TRACE_RESOLVE_NAME_SIZE);
+
+/**
+ * @brief Kanál pro čtení (trace_status / trace_read): Trace Suite + eventlog.
+ *
+ * @param s    Jméno kanálu.
+ * @param out  Výstup (jen při TRUE).
+ * @return TRUE = čitelný kanál.
+ */
+static gboolean _trace_read_parse_channel(const char *s, en_DBGAPI_TRACE_CHANNEL *out) {
+    for (int i = 0; i < (int)G_N_ELEMENTS(s_trace_read_channels); i++) {
+        if (g_strcmp0(s, s_trace_read_channels[i]) == 0) {
+            *out = (en_DBGAPI_TRACE_CHANNEL)i;
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/** @brief Verze formátu záznamu kanálu (cputrack v2, ostatní v1). */
+static unsigned _trace_format_version(en_DBGAPI_TRACE_CHANNEL ch) {
+    /* cputrack v2 (bajt 11, záznam přijetí přerušení), ostatní v1 */
+    return (ch == DBGAPI_TRACE_CHANNEL_CPUTRACK) ? 2u : 1u;
+}
+
+/**
+ * @brief Pořídit snímek kanálu přes dbgapi (emu vlákno).
+ *
+ * @param p  Parametr (channel, from_seq, count, max_copy_bytes, want_time
+ *           vyplní volající); výstup p->out uvolní tlog_read_snapshot_clear().
+ * @return true OK.
+ */
+static bool _trace_snapshot(st_DBGAPI_TRACE_SNAPSHOT_PARAM *p) {
+    memset(&p->out, 0, sizeof(p->out));
+    if (!_submit_dbgapi(DBGAPI_CMD_TRACE_SNAPSHOT, p, NULL) || !p->out_ok) {
+        tlog_read_snapshot_clear(&p->out);
+        return false;
+    }
+    return true;
+}
+
+/** @brief Má kanál podle snímku časový sloupec? */
+static bool _trace_has_time(en_DBGAPI_TRACE_CHANNEL ch,
+                            const st_DBGAPI_TRACE_SNAPSHOT_PARAM *p) {
+    if (ch != DBGAPI_TRACE_CHANNEL_CPUTRACK) return true;
+    return p->out_pc_range_full;
+}
+
+/** @brief Vyplnit stav kanálu do objektu (společné pro status i read). */
+static void _trace_fill_state(JsonObject *o, en_DBGAPI_TRACE_CHANNEL ch,
+                              const st_DBGAPI_TRACE_SNAPSHOT_PARAM *p) {
+    const st_TLOG_READ_SNAPSHOT *s = &p->out;
+    json_object_set_string_member(o, "channel", s_trace_read_channels[ch]);
+    json_object_set_int_member(o, "segment", (gint64)s->segment);
+    json_object_set_boolean_member(o, "live", s->live ? TRUE : FALSE);
+    json_object_set_boolean_member(o, "truncated", s->truncated ? TRUE : FALSE);
+    json_object_set_int_member(o, "first_seq", (gint64)s->first_seq);
+    json_object_set_int_member(o, "next_seq", (gint64)s->next_seq);
+    /* Trace Suite nic nezahazuje; ring Event Vieweru přepsal first_seq záznamů. */
+    json_object_set_int_member(o, "lost", (gint64)s->first_seq);
+}
+
+/**
+ * @brief `trace_status` handler - stav kanálů Trace Suite pro čtení.
+ *
+ * Parametry: `channel` (string, volitelný; bez něj všechny kanály).
+ * Response: `{"channels": [{channel, segment, live, truncated, first_seq,
+ * next_seq, lost, record_size, format_version, chunks, bytes_on_disk,
+ * dir, name, has_time}]}`.
+ */
+static en_MCP_DISPATCH_RESULT _handle_trace_status(const st_JSONL_MESSAGE *req,
+                                                   char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonNode *data_node = (JsonNode *)jsonl_msg_get_data_node(req);
+    JsonObject *data_obj = (data_node && json_node_get_node_type(data_node) == JSON_NODE_OBJECT)
+                           ? json_node_get_object(data_node) : NULL;
+    int only = -1;
+    if (data_obj && json_object_has_member(data_obj, "channel")
+        && !json_node_is_null(json_object_get_member(data_obj, "channel"))) {
+        en_DBGAPI_TRACE_CHANNEL ch;
+        if (!_obj_is_string(data_obj, "channel")
+            || !_trace_read_parse_channel(json_object_get_string_member(data_obj, "channel"), &ch)) {
+            return _err_response(req_id, "Invalid parameters: unknown channel",
+                                 MCP_DISPATCH_INVALID_PARAMS, out_response);
+        }
+        only = (int)ch;
+    }
+    JsonArray *arr = json_array_new();
+    for (int i = 0; i < (int)G_N_ELEMENTS(s_trace_read_channels); i++) {
+        if (only >= 0 && i != only) continue;
+        st_DBGAPI_TRACE_SNAPSHOT_PARAM p;
+        memset(&p, 0, sizeof(p));
+        p.channel = (en_DBGAPI_TRACE_CHANNEL)i;
+        if (!_trace_snapshot(&p)) {
+            json_array_unref(arr);
+            return _err_response(req_id, "trace_status failed",
+                                 MCP_DISPATCH_EMU_ERROR, out_response);
+        }
+        JsonObject *o = json_object_new();
+        _trace_fill_state(o, p.channel, &p);
+        uint64_t bytes = 0;
+        guint chunks = p.out.chunks ? p.out.chunks->len : 0;
+        for (guint k = 0; k < chunks; k++) {
+            bytes += g_array_index(p.out.chunks, st_TLOG_CHUNK_META, k).bytes;
+        }
+        json_object_set_int_member(o, "record_size", (gint64)p.out.record_size);
+        json_object_set_int_member(o, "format_version", (gint64)_trace_format_version(p.channel));
+        json_object_set_int_member(o, "chunks", (gint64)chunks);
+        json_object_set_int_member(o, "bytes_on_disk", (gint64)bytes);
+        if (p.out.dir) json_object_set_string_member(o, "dir", p.out.dir);
+        else json_object_set_null_member(o, "dir");
+        if (p.out.name) json_object_set_string_member(o, "name", p.out.name);
+        else json_object_set_null_member(o, "name");
+        json_object_set_boolean_member(o, "has_time", _trace_has_time(p.channel, &p) ? TRUE : FALSE);
+        json_array_add_object_element(arr, o);
+        tlog_read_snapshot_clear(&p.out);
+    }
+    JsonObject *resp = json_object_new();
+    json_object_set_array_member(resp, "channels", arr);
+    return _ok_response(req_id, resp, out_response);
+}
+
+/**
+ * @brief Resolver symbolů a jmen značek pro trace_reader_page (přes dbgapi).
+ */
+static bool _trace_resolve_cb(void *user, st_TRACE_RESOLVE_REQ *rr) {
+    (void)user;
+    st_DBGAPI_SYMBOL_HIT *hits = rr->n_addrs ? g_new0(st_DBGAPI_SYMBOL_HIT, rr->n_addrs) : NULL;
+    st_DBGAPI_TRACE_RESOLVE_PARAM p = {
+        .addrs = rr->addrs, .n_addrs = rr->n_addrs, .out_syms = hits,
+        .marker_ids = rr->markers, .n_markers = rr->n_markers,
+        .out_markers = (char (*)[DBGAPI_MARKER_NAME_MAX])rr->marker_names,
+        .events = rr->events, .n_events = rr->n_events,
+        .out_event_texts = (char (*)[DBGAPI_EVENT_TEXT_MAX])rr->event_texts
+    };
+    bool ok = _submit_dbgapi(DBGAPI_CMD_TRACE_RESOLVE, &p, NULL);
+    if (ok) {
+        for (size_t i = 0; i < rr->n_addrs; i++) {
+            g_strlcpy(rr->syms + i * TRACE_RESOLVE_NAME_SIZE, hits[i].name, TRACE_RESOLVE_NAME_SIZE);
+            rr->sym_offs[i] = hits[i].offset;
+        }
+    }
+    g_free(hits);
+    return ok;
+}
+
+/**
+ * @brief Naparsovat objekt `filter` trace_read.
+ *
+ * @return NULL OK, jinak statická chybová zpráva.
+ */
+static const char *_trace_parse_filter(JsonObject *f, en_TRACE_KIND kind, st_TRACE_FILTER *out) {
+    trace_filter_init(out);
+    if (!f) return NULL;
+    if (json_object_has_member(f, "pc_from") || json_object_has_member(f, "pc_to")) {
+        if (kind != TRACE_KIND_CPUTRACK) return "filter pc_from/pc_to is only for cputrack";
+        out->has_pc = true;
+        out->pc_from = (uint16_t)_obj_int_or(f, "pc_from", 0);
+        out->pc_to = (uint16_t)_obj_int_or(f, "pc_to", 0xFFFF);
+    }
+    if (json_object_has_member(f, "port")) {
+        if (kind != TRACE_KIND_IORQLOG) return "filter port is only for iorqlog";
+        out->has_port = true;
+        out->port = (uint16_t)_obj_int_or(f, "port", 0);
+    }
+    if (json_object_has_member(f, "dir")) {
+        if (kind != TRACE_KIND_IORQLOG || !_obj_is_string(f, "dir")) return "filter dir must be in or out (iorqlog)";
+        const char *d = json_object_get_string_member(f, "dir");
+        if (g_strcmp0(d, "in") == 0) out->dir = 0;
+        else if (g_strcmp0(d, "out") == 0) out->dir = 1;
+        else return "filter dir must be in or out (iorqlog)";
+    }
+    if (json_object_has_member(f, "type")) {
+        if (kind != TRACE_KIND_IORQLOG || !_obj_is_string(f, "type")) return "filter type must be iorq, mreq_mapped or iorq_unconnected (iorqlog)";
+        const char *t = json_object_get_string_member(f, "type");
+        if (g_strcmp0(t, "iorq") == 0) out->type = 0;
+        else if (g_strcmp0(t, "mreq_mapped") == 0) out->type = 1;
+        else if (g_strcmp0(t, "iorq_unconnected") == 0) out->type = 2;
+        else return "filter type must be iorq, mreq_mapped or iorq_unconnected (iorqlog)";
+    }
+    if (json_object_has_member(f, "chip")) {
+        if (kind != TRACE_KIND_HWLOG) return "filter chip is only for hwlog";
+        out->chip = (int)_obj_int_or(f, "chip", -1);
+    }
+    if (json_object_has_member(f, "sub")) {
+        if (kind != TRACE_KIND_HWLOG) return "filter sub is only for hwlog";
+        out->sub = (int)_obj_int_or(f, "sub", -1);
+    }
+    if (json_object_has_member(f, "marker")) {
+        if (kind != TRACE_KIND_MARKLOG) return "filter marker is only for marklog";
+        out->marker = (int)_obj_int_or(f, "marker", -1);
+    }
+    if (json_object_has_member(f, "t_from") || json_object_has_member(f, "t_to")) {
+        out->has_t = true;
+        out->t_from = (uint64_t)_obj_int_or(f, "t_from", 0);
+        out->t_to = (uint64_t)_obj_int_or(f, "t_to", G_MAXINT64);
+    }
+    return NULL;
+}
+
+/** @brief Chybová odpověď s formátovanou zprávou (zpráva se uvolní). */
+static en_MCP_DISPATCH_RESULT _trace_err_owned(int64_t req_id, char *msg,
+                                               en_MCP_DISPATCH_RESULT rc,
+                                               char **out_response) {
+    en_MCP_DISPATCH_RESULT r = _err_response(req_id, msg, rc, out_response);
+    g_free(msg);
+    return r;
+}
+
+/**
+ * @brief `trace_read` handler - stránka záznamů kanálu Trace Suite.
+ *
+ * Parametry a odpověď viz devdoc/trace/stream-read.md (channel, cursor,
+ * from, limit, format, columns, filter, max_chars, max_scan). Postup:
+ * snímek kanálu v emu vlákně (metadata + kopie RAM), čtení chunků
+ * z disku a sestavení stránky v dispatch vlákně (trace_reader_page),
+ * symboly a jména značek druhým dotazem v emu vlákně, nakonec kontrola,
+ * že se segment mezitím nezměnil (jinak chyba `segment_replaced:`).
+ */
+static en_MCP_DISPATCH_RESULT _handle_trace_read(const st_JSONL_MESSAGE *req,
+                                                 char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    en_DBGAPI_TRACE_CHANNEL ch;
+    JsonNode *dn = (JsonNode *)jsonl_msg_get_data_node(req);
+    if (!dn || json_node_get_node_type(dn) != JSON_NODE_OBJECT
+        || !_obj_is_string(json_node_get_object(dn), "channel")
+        || !_trace_read_parse_channel(json_object_get_string_member(json_node_get_object(dn), "channel"), &ch)) {
+        return _err_response(req_id, "Invalid parameters: unknown channel",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    JsonObject *d = json_node_get_object(dn);
+    const char *chname = s_trace_read_channels[ch];
+    en_TRACE_KIND kind = (en_TRACE_KIND)ch;   /* stejné pořadí jako en_DBGAPI_TRACE_CHANNEL */
+
+    st_TRACE_PAGE_REQ pr;
+    memset(&pr, 0, sizeof(pr));
+    pr.kind = kind;
+    const char *fmt = _obj_is_string(d, "format") ? json_object_get_string_member(d, "format") : "rows";
+    if (g_strcmp0(fmt, "rows") == 0) pr.raw = false;
+    else if (g_strcmp0(fmt, "raw_b64") == 0) pr.raw = true;
+    else return _err_response(req_id, "Invalid parameters: format must be rows or raw_b64",
+                              MCP_DISPATCH_INVALID_PARAMS, out_response);
+    gint64 limit = _obj_int_or(d, "limit", pr.raw ? 0 : TRACE_READ_DEFAULT_LIMIT);
+    if (!pr.raw && (limit < 1 || limit > TRACE_READ_MAX_LIMIT)) {
+        return _err_response(req_id, "Invalid parameters: limit must be 1..5000",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    if (pr.raw && limit < 0) {
+        return _err_response(req_id, "Invalid parameters: limit must be >= 0",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    /* raw: limit = počet záznamů, 0 = co se vejde do 1 MiB */
+    pr.limit = (unsigned)((limit > 0 && limit < G_MAXUINT) ? limit : (TRACE_READ_MAX_RAW_BYTES / 12u));
+    gint64 max_chars = _obj_int_or(d, "max_chars", TRACE_READ_DEFAULT_MAX_CHARS);
+    if (max_chars < 1000 || max_chars > TRACE_READ_MAX_MAX_CHARS) {
+        return _err_response(req_id, "Invalid parameters: max_chars must be 1000..45000",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    pr.max_chars = (size_t)max_chars;
+    gint64 max_scan = _obj_int_or(d, "max_scan", TRACE_READ_DEFAULT_MAX_SCAN);
+    if (max_scan < 1) {
+        return _err_response(req_id, "Invalid parameters: max_scan must be >= 1",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    pr.max_scan = (uint64_t)max_scan;
+
+    /* Sloupce */
+    const char *bad = NULL;
+    if (json_object_has_member(d, "columns") && !json_node_is_null(json_object_get_member(d, "columns"))) {
+        JsonNode *cn = json_object_get_member(d, "columns");
+        if (json_node_get_node_type(cn) != JSON_NODE_ARRAY) {
+            return _err_response(req_id, "Invalid parameters: columns must be an array of strings",
+                                 MCP_DISPATCH_INVALID_PARAMS, out_response);
+        }
+        JsonArray *ca = json_node_get_array(cn);
+        guint n = json_array_get_length(ca);
+        const char **names = g_new0(const char *, n + 1);
+        for (guint i = 0; i < n; i++) {
+            JsonNode *e = json_array_get_element(ca, i);
+            names[i] = (JSON_NODE_HOLDS_VALUE(e) && json_node_get_value_type(e) == G_TYPE_STRING)
+                       ? json_node_get_string(e) : "";
+        }
+        pr.col_mask = trace_columns_mask(kind, names, n, &bad);
+        if (bad) {
+            char *msg = g_strdup_printf("Invalid parameters: unknown column '%s'", bad);
+            g_free(names);
+            return _trace_err_owned(req_id, msg, MCP_DISPATCH_INVALID_PARAMS, out_response);
+        }
+        g_free(names);
+    } else {
+        pr.col_mask = trace_columns_mask(kind, NULL, 0, &bad);
+    }
+
+    /* Filtr */
+    JsonObject *fo = NULL;
+    if (json_object_has_member(d, "filter") && !json_node_is_null(json_object_get_member(d, "filter"))) {
+        JsonNode *fn = json_object_get_member(d, "filter");
+        if (json_node_get_node_type(fn) != JSON_NODE_OBJECT) {
+            return _err_response(req_id, "Invalid parameters: filter must be an object",
+                                 MCP_DISPATCH_INVALID_PARAMS, out_response);
+        }
+        fo = json_node_get_object(fn);
+    }
+    const char *ferr = _trace_parse_filter(fo, kind, &pr.filter);
+    if (ferr) {
+        return _trace_err_owned(req_id, g_strdup_printf("Invalid parameters: %s", ferr),
+                                MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+
+    /* Výchozí pozice: kurzor, nebo from */
+    const char *cursor = _obj_is_string(d, "cursor") ? json_object_get_string_member(d, "cursor") : NULL;
+    bool have_cursor = cursor && cursor[0];
+    unsigned cur_seg = 0;
+    uint64_t start = 0;
+    bool newest = false;
+    if (have_cursor) {
+        if (!trace_cursor_decode(cursor, chname, &cur_seg, &start)) {
+            return _err_response(req_id, "Invalid parameters: invalid cursor",
+                                 MCP_DISPATCH_INVALID_PARAMS, out_response);
+        }
+    } else {
+        const char *from = _obj_is_string(d, "from") ? json_object_get_string_member(d, "from") : "oldest";
+        if (g_strcmp0(from, "oldest") == 0) {
+            start = 0;
+        } else if (g_strcmp0(from, "newest") == 0) {
+            newest = true;
+        } else if (g_str_has_prefix(from, "seq:")) {
+            char *end = NULL;
+            start = g_ascii_strtoull(from + 4, &end, 10);
+            if (!end || *end || end == from + 4) {
+                return _err_response(req_id, "Invalid parameters: from must be oldest, newest or seq:N",
+                                     MCP_DISPATCH_INVALID_PARAMS, out_response);
+            }
+        } else {
+            return _err_response(req_id, "Invalid parameters: from must be oldest, newest or seq:N",
+                                 MCP_DISPATCH_INVALID_PARAMS, out_response);
+        }
+    }
+
+    st_DBGAPI_TRACE_SNAPSHOT_PARAM p;
+    memset(&p, 0, sizeof(p));
+    p.channel = ch;
+    if (newest) {
+        /* Napřed metadata, pak posledních `limit` záznamů. */
+        if (!_trace_snapshot(&p)) {
+            return _err_response(req_id, "trace_read failed", MCP_DISPATCH_EMU_ERROR, out_response);
+        }
+        uint64_t n = p.out.next_seq;
+        start = (n > pr.limit) ? n - pr.limit : 0;
+        if (start < p.out.first_seq) start = p.out.first_seq;
+        tlog_read_snapshot_clear(&p.out);
+    }
+    p.from_seq = start;
+    p.count = pr.raw ? pr.limit : pr.max_scan;
+    p.max_copy_bytes = TRACE_READ_MAX_RAM_COPY;
+    p.want_time = (ch == DBGAPI_TRACE_CHANNEL_CPUTRACK);
+    if (!_trace_snapshot(&p)) {
+        return _err_response(req_id, "trace_read failed", MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+
+    if (have_cursor && cur_seg != p.out.segment) {
+        char *msg = g_strdup_printf("segment_replaced: cursor segment %u, current segment %u; read again from the start",
+                                    cur_seg, p.out.segment);
+        tlog_read_snapshot_clear(&p.out);
+        return _trace_err_owned(req_id, msg, MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    if (start > p.out.next_seq) {
+        tlog_read_snapshot_clear(&p.out);
+        return _err_response(req_id, "Invalid parameters: invalid cursor (beyond next_seq)",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+
+    JsonObject *resp = json_object_new();
+    _trace_fill_state(resp, ch, &p);
+    if (start < p.out.first_seq) {
+        /* Ring přepsal záznamy [start, first_seq): ne chyba, data od
+         * first_seq a v odpovědi gap. */
+        JsonObject *gap = json_object_new();
+        json_object_set_int_member(gap, "from_seq", (gint64)start);
+        json_object_set_int_member(gap, "to_seq", (gint64)p.out.first_seq);
+        json_object_set_object_member(resp, "gap", gap);
+        start = p.out.first_seq;
+    } else {
+        json_object_set_null_member(resp, "gap");
+    }
+    uint64_t next = start;
+    if (p.out.segment == 0 || p.out.record_size == 0) {
+        /* Kanál nic nezaznamenal: prázdná stránka. */
+        json_object_set_int_member(resp, "scanned", 0);
+        json_object_set_int_member(resp, "matched", 0);
+        json_object_set_boolean_member(resp, "scan_exhausted", FALSE);
+        json_object_set_boolean_member(resp, "page_full", FALSE);
+        json_object_set_boolean_member(resp, "end_of_data", TRUE);
+        if (!pr.raw) {
+            json_object_set_array_member(resp, "columns", json_array_new());
+            json_object_set_array_member(resp, "rows", json_array_new());
+        }
+    } else {
+        pr.from_seq = start;
+        pr.cputrack_time = (ch == DBGAPI_TRACE_CHANNEL_CPUTRACK) && _trace_has_time(ch, &p);
+        pr.ram_prefix_t = p.out_ram_prefix_t;
+        pr.cpu_divider = p.out_cpu_divider;
+        if (trace_reader_page(&pr, &p.out, _trace_resolve_cb, NULL, resp, &next) != 0) {
+            json_object_unref(resp);
+            tlog_read_snapshot_clear(&p.out);
+            return _err_response(req_id, "trace data unavailable: cannot read a chunk file",
+                                 MCP_DISPATCH_EMU_ERROR, out_response);
+        }
+        if (pr.raw) {
+            json_object_set_int_member(resp, "format_version", (gint64)_trace_format_version(ch));
+        }
+        /* Kontrola segmentu po čtení disku: nový záznam se stejným jménem
+         * mohl chunky přepsat. */
+        st_DBGAPI_TRACE_SNAPSHOT_PARAM chk;
+        memset(&chk, 0, sizeof(chk));
+        chk.channel = ch;
+        if (!_trace_snapshot(&chk)) {
+            json_object_unref(resp);
+            tlog_read_snapshot_clear(&p.out);
+            return _err_response(req_id, "trace_read failed", MCP_DISPATCH_EMU_ERROR, out_response);
+        }
+        unsigned seg_now = chk.out.segment;
+        tlog_read_snapshot_clear(&chk.out);
+        if (seg_now != p.out.segment) {
+            char *msg = g_strdup_printf("segment_replaced: segment %u was replaced by %u while reading; read again from the start",
+                                        p.out.segment, seg_now);
+            json_object_unref(resp);
+            tlog_read_snapshot_clear(&p.out);
+            return _trace_err_owned(req_id, msg, MCP_DISPATCH_INVALID_PARAMS, out_response);
+        }
+    }
+    char *nc = trace_cursor_encode(chname, p.out.segment, next);
+    json_object_set_string_member(resp, "next_cursor", nc);
+    g_free(nc);
+    tlog_read_snapshot_clear(&p.out);
     return _ok_response(req_id, resp, out_response);
 }
 

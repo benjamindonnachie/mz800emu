@@ -181,7 +181,7 @@ void marklog_record ( uint16_t marker_id )
  * =========================================================================== */
 
 /**
- * @brief Vybuduje JSON fragment s registrem markerů pro meta.json.
+ * @brief Vybuduje JSON fragment s registrem markerů pro manifest <name>.json.
  *
  * Klíče = stringified id ("0", "1", ...), hodnoty = registered name.
  * Pokud je registr prázdný, vrací validní (prázdný) "markers" objekt.
@@ -261,6 +261,7 @@ int marklog_start ( void )
         return -1;
     }
     s_writer_open = 1;
+    tlog_writer_set_record_size ( &s_writer, TLOG_RECORD_SIZE_EVENT24 );
 
     char *hdr = build_subsys_header_json ( );
     tlog_writer_update_meta ( &s_writer, hdr );
@@ -426,6 +427,11 @@ void marklog_apply_cli_options ( void )
         if ( g_ascii_strcasecmp ( v, "on" ) == 0 ) g_marklog_config.stdout_enabled = 1;
         else if ( g_ascii_strcasecmp ( v, "off" ) == 0 ) g_marklog_config.stdout_enabled = 0;
     }
+}
+
+const st_TLOG_WRITER *marklog_get_writer ( void )
+{
+    return &s_writer;
 }
 
 #endif /* MZ800EMU_CFG_DEBUGGER_ENABLED */

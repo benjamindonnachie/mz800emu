@@ -3342,10 +3342,25 @@ async def emu_cdl_export(path: str) -> str:
 # The data streams continuously to chunk files under the channel's
 # configured dir/name. ``emu_trace_save`` finalizes the current segment
 # (flush + close) and may redirect the NEXT segment to a named path.
+# ``emu_trace_status`` / ``emu_trace_read`` read the records page by page
+# (cursor, filter, character budget), also while recording runs.
 
 # Valid trace channel identifiers (kept in sync with the C dispatch
 # layer in src/emulator/mcp/dispatch.c::_trace_parse_channel).
 _TRACE_CHANNELS = ("cputrack", "iorqlog", "intlog", "hwlog", "marklog")
+
+# Channels readable with emu_trace_status / emu_trace_read: the trace-suite
+# channels plus the Event Viewer ring (``eventlog``, controlled by
+# emu_eventlog_start/stop/clear, not by emu_trace_start).
+_TRACE_READ_CHANNELS = _TRACE_CHANNELS + ("eventlog",)
+
+
+def _trace_read_validate_channel(channel: str) -> "str | None":
+    """Return an error message if ``channel`` cannot be read with trace_read."""
+    if not isinstance(channel, str) or channel not in _TRACE_READ_CHANNELS:
+        return ("channel must be one of: "
+                + ", ".join(_TRACE_READ_CHANNELS))
+    return None
 
 
 def _trace_validate_channel(channel: str) -> "str | None":
@@ -3474,6 +3489,116 @@ async def emu_trace_save(channel: str, path: str = "") -> str:
     resp = await _send_request("trace_save", data)
     if not resp.get("success", False):
         return json.dumps({"error": resp.get("error", "trace_save failed")})
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_trace_status(channel: str = "") -> str:
+    """State of trace-suite channels for paged reading (``emu_trace_read``).
+
+    Args:
+        channel: One of ``cputrack``, ``iorqlog``, ``intlog``, ``hwlog``,
+            ``marklog``, ``eventlog`` (Event Viewer ring); empty = all.
+
+    Returns:
+        JSON ``{"channels": [{channel, segment, live, truncated,
+        first_seq, next_seq, lost, record_size, format_version, chunks,
+        bytes_on_disk, dir, name, has_time}]}``. ``segment`` 0 means the
+        channel has recorded nothing yet; after ``emu_trace_stop`` the
+        last segment stays readable (``live: false``) until the next
+        start of the channel.
+    """
+    data: dict[str, Any] = {}
+    if channel:
+        err = _trace_read_validate_channel(channel)
+        if err is not None:
+            return json.dumps({"error": err})
+        data["channel"] = channel
+    resp = await _send_request("trace_status", data)
+    if not resp.get("success", False):
+        return json.dumps({"error": resp.get("error", "trace_status failed")})
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_trace_read(channel: str, cursor: str = "", start: str = "oldest",
+                         limit: int = 200, format: str = "rows",
+                         columns: list[str] | None = None,
+                         filter: dict[str, Any] | None = None,
+                         max_chars: int = 20000,
+                         max_scan: int = 2000000) -> str:
+    """Read one page of trace-suite or Event Viewer records, also while running.
+
+    Records are numbered by ``seq`` within a ``segment`` (one recording).
+    Page through with ``next_cursor``; ``end_of_data: true`` means the page
+    reached the newest record (run the emulator and read on with the same
+    cursor). Data still in RAM is readable too - no need to stop or save
+    the trace first. A cursor from an older segment (the channel was
+    restarted) returns an error starting with ``segment_replaced:``;
+    read again from the start.
+
+    Columns (``rows``, values in this canonical order):
+      cputrack: seq, pc, bytes, asm, t_std, wait, t, sym
+      iorqlog:  seq, t, frame, pos, type, dir, src, addr, value, pulse
+      intlog:   seq, t, frame, pos, class, chip, pin, edge, state
+      hwlog:    seq, t, frame, pos, chip, sub, payload
+      marklog:  seq, t, frame, pos, id, name
+      eventlog: seq, t, frame, pos, cat, sub, pc, text
+    ``t`` is in GDG ticks since emulation start (cputrack: start of the
+    instruction, only with ``has_time``, i.e. no PC range record filter).
+    cputrack ``asm`` is decoded from the recorded bytes (not current
+    memory); an interrupt acknowledge record shows ``INT ACK``. The
+    Event Viewer ring (``eventlog``) overwrites its oldest events: a cursor
+    below ``first_seq`` is no error, the page starts at ``first_seq`` and
+    ``gap`` names the lost range.
+
+    Args:
+        channel: ``cputrack``, ``iorqlog``, ``intlog``, ``hwlog``,
+            ``marklog`` or ``eventlog``.
+        cursor: ``next_cursor`` of the previous page (takes precedence over
+            ``start``).
+        start: ``"oldest"``, ``"newest"`` (last ``limit`` records) or
+            ``"seq:N"``.
+        limit: Max rows per page (1-5000); with ``raw_b64`` the record
+            count (0 = as many as fit in 1 MiB).
+        format: ``"rows"`` (decoded) or ``"raw_b64"`` (raw records, no
+            filter; ``record_size`` and ``format_version`` describe them).
+        columns: Subset of the channel's columns (default all).
+        filter: Optional keys ``pc_from``/``pc_to`` (cputrack), ``port``
+            (<= 0xFF matches the low byte), ``dir`` (``in``/``out``),
+            ``type`` (``iorq``, ``mreq_mapped``, ``iorq_unconnected``)
+            (iorqlog), ``chip``/``sub`` (hwlog), ``marker`` (marklog id),
+            ``t_from``/``t_to`` (channels with ``t``).
+        max_chars: Character budget of a ``rows`` page (1000-45000); the
+            whole response stays within it.
+        max_scan: Max records examined per call; when exhausted the page
+            returns ``scan_exhausted: true`` and a cursor to continue.
+
+    Returns:
+        JSON with ``channel``, ``segment``, ``first_seq``, ``next_seq``,
+        ``live``, ``truncated``, ``lost``, ``gap``, ``scanned``,
+        ``matched``, ``scan_exhausted``, ``page_full``, ``end_of_data``,
+        ``columns`` + ``rows`` (or ``record_size``, ``format_version``,
+        ``from_seq``, ``count``, ``data_b64``) and ``next_cursor``; or
+        ``{"error": "..."}``.
+    """
+    err = _trace_read_validate_channel(channel)
+    if err is not None:
+        return json.dumps({"error": err})
+    data: dict[str, Any] = {"channel": channel, "limit": limit,
+                            "format": format, "max_chars": max_chars,
+                            "max_scan": max_scan}
+    if cursor:
+        data["cursor"] = cursor
+    else:
+        data["from"] = start
+    if columns:
+        data["columns"] = list(columns)
+    if filter:
+        data["filter"] = dict(filter)
+    resp = await _send_request("trace_read", data)
+    if not resp.get("success", False):
+        return json.dumps({"error": resp.get("error", "trace_read failed")})
     return json.dumps(_data_or_error(resp))
 
 

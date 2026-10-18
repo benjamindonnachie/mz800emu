@@ -62,6 +62,7 @@
 #include "screenshot/screenshot_series.h"
 #include "trace/eventlog.h"
 #include "trace/eventlog_trigger.h"
+#include "eventlog_decoder.h"
 #include "io_history.h"
 #include "io_activity.h"
 #include "trace/cputrack.h"
@@ -156,23 +157,25 @@ static int dbgapi_profiler_pc_addr_cmp ( const void *a, const void *b )
 
 
 /**
- * @brief Doplní do řádků profileru podle PC nejbližší symbol (adresa <= pc).
+ * @brief Najde ke každé adrese nejbližší symbol (adresa symbolu <= adresa).
  *
  * Bere jen globální symboly (bank_id 0, CPU pohled), stejně jako MCP
  * symbol_lookup. Při více symbolech na jedné adrese rozhoduje priorita
- * sym_db_lookup_by_addr (LBL > MAP > NOI > SYM).
+ * sym_db_lookup_by_addr (LBL > MAP > NOI > SYM). Používá profiler podle
+ * PC i DBGAPI_CMD_SYMBOL_RESOLVE_ADDRS (čtení trace).
  *
- * @param rows Řádky (vyplněné `r.pc`).
- * @param n    Počet řádků.
- * @post Řádky bez symbolu mají symbol "" a sym_offset 0.
+ * @param pcs  Adresy.
+ * @param n    Počet adres.
+ * @param out  Výstup n položek.
+ * @post Adresa bez symbolu má jméno "" a offset 0.
  * @note Volá se v emu vlákně jako ostatní MCP příkazy nad sym_db
  *       (symbol_lookup, symbol_list).
  */
-static void dbgapi_profiler_pc_fill_symbols ( st_DBGAPI_PROFILER_PC_ROW *rows, size_t n )
+static void dbgapi_symbols_resolve ( const uint16_t *pcs, size_t n, st_DBGAPI_SYMBOL_HIT *out )
 {
     for ( size_t i = 0; i < n; i++ ) {
-        rows[ i ].symbol[ 0 ] = '\0';
-        rows[ i ].sym_offset = 0;
+        out[ i ].name[ 0 ] = '\0';
+        out[ i ].offset = 0;
     };
     size_t count = sym_db_count ( );
     if ( n == 0 || count == 0 ) return;
@@ -187,7 +190,7 @@ static void dbgapi_profiler_pc_fill_symbols ( st_DBGAPI_PROFILER_PC_ROW *rows, s
     };
     qsort ( addrs, na, sizeof ( uint16_t ), dbgapi_profiler_pc_addr_cmp );
     for ( size_t i = 0; i < n; i++ ) {
-        uint16_t pc = rows[ i ].r.pc;
+        uint16_t pc = pcs[ i ];
         /* Binární hledání poslední adresy <= pc. */
         size_t lo = 0, hi = na;
         while ( lo < hi ) {
@@ -199,10 +202,37 @@ static void dbgapi_profiler_pc_fill_symbols ( st_DBGAPI_PROFILER_PC_ROW *rows, s
         uint16_t sa = addrs[ lo - 1 ];
         const st_SYMBOL *sym = sym_db_lookup_by_addr ( sa, 0 );
         if ( !sym || !sym->name ) continue;
-        g_strlcpy ( rows[ i ].symbol, sym->name, sizeof ( rows[ i ].symbol ) );
-        rows[ i ].sym_offset = (uint32_t) ( pc - sa );
+        g_strlcpy ( out[ i ].name, sym->name, sizeof ( out[ i ].name ) );
+        out[ i ].offset = (uint32_t) ( pc - sa );
     };
     g_free ( addrs );
+}
+
+
+/* Jména značek v DBGAPI_CMD_TRACE_RESOLVE mají stejný limit jako registr marklog. */
+G_STATIC_ASSERT ( DBGAPI_MARKER_NAME_MAX == MARKLOG_NAME_MAX );
+
+
+/**
+ * @brief Doplní nejbližší symbol (CPU pohled, banka 0) k řádkům profileru.
+ *
+ * @param rows  Řádky (pole symbol/sym_offset se přepíšou).
+ * @param n     Počet řádků.
+ * @pre Volat v emu vlákně (databáze symbolů).
+ */
+static void dbgapi_profiler_pc_fill_symbols ( st_DBGAPI_PROFILER_PC_ROW *rows, size_t n )
+{
+    if ( n == 0 ) return;
+    uint16_t *pcs = (uint16_t *) g_malloc ( n * sizeof ( uint16_t ) );
+    st_DBGAPI_SYMBOL_HIT *hits = (st_DBGAPI_SYMBOL_HIT *) g_malloc ( n * sizeof ( *hits ) );
+    for ( size_t i = 0; i < n; i++ ) pcs[ i ] = rows[ i ].r.pc;
+    dbgapi_symbols_resolve ( pcs, n, hits );
+    for ( size_t i = 0; i < n; i++ ) {
+        g_strlcpy ( rows[ i ].symbol, hits[ i ].name, sizeof ( rows[ i ].symbol ) );
+        rows[ i ].sym_offset = hits[ i ].offset;
+    };
+    g_free ( hits );
+    g_free ( pcs );
 }
 
 
@@ -949,6 +979,8 @@ const char *dbgapi_cmd_to_str(en_DBGAPI_CMD cmd)
         case DBGAPI_CMD_SCREENSHOT_SERIES:         return "screenshot_series";
         case DBGAPI_CMD_PROFILER_PC:               return "profiler_pc";
         case DBGAPI_CMD_AUDIO_CAPTURE:             return "audio_capture";
+        case DBGAPI_CMD_TRACE_SNAPSHOT:            return "trace_snapshot";
+        case DBGAPI_CMD_TRACE_RESOLVE:             return "trace_resolve";
         /* V1.D.1 - Core + CPU extras Resources */
         case DBGAPI_CMD_GET_CPU_IM2_VECTOR:        return "get_cpu_im2_vector";
         case DBGAPI_CMD_GET_CPU_INTERRUPT_BUS:     return "get_cpu_interrupt_bus";
@@ -1129,6 +1161,7 @@ typedef struct st_DBGAPI_TRACE_CHAN_DESC
     int  *mode_ptr;                  /**< Ukazatel na mode kanálu (en_TLOG_MODE). */
     void (*fn_reset) ( void );       /**< Reset stavu segmentu (NULL = jen restart). */
     int  (*fn_save) ( const char * );/**< Uložit/přesměrovat segment na path. */
+    const st_TLOG_WRITER *( *fn_writer ) ( void ); /**< Writer kanálu pro čtení proudu. */
 } st_DBGAPI_TRACE_CHAN_DESC;
 
 /**
@@ -1147,26 +1180,31 @@ static bool dbgapi_resolve_trace_channel ( en_DBGAPI_TRACE_CHANNEL channel,
             out->mode_ptr = (int *) &g_cputrack_config.mode;
             out->fn_reset = cputrack_reset_collapse_state;
             out->fn_save  = cputrack_save_segment;
+            out->fn_writer = cputrack_get_writer;
             return true;
         case DBGAPI_TRACE_CHANNEL_IORQLOG:
             out->mode_ptr = (int *) &g_iorqlog_config.mode;
             out->fn_reset = NULL;
             out->fn_save  = iorqlog_save_segment;
+            out->fn_writer = iorqlog_get_writer;
             return true;
         case DBGAPI_TRACE_CHANNEL_INTLOG:
             out->mode_ptr = (int *) &g_intlog_config.mode;
             out->fn_reset = NULL;
             out->fn_save  = intlog_save_segment;
+            out->fn_writer = intlog_get_writer;
             return true;
         case DBGAPI_TRACE_CHANNEL_HWLOG:
             out->mode_ptr = (int *) &g_hwlog_config.mode;
             out->fn_reset = NULL;
             out->fn_save  = hwlog_save_segment;
+            out->fn_writer = hwlog_get_writer;
             return true;
         case DBGAPI_TRACE_CHANNEL_MARKLOG:
             out->mode_ptr = (int *) &g_marklog_config.mode;
             out->fn_reset = NULL;
             out->fn_save  = marklog_save_segment;
+            out->fn_writer = marklog_get_writer;
             return true;
         default:
             return false;
@@ -5575,6 +5613,130 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
             };
             audio_capture_get_status ( &p->out_status );
             rq->success = ( p->out_error[ 0 ] == 0 );
+            break;
+        }
+
+        case DBGAPI_CMD_TRACE_SNAPSHOT:
+        {
+            /* mcp-trace-read: snímek segmentu trace kanálu + kopie z RAM
+             * (devdoc/trace/stream-read.md). Chunky na disku čte dispatch. */
+            st_DBGAPI_TRACE_SNAPSHOT_PARAM *p = (st_DBGAPI_TRACE_SNAPSHOT_PARAM *) rq->data_ptr;
+            if ( !p )
+            {
+                rq->success = false;
+                break;
+            };
+            p->out_ok = false;
+            p->out_pc_range_full = false;
+            p->out_ram_prefix_t = 0;
+            p->out_cpu_divider = tlog_common_get_cpu_divider ( );
+            if ( p->channel == DBGAPI_TRACE_CHANNEL_EVENTLOG )
+            {
+                /* Ring Event Vieweru: vše "v RAM", nejstarší čitelný záznam
+                 * first_seq = next_seq - count (starší ring přepsal). */
+                memset ( &p->out, 0, sizeof ( p->out ) );
+                const st_EVENTLOG_RING *ring = &g_eventlog;
+                p->out.segment = ring->segment;
+                p->out.live = g_eventlog_active ? 1 : 0;
+                p->out.record_size = sizeof ( st_EVENTLOG_EVENT );
+                p->out.next_seq = ring->next_seq;
+                p->out.first_seq = ring->next_seq - ring->count;
+                p->out.ram_first_seq = p->out.first_seq;
+                p->out.chunks = g_array_new ( FALSE, FALSE, sizeof ( st_TLOG_CHUNK_META ) );
+                uint64_t lo = ( p->from_seq > p->out.first_seq ) ? p->from_seq : p->out.first_seq;
+                uint64_t hi = p->out.next_seq;
+                if ( lo < hi && p->count < hi - lo ) hi = lo + p->count;
+                uint64_t max_rec = p->max_copy_bytes / sizeof ( st_EVENTLOG_EVENT );
+                if ( hi > lo && hi - lo > max_rec ) hi = lo + max_rec;
+                if ( lo < hi && ring->events && ring->capacity )
+                {
+                    size_t n = (size_t) ( hi - lo );
+                    p->out.ram_copy = (uint8_t *) g_try_malloc ( n * sizeof ( st_EVENTLOG_EVENT ) );
+                    if ( !p->out.ram_copy )
+                    {
+                        tlog_read_snapshot_clear ( &p->out );
+                        rq->success = false;
+                        break;
+                    };
+                    /* Nejstarší event v ringu leží na (head - count) mod capacity. */
+                    size_t oldest = ( ring->head + ring->capacity - ring->count ) % ring->capacity;
+                    for ( size_t k = 0; k < n; k++ )
+                    {
+                        size_t idx = ( oldest + (size_t) ( lo - p->out.first_seq ) + k ) % ring->capacity;
+                        memcpy ( p->out.ram_copy + k * sizeof ( st_EVENTLOG_EVENT ),
+                                 &ring->events[ idx ], sizeof ( st_EVENTLOG_EVENT ) );
+                    };
+                    p->out.ram_copy_seq = lo;
+                    p->out.ram_copy_count = n;
+                };
+                p->out_ok = true;
+                rq->success = true;
+                break;
+            };
+            st_DBGAPI_TRACE_CHAN_DESC d;
+            if ( !dbgapi_resolve_trace_channel ( p->channel, &d ) || !d.fn_writer )
+            {
+                memset ( &p->out, 0, sizeof ( p->out ) );
+                rq->success = false;
+                break;
+            };
+            const st_TLOG_WRITER *w = d.fn_writer ( );
+            if ( tlog_writer_read_snapshot ( w, p->from_seq, p->count, p->max_copy_bytes, &p->out ) != 0 )
+            {
+                rq->success = false;
+                break;
+            };
+            if ( p->channel == DBGAPI_TRACE_CHANNEL_CPUTRACK )
+            {
+                p->out_pc_range_full = ( g_cputrack_config.pc_range_lo == 0 &&
+                                         g_cputrack_config.pc_range_hi >= 0xFFFF );
+                /* Součet T-stavů záznamů RAM bufferu před ram_copy_seq (nebo
+                 * před from_seq bez kopie): báze času stránky v RAM. */
+                if ( p->want_time && p->out.live && w->buffer && p->out.record_size == TLOG_RECORD_SIZE_CPUTRACK )
+                {
+                    uint64_t until = p->out.ram_copy_count ? p->out.ram_copy_seq : p->from_seq;
+                    if ( until > p->out.next_seq ) until = p->out.next_seq;
+                    uint64_t sum = 0;
+                    for ( uint64_t q = p->out.ram_first_seq; q < until; q++ )
+                    {
+                        const uint8_t *r = w->buffer + ( q - p->out.ram_first_seq ) * TLOG_RECORD_SIZE_CPUTRACK;
+                        uint32_t wait = (uint32_t) r[ 7 ] | ( (uint32_t) r[ 8 ] << 8 ) |
+                                        ( (uint32_t) r[ 9 ] << 16 ) | ( (uint32_t) r[ 10 ] << 24 );
+                        sum += (uint64_t) r[ 11 ] + wait;
+                    };
+                    p->out_ram_prefix_t = sum;
+                };
+            };
+            p->out_ok = true;
+            rq->success = true;
+            break;
+        }
+
+        case DBGAPI_CMD_TRACE_RESOLVE:
+        {
+            /* mcp-trace-read: symboly adres a jména značek pro řádky trace
+             * (sym_db i registr marklog se čtou jen v emu vlákně). */
+            st_DBGAPI_TRACE_RESOLVE_PARAM *p = (st_DBGAPI_TRACE_RESOLVE_PARAM *) rq->data_ptr;
+            if ( !p || ( p->n_addrs > 0 && ( !p->addrs || !p->out_syms ) ) ||
+                 ( p->n_markers > 0 && ( !p->marker_ids || !p->out_markers ) ) ||
+                 ( p->n_events > 0 && ( !p->events || !p->out_event_texts ) ) )
+            {
+                rq->success = false;
+                break;
+            };
+            dbgapi_symbols_resolve ( p->addrs, p->n_addrs, p->out_syms );
+            for ( size_t i = 0; i < p->n_markers; i++ )
+            {
+                const char *name = marklog_get_name ( p->marker_ids[ i ] );
+                g_strlcpy ( p->out_markers[ i ], name ? name : "", DBGAPI_MARKER_NAME_MAX );
+            };
+            for ( size_t i = 0; i < p->n_events; i++ )
+            {
+                st_EVENTLOG_EVENT e;
+                memcpy ( &e, p->events + i * sizeof ( st_EVENTLOG_EVENT ), sizeof ( e ) );
+                eventlog_decode_detail ( &e, p->out_event_texts[ i ], DBGAPI_EVENT_TEXT_MAX );
+            };
+            rq->success = true;
             break;
         }
 

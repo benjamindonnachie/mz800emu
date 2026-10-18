@@ -67,6 +67,8 @@ documented separately in [Resources overview](resources-overview.md).
 | `emu_trace_stop` | no | Stop trace recording of a channel (segment closed) |
 | `emu_trace_reset` | no | Flush the current trace channel segment to disk (nothing discarded) |
 | `emu_trace_save` | no | Save/redirect a trace channel segment (optional path) |
+| `emu_trace_status` | no | State of trace channels and the Event Viewer ring for reading |
+| `emu_trace_read` | no | Page of trace / Event Viewer records (cursor, filter, character budget) |
 | `emu_videorec_start` | yes (creates / overwrites a file) | Start lossless video recording (optional path, auto-stop after N frames) |
 | `emu_videorec_stop` | no | Stop video recording, by default wait until the files are saved |
 | `emu_videorec_pause` | no | Recording pause (emulation keeps running): pause / resume / toggle |
@@ -946,6 +948,64 @@ Saves / redirects the channel segment. Argument:
   existing dir/name (= "save now").
 
 Returns `{"saved": true, "path": <str|null>}`.
+
+### `emu_trace_status`
+
+State of the channels for reading. Argument `channel` (optional; one of
+the 5 trace channels or `eventlog` for the Event Viewer ring; empty =
+all). Returns `{"channels": [...]}` with per channel: `segment` (0 =
+nothing recorded yet), `live`, `truncated`, `first_seq`, `next_seq`,
+`lost`, `record_size`, `format_version` (cputrack 2), `chunks`,
+`bytes_on_disk`, `dir`, `name` and `has_time`.
+
+### `emu_trace_read`
+
+One page of records of a channel (`cputrack`, `iorqlog`, `intlog`,
+`hwlog`, `marklog`, `eventlog`), also while recording runs - the data
+still in the RAM buffer is readable too. After `emu_trace_stop` the
+last segment stays readable until the next start. Arguments:
+
+- `channel` (string, required).
+- `cursor` (string) - `next_cursor` of the previous page; takes
+  precedence over `start`.
+- `start` (string, default `oldest`) - `oldest`, `newest` (last `limit`
+  records) or `seq:N`.
+- `limit` (int, default 200, 1-5000) - max rows; with `raw_b64` the
+  record count (0 = as many as fit in 1 MiB).
+- `format` (string) - `rows` (default, decoded) or `raw_b64`.
+- `columns` (list) - subset of the channel columns.
+- `filter` (object) - `pc_from`/`pc_to` (cputrack), `port` (<= 0xFF
+  matches the low byte), `dir` (`in`/`out`), `type` (`iorq`,
+  `mreq_mapped`, `iorq_unconnected`) (iorqlog), `chip`/`sub` (hwlog),
+  `marker` (marklog id), `t_from`/`t_to` (channels with `t`).
+- `max_chars` (int, default 20000, 1000-45000) - character budget of
+  the whole `rows` response.
+- `max_scan` (int, default 2000000) - max records examined per call.
+
+Columns (always in this order, `columns` in the response):
+
+| Channel | Columns |
+|---------|---------|
+| `cputrack` | `seq`, `pc`, `bytes`, `asm`, `t_std`, `wait`, `t`, `sym` |
+| `iorqlog` | `seq`, `t`, `frame`, `pos`, `type`, `dir`, `src`, `addr`, `value`, `pulse` |
+| `intlog` | `seq`, `t`, `frame`, `pos`, `class`, `chip`, `pin`, `edge`, `state` |
+| `hwlog` | `seq`, `t`, `frame`, `pos`, `chip`, `sub`, `payload` |
+| `marklog` | `seq`, `t`, `frame`, `pos`, `id`, `name` |
+| `eventlog` | `seq`, `t`, `frame`, `pos`, `cat`, `sub`, `pc`, `text` |
+
+`t` is in GDG ticks since emulation start (cputrack: start of the
+instruction, only with `has_time`); cputrack `asm` is decoded from the
+recorded bytes, an interrupt acknowledge record shows `INT ACK`.
+
+The response carries `segment`, `first_seq`, `next_seq`, `live`,
+`truncated`, `lost`, `gap` (Event Viewer ring: `{from_seq, to_seq}`
+when the cursor points before `first_seq`), `scanned`, `matched`,
+`scan_exhausted` (the `max_scan` limit was hit - continue with the
+cursor), `page_full`, `end_of_data` (the page reached `next_seq`),
+`columns` + `rows` (or `record_size`, `format_version`, `from_seq`,
+`count`, `data_b64`) and `next_cursor`. A cursor from an older segment
+(the channel was restarted, the Event Viewer ring was cleared) returns
+an error starting with `segment_replaced:`.
 
 ## Video recording tools
 

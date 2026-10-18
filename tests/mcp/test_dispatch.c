@@ -99,8 +99,11 @@
  *
  * profiler-bitmap doplnil profiler_pc_bitmap (vykonané adresy jako
  * bitmapa, na KONEC cmd_map[]) = 180 + 1 = 181.
+ *
+ * mcp-trace-read doplnil trace_status a trace_read (stránkované čtení
+ * Trace Suite, za trace_save) = 181 + 2 = 183.
  */
-#define MCP_EXPECTED_CMD_COUNT 181
+#define MCP_EXPECTED_CMD_COUNT 183
 
 
 /* ====================================================================== */
@@ -6922,6 +6925,219 @@ void test_profiler_pc_bitmap(void) {
 }
 
 
+/* ====================================================================== */
+/* mcp-trace-read: trace_status / trace_read                              */
+/* ====================================================================== */
+
+/** @brief Datový objekt úspěšné odpovědi (parser uvolní volající). */
+static JsonObject *_tr_data(const char *resp, JsonParser **parser) {
+    JsonObject *obj = _parse_response_object(resp, parser);
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(obj, "success"));
+    return json_object_get_object_member(obj, "data");
+}
+
+/** @brief trace_status bez kanálu vypíše všech 6 kanálů, nezaznamenaný = segment 0. */
+void test_trace_status_all_channels(void) {
+    dispatch_stub_reset();
+    char *resp = NULL;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("trace_status", "{}", &resp));
+    JsonParser *parser = NULL;
+    JsonObject *data = _tr_data(resp, &parser);
+    JsonArray *ch = json_object_get_array_member(data, "channels");
+    TEST_ASSERT_EQUAL_UINT(6, json_array_get_length(ch));
+    JsonObject *c0 = json_array_get_object_element(ch, 0);
+    TEST_ASSERT_EQUAL_STRING("cputrack", json_object_get_string_member(c0, "channel"));
+    TEST_ASSERT_EQUAL_INT64(0, json_object_get_int_member(c0, "segment"));
+    TEST_ASSERT_EQUAL_INT64(2, json_object_get_int_member(c0, "format_version"));
+    TEST_ASSERT_EQUAL_STRING("marklog", json_object_get_string_member(json_array_get_object_element(ch, 4), "channel"));
+    TEST_ASSERT_EQUAL_STRING("eventlog", json_object_get_string_member(json_array_get_object_element(ch, 5), "channel"));
+    g_object_unref(parser);
+    free(resp);
+
+    /* jeden kanál; neznámý kanál = INVALID_PARAMS */
+    g_stub_state.tr_segment = 7;
+    g_stub_state.tr_records = 3;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("trace_status", "{\"channel\":\"iorqlog\"}", &resp));
+    data = _tr_data(resp, &parser);
+    ch = json_object_get_array_member(data, "channels");
+    TEST_ASSERT_EQUAL_UINT(1, json_array_get_length(ch));
+    c0 = json_array_get_object_element(ch, 0);
+    TEST_ASSERT_EQUAL_INT64(7, json_object_get_int_member(c0, "segment"));
+    TEST_ASSERT_EQUAL_INT64(3, json_object_get_int_member(c0, "next_seq"));
+    TEST_ASSERT_EQUAL_INT64(24, json_object_get_int_member(c0, "record_size"));
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(c0, "live"));
+    TEST_ASSERT_EQUAL_STRING("t", json_object_get_string_member(c0, "name"));
+    g_object_unref(parser);
+    free(resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("trace_status", "{\"channel\":\"nope\"}", NULL));
+}
+
+/** @brief trace_read: řádky iorqlog, kurzor, konec dat, segment_replaced. */
+void test_trace_read_rows_cursor_and_segment(void) {
+    dispatch_stub_reset();
+    g_stub_state.tr_segment = 3;
+    g_stub_state.tr_records = 5;
+    char *resp = NULL;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK,
+        _ss_request("trace_read", "{\"channel\":\"iorqlog\",\"limit\":3}", &resp));
+    JsonParser *parser = NULL;
+    JsonObject *data = _tr_data(resp, &parser);
+    TEST_ASSERT_EQUAL_INT64(3, json_object_get_int_member(data, "segment"));
+    TEST_ASSERT_EQUAL_INT64(5, json_object_get_int_member(data, "next_seq"));
+    JsonArray *rows = json_object_get_array_member(data, "rows");
+    TEST_ASSERT_EQUAL_UINT(3, json_array_get_length(rows));
+    JsonArray *r1 = json_array_get_array_element(rows, 1);
+    TEST_ASSERT_EQUAL_INT64(1, json_array_get_int_element(r1, 0));
+    TEST_ASSERT_EQUAL_INT64(100, json_array_get_int_element(r1, 1));
+    TEST_ASSERT_EQUAL_STRING("out", json_array_get_string_element(r1, 5));
+    TEST_ASSERT_EQUAL_STRING("0011", json_array_get_string_element(r1, 7));
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(data, "page_full"));
+    TEST_ASSERT_FALSE(json_object_get_boolean_member(data, "end_of_data"));
+    char *cursor = g_strdup(json_object_get_string_member(data, "next_cursor"));
+    /* snímek dvakrát: čtení + kontrola segmentu po čtení */
+    TEST_ASSERT_EQUAL_INT(2, g_stub_state.tr_snap_calls);
+    g_object_unref(parser);
+    free(resp);
+
+    /* pokračování kurzorem: zbylé 2 řádky a konec dat */
+    char *req = g_strdup_printf("{\"channel\":\"iorqlog\",\"cursor\":\"%s\"}", cursor);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("trace_read", req, &resp));
+    data = _tr_data(resp, &parser);
+    rows = json_object_get_array_member(data, "rows");
+    TEST_ASSERT_EQUAL_UINT(2, json_array_get_length(rows));
+    TEST_ASSERT_EQUAL_INT64(3, json_array_get_int_element(json_array_get_array_element(rows, 0), 0));
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(data, "end_of_data"));
+    g_object_unref(parser);
+    free(resp);
+
+    /* kurzor cizího kanálu */
+    g_free(req);
+    req = g_strdup_printf("{\"channel\":\"hwlog\",\"cursor\":\"%s\"}", cursor);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("trace_read", req, NULL));
+
+    /* segment se změnil (nový záznam): segment_replaced */
+    g_stub_state.tr_segment = 4;
+    g_free(req);
+    req = g_strdup_printf("{\"channel\":\"iorqlog\",\"cursor\":\"%s\"}", cursor);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("trace_read", req, &resp));
+    TEST_ASSERT_NOT_NULL(strstr(resp, "segment_replaced:"));
+    free(resp);
+
+    /* segment se změní mezi čtením a kontrolou */
+    dispatch_stub_reset();
+    g_stub_state.tr_segment = 3;
+    g_stub_state.tr_records = 5;
+    g_stub_state.tr_bump_on_call = 2;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS,
+        _ss_request("trace_read", "{\"channel\":\"iorqlog\"}", &resp));
+    TEST_ASSERT_NOT_NULL(strstr(resp, "segment_replaced:"));
+    free(resp);
+    g_free(req);
+    g_free(cursor);
+}
+
+/** @brief trace_read cputrack: asm, symboly přes TRACE_RESOLVE, sloupce, newest, raw. */
+void test_trace_read_cputrack_symbols_columns_raw(void) {
+    dispatch_stub_reset();
+    g_stub_state.tr_segment = 1;
+    g_stub_state.tr_records = 10;
+    char *resp = NULL;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK,
+        _ss_request("trace_read", "{\"channel\":\"cputrack\",\"from\":\"newest\",\"limit\":2}", &resp));
+    JsonParser *parser = NULL;
+    JsonObject *data = _tr_data(resp, &parser);
+    JsonArray *rows = json_object_get_array_member(data, "rows");
+    TEST_ASSERT_EQUAL_UINT(2, json_array_get_length(rows));
+    JsonArray *r0 = json_array_get_array_element(rows, 0);
+    TEST_ASSERT_EQUAL_INT64(8, json_array_get_int_element(r0, 0));
+    TEST_ASSERT_EQUAL_STRING("1008", json_array_get_string_element(r0, 1));
+    TEST_ASSERT_EQUAL_STRING("NOP", json_array_get_string_element(r0, 3));
+    TEST_ASSERT_EQUAL_STRING("S1008", json_array_get_string_element(r0, 7));
+    TEST_ASSERT_EQUAL_INT(1, g_stub_state.tr_resolve_calls);
+    g_object_unref(parser);
+    free(resp);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK,
+        _ss_request("trace_read", "{\"channel\":\"cputrack\",\"columns\":[\"seq\",\"t\"],\"limit\":2}", &resp));
+    data = _tr_data(resp, &parser);
+    JsonArray *cols = json_object_get_array_member(data, "columns");
+    TEST_ASSERT_EQUAL_UINT(2, json_array_get_length(cols));
+    r0 = json_array_get_array_element(json_object_get_array_member(data, "rows"), 1);
+    TEST_ASSERT_EQUAL_INT64(1, json_array_get_int_element(r0, 0));
+    TEST_ASSERT_EQUAL_INT64(4 * 5, json_array_get_int_element(r0, 1));   /* t = (t_std 4) * 5 */
+    g_object_unref(parser);
+    free(resp);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK,
+        _ss_request("trace_read", "{\"channel\":\"cputrack\",\"format\":\"raw_b64\",\"limit\":4}", &resp));
+    data = _tr_data(resp, &parser);
+    TEST_ASSERT_EQUAL_INT64(12, json_object_get_int_member(data, "record_size"));
+    TEST_ASSERT_EQUAL_INT64(4, json_object_get_int_member(data, "count"));
+    TEST_ASSERT_EQUAL_INT64(2, json_object_get_int_member(data, "format_version"));
+    gsize len = 0;
+    guchar *raw = g_base64_decode(json_object_get_string_member(data, "data_b64"), &len);
+    TEST_ASSERT_EQUAL_UINT(48, len);
+    TEST_ASSERT_EQUAL_HEX8(0x03, raw[36]);
+    g_free(raw);
+    g_object_unref(parser);
+    free(resp);
+}
+
+/** @brief trace_read eventlog: text detailu přes TRACE_RESOLVE; trace_start eventlog odmítne. */
+void test_trace_read_eventlog(void) {
+    dispatch_stub_reset();
+    g_stub_state.tr_segment = 2;
+    g_stub_state.tr_records = 4;
+    char *resp = NULL;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK,
+        _ss_request("trace_read", "{\"channel\":\"eventlog\",\"columns\":[\"seq\",\"text\"]}", &resp));
+    JsonParser *parser = NULL;
+    JsonObject *data = _tr_data(resp, &parser);
+    JsonArray *rows = json_object_get_array_member(data, "rows");
+    TEST_ASSERT_EQUAL_UINT(4, json_array_get_length(rows));
+    TEST_ASSERT_EQUAL_STRING("EV0", json_array_get_string_element(json_array_get_array_element(rows, 0), 1));
+    g_object_unref(parser);
+    free(resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS,
+        _ss_request("trace_start", "{\"channel\":\"eventlog\"}", NULL));
+}
+
+/** @brief trace_read: validace parametrů. */
+void test_trace_read_invalid_params(void) {
+    dispatch_stub_reset();
+    g_stub_state.tr_segment = 1;
+    g_stub_state.tr_records = 3;
+    const char *bad[] = {
+        "{}",
+        "{\"channel\":\"nope\"}",
+        "{\"channel\":\"iorqlog\",\"format\":\"csv\"}",
+        "{\"channel\":\"iorqlog\",\"limit\":0}",
+        "{\"channel\":\"iorqlog\",\"limit\":5001}",
+        "{\"channel\":\"iorqlog\",\"max_chars\":10}",
+        "{\"channel\":\"iorqlog\",\"columns\":[\"pc\"]}",
+        "{\"channel\":\"iorqlog\",\"filter\":{\"pc_from\":1}}",
+        "{\"channel\":\"iorqlog\",\"filter\":{\"dir\":\"up\"}}",
+        "{\"channel\":\"iorqlog\",\"from\":\"middle\"}",
+        "{\"channel\":\"iorqlog\",\"cursor\":\"t1.###\"}",
+        "{\"channel\":\"iorqlog\",\"from\":\"seq:99\"}",
+    };
+    for (size_t i = 0; i < G_N_ELEMENTS(bad); i++) {
+        TEST_ASSERT_EQUAL_INT_MESSAGE(MCP_DISPATCH_INVALID_PARAMS, _ss_request("trace_read", bad[i], NULL), bad[i]);
+    }
+    /* nezaznamenaný kanál: prázdná stránka, ne chyba */
+    g_stub_state.tr_segment = 0;
+    char *resp = NULL;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("trace_read", "{\"channel\":\"marklog\"}", &resp));
+    JsonParser *parser = NULL;
+    JsonObject *data = _tr_data(resp, &parser);
+    TEST_ASSERT_EQUAL_INT64(0, json_object_get_int_member(data, "segment"));
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(data, "end_of_data"));
+    TEST_ASSERT_EQUAL_UINT(0, json_array_get_length(json_object_get_array_member(data, "rows")));
+    g_object_unref(parser);
+    free(resp);
+}
+
+
 /**
  * @brief V1.D.4 - get_video_text_dump available (default v stubu).
  */
@@ -7468,6 +7684,11 @@ int main(void) {
     RUN_TEST(test_profiler_pc_get_params);
     RUN_TEST(test_profiler_pc_errors_export);
     RUN_TEST(test_profiler_pc_bitmap);
+    RUN_TEST(test_trace_status_all_channels);
+    RUN_TEST(test_trace_read_rows_cursor_and_segment);
+    RUN_TEST(test_trace_read_cputrack_symbols_columns_raw);
+    RUN_TEST(test_trace_read_invalid_params);
+    RUN_TEST(test_trace_read_eventlog);
     RUN_TEST(test_audio_capture_start_params);
     RUN_TEST(test_audio_capture_errors);
     RUN_TEST(test_get_video_text_dump_available);

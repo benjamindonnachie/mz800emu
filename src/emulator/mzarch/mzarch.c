@@ -830,6 +830,16 @@ static inline void mzarch_main_process_interrupt(void)
             pioz80_interrupt_ack();
 
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
+            /* cputrack v2: záznam přijetí přerušení (adresa obsluhy, T-stavy
+             * přijetí), aby součet T-stavů záznamů odpovídal času CPU.
+             * Cesta přijetí přerušení, ne instrukční smyčka. */
+            if (TEST_TRACE_CPUTRACK_ACTIVE)
+            {
+                cputrack_on_interrupt_accept((uint16_t)cpu->pc, (uint32_t)interrupt_tstates);
+            };
+#endif
+
+#ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
             /* trace-suite intlog: zaznamenat IM 2 IRQ accept event.
              *
              * Hook musí být zde (= v mzarch.c) a ne v pioz80_interrupt_ack_im2_cb,

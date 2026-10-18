@@ -60,8 +60,12 @@ mz_add_test(mcp_dispatch
         ${CMAKE_SOURCE_DIR}/src/emulator/mcp/event_bus.c
         ${CMAKE_SOURCE_DIR}/src/emulator/mcp/trap_manager.c
         ${CMAKE_SOURCE_DIR}/src/emulator/screenshot/screenshot.c
+        ${CMAKE_SOURCE_DIR}/src/emulator/debugger/trace/trace_reader.c
     LABELS   "standalone;mcp"
 )
+
+# trace_reader (trace_read) dekóduje cputrack disassemblerem.
+target_link_libraries(test_mcp_dispatch PRIVATE mzlib_dasm_z80)
 
 target_compile_definitions(test_mcp_dispatch PRIVATE
     MZ800EMU_MCP_TEST_BUILD
@@ -466,6 +470,24 @@ if(Python3_FOUND)
         SKIP_RETURN_CODE 77
     )
     message(STATUS "  tests/mcp: registered mcp_snapshot_gdg_event "
+                   "(Python ${Python3_VERSION})")
+
+    # Stránkované čtení Trace Suite (trace_status / trace_read): krátký běh
+    # jen v RAM čitelný za běhu i po stopu, raw_b64 = chunk soubory, čas
+    # cputrack = kotvy chunků i s přijetím přerušení, segment_replaced po
+    # restartu, marklog se jménem značky. MZ-800, pipe.
+    add_test(
+        NAME    mcp_trace_read
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_trace_read.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_trace_read PROPERTIES
+        LABELS  "e2e;mcp;pipe;trace"
+        TIMEOUT 300
+        SKIP_RETURN_CODE 77
+    )
+    message(STATUS "  tests/mcp: registered mcp_trace_read "
                    "(Python ${Python3_VERSION})")
 
     # Snapshot uloží a obnoví skrytý stav Z80 (WZ, čekající INT/NMI,

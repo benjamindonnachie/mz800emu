@@ -36,6 +36,7 @@
 #include "screenshot/screenshot_series.h"
 #include "debugger/profiler_pc.h"
 #include "audio_capture.h"
+#include "debugger/trace/tlog_common.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -707,6 +708,18 @@ typedef enum en_DBGAPI_CMD
      * a stav. Stav zachycení patří emu vláknu, proto vše přes frontu.
      * Přidáno na KONEC enumu kvůli stabilitě číselných hodnot. */
     DBGAPI_CMD_AUDIO_CAPTURE,        /* Zachycení zvuku (start/stop/stav) - data_ptr: st_DBGAPI_AUDIO_CAPTURE_PARAM* */
+
+    /* mcp-trace-read - stránkované čtení proudu záznamů
+     * (devdoc/trace/stream-read.md)
+     *
+     * TRACE_SNAPSHOT pořídí v emu vlákně snímek segmentu trace kanálu
+     * (metadata + kopie záznamů z RAM bufferu); chunky na disku čte až
+     * dispatch vlákno. TRACE_RESOLVE dávkově najde nejbližší symboly adres
+     * a jména značek marklog (databáze symbolů i registr značek se čtou jen
+     * v emu vlákně).
+     * Přidáno na KONEC enumu kvůli stabilitě číselných hodnot. */
+    DBGAPI_CMD_TRACE_SNAPSHOT,       /* Snímek segmentu trace kanálu - data_ptr: st_DBGAPI_TRACE_SNAPSHOT_PARAM* */
+    DBGAPI_CMD_TRACE_RESOLVE,        /* Symboly adres a jména značek pro řádky trace - data_ptr: st_DBGAPI_TRACE_RESOLVE_PARAM* */
 
 } en_DBGAPI_CMD;
 
@@ -2689,6 +2702,10 @@ typedef enum en_DBGAPI_TRACE_CHANNEL
     DBGAPI_TRACE_CHANNEL_INTLOG,        /**< Interrupt/PIO log (intlog). */
     DBGAPI_TRACE_CHANNEL_HWLOG,         /**< HW signál log (hwlog). */
     DBGAPI_TRACE_CHANNEL_MARKLOG,       /**< Značky z akce `mark` v BP (marklog). */
+    /** Ring Event Vieweru - jen čtení (DBGAPI_CMD_TRACE_SNAPSHOT); lifecycle
+     *  příkazy TRACE_START/STOP/RESET/SAVE ho odmítnou (Event Viewer má
+     *  vlastní eventlog_start/stop/clear). */
+    DBGAPI_TRACE_CHANNEL_EVENTLOG,
 } en_DBGAPI_TRACE_CHANNEL;
 
 
@@ -2709,6 +2726,94 @@ typedef struct st_DBGAPI_TRACE_PARAM
     const char             *path;
     int                     out_result;
 } st_DBGAPI_TRACE_PARAM;
+
+
+/**
+ * @brief Parametr pro DBGAPI_CMD_TRACE_SNAPSHOT (mcp-trace-read).
+ *
+ * Handler v emu vlákně pořídí snímek segmentu kanálu
+ * (tlog_writer_read_snapshot()) s kopií záznamů z RAM bufferu pro rozsah
+ * `[from_seq, from_seq + count)`, nejvýš `max_copy_bytes`. `count = 0`
+ * vrátí jen metadata (stav kanálu).
+ *
+ * @field channel          Kanál Trace Suite.
+ * @field from_seq         První požadovaný záznam.
+ * @field count            Počet požadovaných záznamů (0 = jen metadata).
+ * @field max_copy_bytes   Strop kopie z RAM bufferu.
+ * @field want_time        cputrack: spočítat `out_ram_prefix_t`.
+ * @field out              Snímek (vlastní volající, uvolní
+ *                         tlog_read_snapshot_clear()).
+ * @field out_pc_range_full cputrack: nahrávací filtr PC pokrývá celý
+ *                         prostor 0000h-FFFFh (jen pak sedí součet časů).
+ * @field out_ram_prefix_t cputrack s `want_time`: součet `t_std + wait_clk`
+ *                         záznamů RAM bufferu před `out.ram_copy_seq` (od
+ *                         začátku RAM chunku), v T-stavech.
+ * @field out_cpu_divider  Takty GDG na T-stav CPU (převod času cputrack).
+ * @field out_ok           false = neznámý kanál nebo selhání alokace.
+ */
+typedef struct st_DBGAPI_TRACE_SNAPSHOT_PARAM
+{
+    en_DBGAPI_TRACE_CHANNEL channel;
+    uint64_t                from_seq;
+    uint64_t                count;
+    size_t                  max_copy_bytes;
+    bool                    want_time;
+    st_TLOG_READ_SNAPSHOT   out;
+    bool                    out_pc_range_full;
+    uint64_t                out_ram_prefix_t;
+    unsigned                out_cpu_divider;
+    bool                    out_ok;
+} st_DBGAPI_TRACE_SNAPSHOT_PARAM;
+
+/** @brief Maximální délka jména symbolu v st_DBGAPI_SYMBOL_HIT (vč. NUL). */
+#define DBGAPI_SYMBOL_HIT_NAME_MAX 48
+
+/**
+ * @brief Nejbližší symbol na adrese <= addr (výsledek TRACE_RESOLVE).
+ *
+ * @field name    Jméno symbolu, "" = žádný symbol na adrese <= addr.
+ * @field offset  addr - adresa symbolu (0 = symbol přímo na addr).
+ */
+typedef struct st_DBGAPI_SYMBOL_HIT
+{
+    char     name[ DBGAPI_SYMBOL_HIT_NAME_MAX ];
+    uint32_t offset;
+} st_DBGAPI_SYMBOL_HIT;
+
+/** @brief Maximální délka jména značky v DBGAPI_CMD_TRACE_RESOLVE (vč. NUL, = MARKLOG_NAME_MAX). */
+#define DBGAPI_MARKER_NAME_MAX 64
+
+/** @brief Velikost textu detailu události Event Vieweru v DBGAPI_CMD_TRACE_RESOLVE (vč. NUL). */
+#define DBGAPI_EVENT_TEXT_MAX 128
+
+/**
+ * @brief Parametr pro DBGAPI_CMD_TRACE_RESOLVE (mcp-trace-read).
+ *
+ * Všechna pole vlastní volající. Kterákoli z obou částí může být prázdná
+ * (n_addrs nebo n_markers 0).
+ *
+ * @field addrs        Pole adres (CPU pohled, banka 0).
+ * @field n_addrs      Počet adres.
+ * @field out_syms     Výstup n_addrs položek: nejbližší symbol na adrese <= addrs[i].
+ * @field marker_ids   Pole id značek marklog.
+ * @field n_markers    Počet id.
+ * @field out_markers  Výstup n_markers jmen ("" = neznámé id).
+ * @field events       Pole n_events 32B událostí Event Vieweru (st_EVENTLOG_EVENT).
+ * @field n_events     Počet událostí.
+ * @field out_event_texts Výstup n_events textů detailu (eventlog_decode_detail).
+ */
+typedef struct st_DBGAPI_TRACE_RESOLVE_PARAM
+{
+    const uint16_t       *addrs;
+    size_t                n_addrs;
+    st_DBGAPI_SYMBOL_HIT *out_syms;
+    const uint16_t       *marker_ids;
+    size_t                n_markers;
+    char                (*out_markers)[ DBGAPI_MARKER_NAME_MAX ];
+    const uint8_t        *events;
+    size_t                n_events;
+    char                (*out_event_texts)[ DBGAPI_EVENT_TEXT_MAX ];
+} st_DBGAPI_TRACE_RESOLVE_PARAM;
 
 
 /**

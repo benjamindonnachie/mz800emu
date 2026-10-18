@@ -64,10 +64,18 @@ static uint8_t s_collapse_insn_len = 1; /**< Délka instr (bytes) */
 static uint8_t s_collapse_insn_bytes[ 4 ];
 
 /**
- * @brief Sestavit jeden 12-byte event záznam a appendovat do writeru.
+ * @brief Sestavit jeden 12-byte event záznam (formát v2) a appendovat do writeru.
+ *
+ * @param pc          Adresa instrukce.
+ * @param insn_len    Počet platných bajtů v @p insn_bytes (1-4).
+ * @param insn_bytes  Bajty instrukce z fetch.
+ * @param wait_clk    WAIT T-stavy navíc (u sbaleného záznamu celý čas smyčky).
+ * @param t_std       Standardní délka instrukce v T-stavech (bajt 11; 0 u
+ *                    sbaleného záznamu HALT / smyčky na sebe).
+ * @return 0 OK, -1 writer zavřený nebo chyba zápisu.
  */
 static int emit_event ( uint16_t pc, uint8_t insn_len, const uint8_t *insn_bytes,
-                        uint32_t wait_clk )
+                        uint32_t wait_clk, uint8_t t_std )
 {
     if ( !s_writer_open ) return -1;
 
@@ -84,7 +92,7 @@ static int emit_event ( uint16_t pc, uint8_t insn_len, const uint8_t *insn_bytes
     buf[ 8 ] = (uint8_t)( ( wait_clk >> 8 ) & 0xFF );
     buf[ 9 ] = (uint8_t)( ( wait_clk >> 16 ) & 0xFF );
     buf[ 10 ] = (uint8_t)( ( wait_clk >> 24 ) & 0xFF );
-    buf[ 11 ] = 0;
+    buf[ 11 ] = t_std;
 
     return tlog_writer_append ( &s_writer, buf, sizeof ( buf ) );
 }
@@ -247,17 +255,42 @@ void cputrack_on_instruction_complete ( uint16_t pc,
     if ( s_pending_wait_clk > 0 ) {
         uint32_t w = ( s_pending_wait_clk > 0xFFFFFFFFu ) ?
                      0xFFFFFFFFu : (uint32_t) s_pending_wait_clk;
-        emit_event ( s_collapse_pc, s_collapse_insn_len, s_collapse_insn_bytes, w );
+        emit_event ( s_collapse_pc, s_collapse_insn_len, s_collapse_insn_bytes, w, 0 );
         s_pending_wait_clk = 0;
     }
 
     /* Emit běžný event pro právě vykonanou instr. */
     uint8_t insn_bytes[ 4 ];
     uint8_t insn_len = read_insn_bytes ( pc, insn_bytes );
-    emit_event ( pc, insn_len, insn_bytes, wait_extra_tstates );
+    emit_event ( pc, insn_len, insn_bytes, wait_extra_tstates, insn_tstates );
 
     s_prev_pc = pc;
     s_prev_pc_valid = 1;
+}
+
+
+void cputrack_on_interrupt_accept ( uint16_t isr_pc, uint32_t ack_tstates )
+{
+    if ( !s_writer_open ) return;
+    if ( isr_pc < g_cputrack_config.pc_range_lo ||
+         isr_pc > g_cputrack_config.pc_range_hi ) {
+        return;
+    }
+
+    /* Sbalená smyčka (HALT, JR $), kterou přerušení ukončilo, patří před
+     * přijetí. */
+    if ( s_pending_wait_clk > 0 ) {
+        uint32_t w = ( s_pending_wait_clk > 0xFFFFFFFFu ) ?
+                     0xFFFFFFFFu : (uint32_t) s_pending_wait_clk;
+        emit_event ( s_collapse_pc, s_collapse_insn_len, s_collapse_insn_bytes, w, 0 );
+        s_pending_wait_clk = 0;
+    }
+
+    static const uint8_t no_bytes[ 4 ] = { 0, 0, 0, 0 };
+    uint8_t t = ( ack_tstates > 0xFFu ) ? 0xFFu : (uint8_t) ack_tstates;
+    emit_event ( isr_pc, 0, no_bytes, 0, t );
+    /* Další instrukce (první v obsluze) se nesmí považovat za opakování. */
+    s_prev_pc_valid = 0;
 }
 
 
@@ -416,7 +449,11 @@ static char *build_subsys_header_json ( void )
     }
 
     json_builder_set_member_name ( b, "event_record_size" );
-    json_builder_add_int_value ( b, 12 );
+    json_builder_add_int_value ( b, TLOG_RECORD_SIZE_CPUTRACK );
+
+    /* Formát záznamu v2: bajt 11 = standardní T-stavy instrukce. */
+    json_builder_set_member_name ( b, "event_record_version" );
+    json_builder_add_int_value ( b, CPUTRACK_RECORD_VERSION );
 
     json_builder_end_object ( b );
 
@@ -467,9 +504,10 @@ int cputrack_start ( void )
         return -1;
     }
     s_writer_open = 1;
+    tlog_writer_set_record_size ( &s_writer, TLOG_RECORD_SIZE_CPUTRACK );
     cputrack_reset_collapse_state ( );
 
-    /* Memory dumps + meta.json initial. */
+    /* Memory dumps + manifest <name>.json initial. */
     write_initial_memory_dumps ( resolved_dir, g_cputrack_config.name );
     char *hdr = build_subsys_header_json ( );
     tlog_writer_update_meta ( &s_writer, hdr );
@@ -490,7 +528,7 @@ void cputrack_stop ( void )
     if ( s_pending_wait_clk > 0 ) {
         uint32_t w = ( s_pending_wait_clk > 0xFFFFFFFFu ) ?
                      0xFFFFFFFFu : (uint32_t) s_pending_wait_clk;
-        emit_event ( s_collapse_pc, s_collapse_insn_len, s_collapse_insn_bytes, w );
+        emit_event ( s_collapse_pc, s_collapse_insn_len, s_collapse_insn_bytes, w, 0 );
         s_pending_wait_clk = 0;
     }
 
@@ -531,7 +569,7 @@ int cputrack_save_segment ( const char *path )
 {
     /* Analogie mhmap_export, ale pro streamovaný tlog: chunk soubory se
      * zapisují průběžně do g_cputrack_config.dir/name. "Save" tedy znamená
-     * uzavřít (flush+close) aktuální segment, čímž se finalizuje meta.json a
+     * uzavřít (flush+close) aktuální segment, čímž se finalizuje manifest <name>.json a
      * poslední částečný chunk na disku.
      *
      * Pokud je @p path zadané, přesměruje se dir+name z path PŘED restartem,
@@ -540,9 +578,9 @@ int cputrack_save_segment ( const char *path )
     int was_active = ( g_cputrack_active != 0 );
 
     /* Prázdná cesta = "force save now": flush rozdělaného segmentu na disk
-     * (pending chunk + meta.json) BEZ uzavření/reopenu - segment pokračuje do
+     * (pending chunk + manifest <name>.json) BEZ uzavření/reopenu - segment pokračuje do
      * TÉHOŽ manifestu. Dřív se segment uzavřel a hned otevřel nový na stejném
-     * jméně, který přepsal meta.json (chunks=[]) i initial_*.bin předchozího
+     * jméně, který přepsal manifest <name>.json (chunks=[]) i initial_*.bin předchozího
      * segmentu; pokud pak nepřitekla žádná další data (hned trace_stop),
      * zůstala právě nahraná data osiřelá (mzdos 0022). */
     if ( !( path && path[ 0 ] ) ) {
@@ -716,6 +754,11 @@ void cputrack_apply_cli_options ( void )
     if ( v ) g_cputrack_config.pc_range_lo = (uint16_t) ( g_ascii_strtoull ( v, NULL, 0 ) & 0xFFFF );
     v = sdlapp_option_value ( "--cputrack-pc-hi" );
     if ( v ) g_cputrack_config.pc_range_hi = (uint16_t) ( g_ascii_strtoull ( v, NULL, 0 ) & 0xFFFF );
+}
+
+const st_TLOG_WRITER *cputrack_get_writer ( void )
+{
+    return &s_writer;
 }
 
 #endif /* MZ800EMU_CFG_DEBUGGER_ENABLED */

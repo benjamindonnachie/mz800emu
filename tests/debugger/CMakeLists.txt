@@ -232,6 +232,12 @@ mz_add_test(tlog_common
     LABELS   "emu;debugger;trace-suite"
 )
 
+mz_add_test(trace_reader
+    TYPE     EMU
+    SOURCES  test_trace_reader.c
+    LABELS   "emu;debugger;trace-suite"
+)
+
 mz_add_test(cputrack
     TYPE     EMU
     SOURCES  test_cputrack.c

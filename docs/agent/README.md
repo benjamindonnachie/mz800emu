@@ -31,6 +31,7 @@ paragraph is the description.
 | `emulator://docs/mz800_keyboard` | `mz800_keyboard.md` |
 | `emulator://docs/cmt_workflow` | `cmt_workflow.md` |
 | `emulator://docs/videorec_workflow` | `videorec_workflow.md` |
+| `emulator://docs/trace_read` | `trace_read.md` |
 
 This table is informative only - the actual resource list is built by
 scanning this directory, so it always matches the files present.

@@ -57,7 +57,7 @@ events.
 | 2      | 1 B      | insn_length (1-4)                              |
 | 3      | 4 B      | insn_bytes (only the first insn_length bytes are valid) |
 | 7      | 4 B      | wait_clk (uint32 LE)                           |
-| 11     | 1 B      | reserved (alignment to 12 B)                   |
+| 11     | 1 B      | t_std - standard T-states of the instruction (format v2) |
 
 Endianness of the write is host byte order; on all supported emulator
 platforms (Windows x86_64, Linux x86_64) this is little-endian.
@@ -72,6 +72,15 @@ is the address of the `JP` opcode, not the jump target.
 
 Number of valid bytes in `insn_bytes`. Z80 instructions have length 1-4 B
 (prefix `CB`, `DD`, `ED`, `FD` + opcode + optional offset/imm bytes).
+
+**Format v2: `insn_length` 0 = interrupt acknowledge.** Such a record
+belongs to no instruction: `regPC` is the address of the interrupt
+handler (PC after the acknowledge), `insn_bytes` and `wait_clk` are 0 and
+`t_std` (byte 11) carries the T-states of the acknowledge (e.g. 19 for
+IM 2). It is written between the last instruction before the interrupt
+(or the collapsed HALT record the interrupt ended) and the first
+instruction of the handler. Thanks to it, the sum of `t_std + wait_clk`
+over all records matches the elapsed CPU time.
 
 ### Field insn_bytes
 
@@ -121,11 +130,19 @@ sum of all WAIT + all standard T-states from the first iteration).
 instruction** (= without WAIT). The standard length in T-states is
 derivable from the opcode via Z80 ISA (see below).
 
-The length of the instruction itself in T-states is **not stored** -
-it is deterministically derivable from the opcode according to the
-Z80 ISA table. For conditional jumps (taken/not-taken differ in
-T-states), external post-processing computes it from the flag state
-(from re-simulation).
+### Field t_std (byte 11, format v2)
+
+The standard length of the instruction in T-states without WAIT, as the
+emulator actually counted it on execution (for conditional jumps
+according to whether the jump was taken). For a collapsed HALT /
+self-loop record it is 0, because `wait_clk` carries the whole time of
+the loop.
+
+The record format is given by `subsys_header.event_record_version` in
+the manifest: 2 = byte 11 carries `t_std`. A manifest without this field
+is format v1, where byte 11 was reserved (always 0) and the instruction
+length had to be derived from the opcode via the Z80 table (for
+conditional jumps from the flag state).
 
 ### HALT and self-loop collapse
 
@@ -144,7 +161,7 @@ An external re-simulator detects a collapsed HALT trivially: opcode =
 `0x76` (HALT) + non-zero `wait_clk`. It detects a collapsed self-loop:
 the instruction changes PC to PC, and `wait_clk` > 0.
 
-## meta.json
+## Manifest `<name>.json`
 
 ```json
 {
@@ -180,6 +197,7 @@ the instruction changes PC to PC, and `wait_clk` > 0.
     "start_screens": 0,
     "start_cpuclk": 0,
     "event_record_size": 12,
+    "event_record_version": 2,
     "initial_state": {
       "regs": {
         "AF": "0xFFFF", "BC": "0x0000", "DE": "0x0000", "HL": "0x0000",
@@ -229,8 +247,10 @@ screens_at(N)   = floor(cumul_pxclk(N) / pxclk_per_screen)
 pxclk_in_screen_at(N) = cumul_pxclk(N) mod pxclk_per_screen
 ```
 
-`insn_T_states[i]` is derived from opcode according to the Z80 ISA
-table.
+`insn_T_states[i]` is byte 11 (`t_std`) in format v2; in v1 it is
+derived from opcode according to the Z80 ISA table. In v2 the formula is
+exact including interrupts (interrupt acknowledge records carry their
+T-states); in v1 the T-states of each interrupt acknowledge are missing.
 
 ### subsys_header.initial_state
 
@@ -265,7 +285,7 @@ those that exist / are connected for the given architecture.
 | `<name>_initial_rd1.bin` | variable | RAM-disk 1 (if active) |
 
 ROM is **not stored** - it is deterministically known from compile-time
-embedded ROM image (= version in `meta.json` via `platform`).
+embedded ROM image (= version in the manifest `<name>.json` via `platform`).
 
 ### MZ-1500
 

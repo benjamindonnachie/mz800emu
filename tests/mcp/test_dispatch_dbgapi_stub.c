@@ -366,6 +366,73 @@ bool dbgapi_ui_submit_cmd_sync_with_origin(st_DBGAPI_CMDRQ_QUEUE *queue,
 
     /* Cmd-specific fake fill */
     switch (cmd) {
+        case DBGAPI_CMD_TRACE_SNAPSHOT:
+            /* mcp-trace-read: segment tr_segment, tr_records záznamů jen
+             * v RAM; záznam i: iorqlog/hwlog/intlog/marklog t = 100 * i,
+             * port 10h + i, value i; cputrack pc 1000h + i, NOP. */
+            if (data_ptr) {
+                st_DBGAPI_TRACE_SNAPSHOT_PARAM *p = (st_DBGAPI_TRACE_SNAPSHOT_PARAM *)data_ptr;
+                g_stub_state.tr_snap_calls++;
+                g_stub_state.tr_last = *p;
+                memset(&p->out, 0, sizeof(p->out));
+                p->out_ok = true;
+                p->out_cpu_divider = 5;
+                p->out_pc_range_full = true;
+                p->out_ram_prefix_t = 0;
+                if (g_stub_state.tr_segment == 0) break;
+                unsigned seg = g_stub_state.tr_segment;
+                if (g_stub_state.tr_bump_on_call > 0 &&
+                    g_stub_state.tr_snap_calls >= g_stub_state.tr_bump_on_call) seg++;
+                size_t rs = (p->channel == DBGAPI_TRACE_CHANNEL_CPUTRACK) ? 12
+                          : (p->channel == DBGAPI_TRACE_CHANNEL_EVENTLOG) ? 32 : 24;
+                p->out.segment = seg;
+                p->out.live = 1;
+                p->out.record_size = rs;
+                p->out.next_seq = g_stub_state.tr_records;
+                p->out.ram_first_seq = 0;
+                p->out.dir = g_strdup("C:/tmp/trace");
+                p->out.name = g_strdup("t");
+                p->out.chunks = g_array_new(FALSE, FALSE, sizeof(st_TLOG_CHUNK_META));
+                uint64_t lo = p->from_seq, hi = p->out.next_seq;
+                if (lo < hi && p->count < hi - lo) hi = lo + p->count;
+                if (p->count > 0 && lo < hi) {
+                    p->out.ram_copy = g_malloc0((size_t)((hi - lo) * rs));
+                    for (uint64_t i = lo; i < hi; i++) {
+                        uint8_t *r = p->out.ram_copy + (i - lo) * rs;
+                        if (rs == 12) {
+                            r[0] = (uint8_t)i; r[1] = 0x10; r[2] = 1; r[11] = 4;
+                        } else {
+                            uint64_t t = 100u * i;
+                            memcpy(r, &t, 8);
+                            r[17] = 1;
+                            r[20] = (uint8_t)(0x10 + i);
+                            r[22] = (uint8_t)i;
+                        }
+                    }
+                    p->out.ram_copy_seq = lo;
+                    p->out.ram_copy_count = hi - lo;
+                }
+            }
+            break;
+
+        case DBGAPI_CMD_TRACE_RESOLVE:
+            /* mcp-trace-read: symbol "S<adresa>" bez offsetu, značka "M<id>". */
+            if (data_ptr) {
+                st_DBGAPI_TRACE_RESOLVE_PARAM *p = (st_DBGAPI_TRACE_RESOLVE_PARAM *)data_ptr;
+                g_stub_state.tr_resolve_calls++;
+                for (size_t i = 0; i < p->n_addrs; i++) {
+                    g_snprintf(p->out_syms[i].name, sizeof(p->out_syms[i].name), "S%04X", p->addrs[i]);
+                    p->out_syms[i].offset = 0;
+                }
+                for (size_t i = 0; i < p->n_markers; i++) {
+                    g_snprintf(p->out_markers[i], DBGAPI_MARKER_NAME_MAX, "M%u", p->marker_ids[i]);
+                }
+                for (size_t i = 0; i < p->n_events; i++) {
+                    g_snprintf(p->out_event_texts[i], DBGAPI_EVENT_TEXT_MAX, "EV%u", p->events[i * 32 + 16]);
+                }
+            }
+            break;
+
         case DBGAPI_CMD_AUDIO_CAPTURE:
             /* Zachycení zvuku: zapamatuje vstup, vrátí stav (pending po START). */
             if (data_ptr) {

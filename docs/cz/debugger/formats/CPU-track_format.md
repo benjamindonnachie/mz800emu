@@ -56,7 +56,7 @@ jsou snapshoty fyzických pamětí v okamžiku startu recordingu (= header).
 | 2      | 1 B      | insn_length (1-4)                              |
 | 3      | 4 B      | insn_bytes (jen prvních insn_length valid)     |
 | 7      | 4 B      | wait_clk (uint32 LE)                           |
-| 11     | 1 B      | reserved (zarovnání na 12 B)                   |
+| 11     | 1 B      | t_std - standardní T-stavy instrukce (formát v2) |
 
 Endianita zápisu je host byte order; na všech podporovaných platformách
 emulátoru (Windows x86_64, Linux x86_64) je to little-endian.
@@ -71,6 +71,14 @@ ne cílem skoku.
 
 Počet platných bajtů v `insn_bytes`. Z80 instrukce mají délku 1-4 B
 (prefix `CB`, `DD`, `ED`, `FD` + opcode + případné offset/imm bajty).
+
+**Formát v2: `insn_length` 0 = přijetí přerušení.** Takový záznam nepatří
+žádné instrukci: `regPC` je adresa obsluhy přerušení (PC po přijetí),
+`insn_bytes` a `wait_clk` jsou 0 a `t_std` (bajt 11) nese T-stavy přijetí
+(např. 19 u IM 2). Zapíše se mezi poslední instrukcí před přerušením
+(nebo sbaleným záznamem HALT, který přerušení ukončilo) a první instrukcí
+obsluhy. Díky němu součet `t_std + wait_clk` všech záznamů odpovídá
+uplynulému času CPU.
 
 ### Pole insn_bytes
 
@@ -118,10 +126,17 @@ všech WAIT + všech standard T-states od první iterace).
 (= bez WAIT). Standardní délka v T-states je odvoditelná z opcode přes
 Z80 ISA (viz dále).
 
-Délka samotné instrukce v T-states **se neukládá** - je deterministicky
-odvoditelná z opcode podle Z80 ISA tabulky. U podmíněných skoků
-(taken/not-taken se liší v T-states) externí post-process dopočítá
-ze stavu flagů (z re-simulace).
+### Pole t_std (bajt 11, formát v2)
+
+Standardní délka instrukce v T-stavech bez WAIT, tak jak ji emulátor při
+vykonání skutečně spočítal (u podmíněných skoků podle toho, jestli se
+skočilo). U sbaleného záznamu HALT / smyčky na sebe je 0, protože celý
+čas smyčky nese `wait_clk`.
+
+Formát záznamu určuje `subsys_header.event_record_version` v manifestu:
+2 = bajt 11 nese `t_std`. Manifest bez tohoto pole je formát v1, kde byl
+bajt 11 rezerva (vždy 0) a délka instrukce se musela odvodit z opcode
+podle tabulky Z80 (u podmíněných skoků ze stavu příznaků).
 
 ### HALT a self-loop collapse
 
@@ -140,7 +155,7 @@ Externí re-simulátor pozná collapsed HALT jednoduše: opcode = `0x76`
 (HALT) + nenulové `wait_clk`. Pozná collapsed self-loop: instrukce
 mění PC na PC, a `wait_clk` > 0.
 
-## meta.json
+## Manifest `<name>.json`
 
 ```json
 {
@@ -176,6 +191,7 @@ mění PC na PC, a `wait_clk` > 0.
     "start_screens": 0,
     "start_cpuclk": 0,
     "event_record_size": 12,
+    "event_record_version": 2,
     "initial_state": {
       "regs": {
         "AF": "0xFFFF", "BC": "0x0000", "DE": "0x0000", "HL": "0x0000",
@@ -224,7 +240,7 @@ screens_at(N)   = floor(cumul_pxclk(N) / pxclk_per_screen)
 pxclk_in_screen_at(N) = cumul_pxclk(N) mod pxclk_per_screen
 ```
 
-`insn_T_states[i]` se odvozuje z opcode podle Z80 ISA tabulky.
+`insn_T_states[i]` je ve formátu v2 bajt 11 (`t_std`), ve v1 se odvozuje z opcode podle Z80 ISA tabulky. Ve v2 vzorec sedí přesně i s přerušeními (záznamy přijetí přerušení nesou jeho T-stavy); ve v1 chybí T-stavy přijetí každého přerušení.
 
 ### subsys_header.initial_state
 
@@ -258,7 +274,7 @@ ty, které pro danou architekturu existují / jsou připojené.
 | `<name>_initial_rd1.bin` | variabilní | RAM-disk 1 (pokud aktivní) |
 
 ROM se **neukládá** - je deterministicky známá z compile-time embedded
-ROM image (= verze v `meta.json` přes `platform`).
+ROM image (= verze v manifestu `<name>.json` přes `platform`).
 
 ### MZ-1500
 

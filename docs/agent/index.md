@@ -18,6 +18,7 @@ Read individual topics on demand via `resources/read`.
 | `emulator://docs/mz800_keyboard` | Sharp MZ-800 keyboard: physical layout, per-key matrix position + emitted characters, modifiers (SHIFT / CTRL / GRAPH / ALPHA), the four character layers, canonical key names for the `emu_input_send_keys` injection tool, recipes for typing graphics / semigraphics. MZ-700 / MZ-1500 as a diff (no TAB, longer ALPHA). |
 | `emulator://docs/cmt_workflow` | CMT cassette workflow: real tape (`emu_cmt_*`) vs cmthack instant load, starting a program in a defined state (`emu_media_run_mzf`), transport flow, WAV recording, speed ratios / polarity / cpu boost / mzfsize check, SIMPLE_TAPE multi-block seek + per-block speed. Cross-refs `emulator://periph/cmt` and `emulator://periph/cmt/tape`. |
 | `emulator://docs/videorec_workflow` | Recording a gameplay video (all builds): `emu_videorec_*` tools, recipe start -> play with keystrokes -> markers -> snapshot retake -> stop, error messages, export of the recording to MP4. |
+| `emulator://docs/trace_read` | Reading trace records page by page: `emu_trace_status` / `emu_trace_read` for cputrack, iorqlog, intlog, hwlog, marklog and the Event Viewer ring - recipe, cursor, filters, character budget, columns (time `t`, `asm` from recorded bytes, `INT ACK`), `segment_replaced` and `gap`. |
 | `emulator://docs/screenshot_workflow` | Saving and comparing pictures of the screen: `emu_screenshot_save_to_file` with `area` (full / canvas), `scale` (framebuffer / native dots / window 1-4) and `crop`, picture sizes per build, recipes (what the program drew, a part of the screen, a picture for a person); frame series `emu_screenshot_series_*` - every changed emulated frame as PNG for finding animation bugs. |
 
 ## When to read what
@@ -42,6 +43,8 @@ Read individual topics on demand via `resources/read`.
   or want to type Sharp graphics / special characters -> `mz800_keyboard`.
 - Recording a video of a game (with chapters and retakes) and exporting it
   for YouTube -> `videorec_workflow`.
+- Reading what the CPU executed, which ports it touched, interrupts or
+  Event Viewer events after a run -> `trace_read`.
 - Checking what a program draws, comparing the screen with expected pixels
   or saving a part of the screen, or catching an animation bug frame by
   frame (frame series) -> `screenshot_workflow`.

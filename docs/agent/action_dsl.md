@@ -181,7 +181,7 @@ Two independent branches run when the BP fires:
 1. **Marklog binary record** - if `[TRACE_MARKLOG] mode` is
    `WITH_WINDOW` or `ALWAYS` (and the writer is active), a 24 B
    record is written into `<dir>/<name>.NNN.bin` with a pre-resolved
-   `marker_id`. ID -> name mapping is in `meta.json`.
+   `marker_id`. ID -> name mapping is in the manifest `<name>.json`.
 2. **Stdout printout** `[BP-MARK] <name>` - if
    `[TRACE_MARKLOG].stdout_enabled` is `1` (default).
 

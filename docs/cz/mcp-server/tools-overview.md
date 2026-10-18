@@ -67,6 +67,8 @@ dokumentu [Resources overview](resources-overview.md).
 | `emu_trace_stop` | ne | Zastaví trace záznam kanálu (segment uzavřen) |
 | `emu_trace_reset` | ne | Zapíše aktuální segment trace kanálu na disk (nic nezahodí) |
 | `emu_trace_save` | ne | Uloží/přesměruje segment trace kanálu (volitelný path) |
+| `emu_trace_status` | ne | Stav trace kanálů a ringu Event Vieweru pro čtení |
+| `emu_trace_read` | ne | Stránka záznamů trace / Event Vieweru (kurzor, filtr, rozpočet znaků) |
 | `emu_videorec_start` | ano (vytvoří / přepíše soubor) | Spustí bezeztrátové nahrávání videa (volitelná cesta, automatický stop po N snímcích) |
 | `emu_videorec_stop` | ne | Ukončí nahrávání videa, standardně počká na uložení souborů |
 | `emu_videorec_pause` | ne | Pauza nahrávání (emulace běží dál): pauza / pokračování / přepnutí |
@@ -925,6 +927,65 @@ Uloží / přesměruje segment kanálu. Argument:
   dir/name (= "ulož teď").
 
 Vrací `{"saved": true, "path": <str|null>}`.
+
+### `emu_trace_status`
+
+Stav kanálů pro čtení. Argument `channel` (volitelný; jeden z 5 trace
+kanálů nebo `eventlog` pro ring Event Vieweru; prázdný = všechny). Vrací
+`{"channels": [...]}` s položkami: `segment` (0 = zatím nic
+nezaznamenáno), `live`, `truncated`, `first_seq`, `next_seq`, `lost`,
+`record_size`, `format_version` (cputrack 2), `chunks`,
+`bytes_on_disk`, `dir`, `name` a `has_time`.
+
+### `emu_trace_read`
+
+Stránka záznamů kanálu (`cputrack`, `iorqlog`, `intlog`, `hwlog`,
+`marklog`, `eventlog`), i za běhu záznamu - čitelná jsou i data, která
+jsou zatím jen v RAM bufferu. Po `emu_trace_stop` zůstane poslední
+segment čitelný až do dalšího startu. Argumenty:
+
+- `channel` (string, povinný).
+- `cursor` (string) - `next_cursor` předchozí stránky; má přednost před
+  `start`.
+- `start` (string, výchozí `oldest`) - `oldest`, `newest` (posledních
+  `limit` záznamů) nebo `seq:N`.
+- `limit` (int, výchozí 200, 1-5000) - nejvýš řádků; u `raw_b64` počet
+  záznamů (0 = kolik se vejde do 1 MiB).
+- `format` (string) - `rows` (výchozí, dekódované) nebo `raw_b64`.
+- `columns` (seznam) - výběr sloupců kanálu.
+- `filter` (objekt) - `pc_from`/`pc_to` (cputrack), `port` (<= 0xFF
+  porovná dolní bajt), `dir` (`in`/`out`), `type` (`iorq`,
+  `mreq_mapped`, `iorq_unconnected`) (iorqlog), `chip`/`sub` (hwlog),
+  `marker` (id značky marklog), `t_from`/`t_to` (kanály se sloupcem `t`).
+- `max_chars` (int, výchozí 20000, 1000-45000) - rozpočet znaků celé
+  odpovědi `rows`.
+- `max_scan` (int, výchozí 2000000) - nejvýš prohledaných záznamů na
+  dotaz.
+
+Sloupce (vždy v tomto pořadí, `columns` v odpovědi):
+
+| Kanál | Sloupce |
+|-------|---------|
+| `cputrack` | `seq`, `pc`, `bytes`, `asm`, `t_std`, `wait`, `t`, `sym` |
+| `iorqlog` | `seq`, `t`, `frame`, `pos`, `type`, `dir`, `src`, `addr`, `value`, `pulse` |
+| `intlog` | `seq`, `t`, `frame`, `pos`, `class`, `chip`, `pin`, `edge`, `state` |
+| `hwlog` | `seq`, `t`, `frame`, `pos`, `chip`, `sub`, `payload` |
+| `marklog` | `seq`, `t`, `frame`, `pos`, `id`, `name` |
+| `eventlog` | `seq`, `t`, `frame`, `pos`, `cat`, `sub`, `pc`, `text` |
+
+`t` je v taktech GDG od startu emulace (cputrack: začátek instrukce,
+jen s `has_time`); `asm` u cputrack je disassembly z bajtů záznamu,
+záznam přijetí přerušení ukazuje `INT ACK`.
+
+Odpověď nese `segment`, `first_seq`, `next_seq`, `live`, `truncated`,
+`lost`, `gap` (ring Event Vieweru: `{from_seq, to_seq}`, když kurzor
+ukazuje před `first_seq`), `scanned`, `matched`, `scan_exhausted`
+(došel limit `max_scan` - pokračovat kurzorem), `page_full`,
+`end_of_data` (stránka došla k `next_seq`), `columns` + `rows` (nebo
+`record_size`, `format_version`, `from_seq`, `count`, `data_b64`)
+a `next_cursor`. Kurzor ze staršího segmentu (kanál se znovu spustil,
+ring Event Vieweru se vymazal) vrátí chybu začínající
+`segment_replaced:`.
 
 ## Video recording tools
 

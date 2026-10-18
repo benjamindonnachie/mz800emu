@@ -173,18 +173,20 @@ save only at emulator exit.
 
 ### Via MCP
 
-The MCP server exposes a full lifecycle for the 4 binary channels
-(`cputrack`, `iorqlog`, `intlog`, `hwlog`):
+The MCP server exposes a full lifecycle and record reading for the 5
+binary channels (`cputrack`, `iorqlog`, `intlog`, `hwlog`, `marklog`):
 
 | Tool | What it does |
 |------|--------------|
 | `emu_trace_start` | Starts recording the selected channel (= ALWAYS mode) |
 | `emu_trace_stop`  | Stops recording the channel (the segment is closed and saved) |
-| `emu_trace_reset` | Clears the current channel segment (= clean baseline) |
+| `emu_trace_reset` | Writes the pending chunk and the manifest to disk, recording continues (nothing discarded) |
 | `emu_trace_save`  | Saves/redirects the channel segment to a new path |
+| `emu_trace_status` | State of the channels for reading (segment, record count, chunks) |
+| `emu_trace_read`  | One page of channel records (decoded rows or raw records) |
 
-Each tool has a mandatory `channel` argument (one of
-`cputrack`/`iorqlog`/`intlog`/`hwlog`). `emu_trace_save` additionally
+The lifecycle tools have a mandatory `channel` argument (one of
+`cputrack`/`iorqlog`/`intlog`/`hwlog`/`marklog`). `emu_trace_save` additionally
 has an optional `path` (target path of the following segment; without
 it the current segment is just closed and reopened = "save now"). The
 interface mirrors the CDL lifecycle tools (`emu_cdl_start` / `_stop` /
@@ -194,6 +196,37 @@ interface mirrors the CDL lifecycle tools (`emu_cdl_start` / `_stop` /
 A typical flow: warp through the uninteresting part, `emu_trace_start`
 just before the section of interest, run, then `emu_trace_stop` and
 `emu_trace_save` with a segment name.
+
+### Reading records via MCP
+
+`emu_trace_read` returns the records of a channel page by page directly
+via MCP, without parsing files and also while recording runs: it reads
+both the chunks on disk and the data that is still only in the RAM
+buffer (a short run can be read right away, it does not have to be
+written to disk first). After `emu_trace_stop` the last segment stays
+readable until the next start of the channel. The Event Viewer ring can
+be read the same way (channel `eventlog`).
+
+- Records have a sequence number `seq` within a segment (one recording
+  from start to stop). Page through with the cursor `next_cursor`;
+  `end_of_data` means the page reached the newest record - after more
+  emulation, read on with the same cursor.
+- A cursor from an older segment (the channel was restarted meanwhile)
+  returns an error starting with `segment_replaced:`; read again from
+  the start.
+- The default output are decoded rows (for cputrack also the
+  disassembly from the recorded bytes and the symbol); the page size is
+  limited by a character budget (`max_chars`, default 20 000).
+  `format: raw_b64` returns raw records for scripts.
+- Filters: PC range (cputrack), port, direction and type (iorqlog),
+  chip (hwlog), marker (marklog), time range (`t`).
+- The time `t` is in GDG ticks since emulation start. For cputrack
+  (format v2) it is computed from the chunk anchor and the T-states of
+  the records (including interrupt acknowledge records); with the PC
+  record filter (`pc_range_lo/hi`) instructions are missing, so
+  `emu_trace_status` reports `has_time: false`.
+
+For parameters and the response see the [MCP tools overview](../mcp-server/tools-overview.md).
 
 ### From a breakpoint action
 
@@ -261,9 +294,9 @@ trace-suite/
     ...
 ```
 
-## meta.json format
+## Manifest `<name>.json` format
 
-Each subsystem generates its own meta.json:
+Each subsystem generates its own manifest `<name>.json`:
 
 ```json
 {
@@ -300,13 +333,17 @@ every event).
 | Offset | Size | Field                     |
 |--------|------|---------------------------|
 | 0      | 2 B  | regPC (uint16 LE)         |
-| 2      | 1 B  | insn_length (1-4)         |
+| 2      | 1 B  | insn_length (1-4; 0 = interrupt acknowledge) |
 | 3      | 4 B  | insn_bytes (only the first insn_length valid) |
 | 7      | 4 B  | wait_clk (uint32 LE)      |
-| 11     | 1 B  | reserved                  |
+| 11     | 1 B  | t_std - standard T-states (format v2) |
 
 `wait_clk == 0` = a normal instruction, `0xFFFFFFFF` = saturated
-(typ. a long HALT loop >20 min at 3.5 MHz).
+(typ. a long HALT loop >20 min at 3.5 MHz). Format v2 (manifest
+`event_record_version: 2`): byte 11 carries the standard instruction
+length, a record with `insn_length` 0 is an interrupt acknowledge
+(`regPC` = handler address, `t_std` = acknowledge T-states). See the
+[cputrack format](formats/CPU-track_format.md).
 
 HALT/self-loop collapse: repeated execution of the same insn (HALT,
 JP $, JR $-2) is collapsed into a single event with wait_clk = the
@@ -394,7 +431,7 @@ See the separate `docs/en/debugger/formats/MARK-log_format.md`.
 Logs user markers triggered from the BP action `mark "name"`. The
 marker name is pre-registered during BP parse and is represented in the
 binary by a stable `uint16 marker_id`. The id -> name mapping is dumped
-into `meta.json` `subsys_header.markers`. Marklog additionally has an
+into the manifest `<name>.json` `subsys_header.markers`. Marklog additionally has an
 optional stdout printout (`[BP-MARK] <name>`) controlled by the
 separate `stdout_enabled` flag.
 
@@ -415,14 +452,14 @@ separate `stdout_enabled` flag.
 - max-total-mb (default 2048 = 2 GB per channel; 0 = unlimited): hard
   limit on the total recording size - a safeguard against filling the disk
   (cputrack otherwise grows essentially without bound). When reached, the
-  subsystem stops, meta.json gets
+  subsystem stops, the manifest `<name>.json` gets
   `"truncated": true, "truncated_reason": "max_total_mb"` and a console
   message `[trace-suite] <subsys>: max-total-mb=N reached, recording
   stopped`.
 
 ## External parsing
 
-External tooling (Python, C, ...) can parse meta.json + the binary
+External tooling (Python, C, ...) can parse the manifest `<name>.json` + the binary
 chunks according to the documented formats. No vendor-locked formats.
 
 Re-simulation: hackers / aicoders / RE tooling can **compute** memory

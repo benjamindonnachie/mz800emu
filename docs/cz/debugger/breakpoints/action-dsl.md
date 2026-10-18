@@ -201,7 +201,7 @@ větví nezávisle** podle konfigurace:
 1. **Marklog binární záznam** - pokud `[TRACE_MARKLOG] mode` je
    `WITH_WINDOW` nebo `ALWAYS` (a writer je aktivní), zapíše se 24 B
    záznam do `<dir>/<name>.NNN.bin` s pre-resolved `marker_id`.
-   Mapování id -> name je v `meta.json`.
+   Mapování id -> name je v manifestu `<name>.json`.
 2. **Stdout printout** `[BP-MARK] <name>` - pokud
    `[TRACE_MARKLOG].stdout_enabled` je `1` (default).
 

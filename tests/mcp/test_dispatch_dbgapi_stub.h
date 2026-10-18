@@ -68,6 +68,12 @@ typedef struct st_DISPATCH_STUB_STATE {
     st_DBGAPI_AUDIO_CAPTURE_PARAM ac_last;          /**< Kopie posledního DBGAPI_CMD_AUDIO_CAPTURE (vstup). */
     int                  ac_calls;                  /**< Počet DBGAPI_CMD_AUDIO_CAPTURE. */
     bool                 ac_fake_fail;              /**< true = stub vrátí chybu "An audio capture is already running". */
+    unsigned             tr_segment;                /**< TRACE_SNAPSHOT: segment kanálu (0 = nic nezaznamenáno). */
+    unsigned             tr_records;                /**< TRACE_SNAPSHOT: next_seq (záznamy jen v RAM). */
+    int                  tr_snap_calls;             /**< Počet DBGAPI_CMD_TRACE_SNAPSHOT. */
+    int                  tr_bump_on_call;           /**< > 0: od tohoto snímku (1 = první) je segment o 1 vyšší. */
+    st_DBGAPI_TRACE_SNAPSHOT_PARAM tr_last;         /**< Kopie vstupu posledního TRACE_SNAPSHOT (out neplatné). */
+    int                  tr_resolve_calls;          /**< Počet DBGAPI_CMD_TRACE_RESOLVE. */
     void                *last_result;  /**< result_ptr poslední call. */
     int                  call_count;   /**< Počet volání mocku. */
     bool                 fail_next;    /**< Pokud true, příští call vrátí false. */
