@@ -685,6 +685,11 @@ uint8_t memory_read_byte_no_se ( uint16_t addr ) {
 
 static inline void memory_internal_write_rom_e000_sync ( uint16_t addr, uint8_t value ) {
 
+    if (addr >= 0xe00c && addr <= 0xe00f) {
+        mzarch_main_insideop_mreq_e00x();
+        gdg_suc80_write(value);
+        return;
+    }
     if ( addr > 0xe008 ) return;
 
     mzarch_main_insideop_mreq_e00x ( );
@@ -715,6 +720,10 @@ static inline void memory_internal_write_rom_e000_sync ( uint16_t addr, uint8_t 
 
 static inline void memory_internal_write_rom_e000 ( uint16_t addr, uint8_t value ) {
 
+    if (addr >= 0xe00c && addr <= 0xe00f) {
+        gdg_suc80_write(value);
+        return;
+    }
     if ( addr > 0xe008 ) return;
 
     if ( addr == 0xe008 ) {

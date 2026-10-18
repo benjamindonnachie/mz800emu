@@ -114,6 +114,9 @@ extern "C"
         unsigned regDMD;    /* Display Mode register */
         unsigned regBOR;    /* Border register — MZ-700 nema border port, vzdy 0 */
 
+        unsigned suc80_enabled; /* Optional John Edwards / SUC expansion fitted. */
+        unsigned suc80_mode80;  /* D4 latch; reset selects the normal 40 columns. */
+
         unsigned regct53g7; /* rizeni GATE pro CTC0 v ctc8253 v rezimu MZ700 */
 
         int mode700_color[8]; /* MZ-700: barevna paleta (port 0xF1) */
@@ -135,6 +138,8 @@ extern "C"
 
     extern void gdg_init(void);
     extern void gdg_reset(void);
+    extern void gdg_suc80_write(uint8_t value);
+    extern void gdg_suc80_set_enabled(unsigned enabled);
     extern uint8_t gdg_read_dmd_status_memop(void);
 
     /**

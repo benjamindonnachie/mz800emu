@@ -39,6 +39,10 @@ static en_SNAPSHOT_RESULT snap_gdg_save(st_SNAPSHOT_CONTEXT *ctx)
     snapshot_xml_open_element(w, "registers");
     snapshot_xml_write_uint(w, "regDMD", g_gdg.regDMD);
     snapshot_xml_write_uint(w, "regBOR", g_gdg.regBOR);
+#if MZARCH == 700
+    snapshot_xml_write_uint(w, "suc80_enabled", g_gdg.suc80_enabled);
+    snapshot_xml_write_uint(w, "suc80_mode80", g_gdg.suc80_mode80);
+#endif
 #if MZARCH == 800
     snapshot_xml_write_uint(w, "regPALGRP", g_gdg.regPALGRP);
     snapshot_xml_write_uint(w, "regPAL0", g_gdg.regPAL0);
@@ -224,9 +228,19 @@ static en_SNAPSHOT_RESULT snap_gdg_load(st_SNAPSHOT_CONTEXT *ctx)
     snap_gdg_event_resync();
 
     /* Registry */
+#if MZARCH == 700
+    /* Legacy snapshots predate this latch and represent a 40-column machine. */
+    g_gdg.suc80_mode80 = 0;
+#endif
     if (snapshot_xml_enter_element(r, "registers")) {
         snapshot_xml_read_uint(r, "regDMD", &g_gdg.regDMD);
         snapshot_xml_read_uint(r, "regBOR", &g_gdg.regBOR);
+#if MZARCH == 700
+        snapshot_xml_read_uint(r, "suc80_enabled", &g_gdg.suc80_enabled);
+        snapshot_xml_read_uint(r, "suc80_mode80", &g_gdg.suc80_mode80);
+        g_gdg.suc80_enabled = !!g_gdg.suc80_enabled;
+        g_gdg.suc80_mode80 = g_gdg.suc80_enabled && !!g_gdg.suc80_mode80;
+#endif
 #if MZARCH == 800
         snapshot_xml_read_uint(r, "regPALGRP", &g_gdg.regPALGRP);
         snapshot_xml_read_uint(r, "regPAL0", &g_gdg.regPAL0);

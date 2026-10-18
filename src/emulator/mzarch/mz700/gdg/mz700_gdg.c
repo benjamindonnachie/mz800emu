@@ -53,6 +53,7 @@
 #include "hw-generic/ctc8253/ctc8253.h"
 #include "hw-generic/joy/joymz-1x03.h"
 #include "mzarch/mzarch.h"
+#include "cfgmain.h"
 
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
 #include "debugger/trace/hwlog.h"
@@ -106,6 +107,12 @@ const struct st_GDGEVENT g_gdgevent[] = {
 
 void gdg_init(void)
 {
+    CFGMOD *suc = cfgroot_register_new_module(g_cfgmain, "VIDEO_MZ700");
+    CFGELM *enabled = cfgmodule_register_new_element(suc, "suc80_enabled", CFGENTYPE_BOOL, 0);
+    cfgelement_set_handlers(enabled, &g_gdg.suc80_enabled, &g_gdg.suc80_enabled);
+    cfgmodule_parse(suc);
+    cfgmodule_propagate(suc);
+    g_gdg.suc80_mode80 = 0;
 
     g_gdg.total_elapsed.ticks = 0;
     g_gdg.total_elapsed.screens = 0;
@@ -154,6 +161,7 @@ static inline void gdg_set_regDMD(uint8_t value, unsigned event_ticks)
 
 void gdg_reset(void)
 {
+    g_gdg.suc80_mode80 = 0;
     g_gdg.regct53g7 = 0;
     gdg_set_regDMD(0, 0); /* MZ-700: reset = MZ-700 rezim (bit 0 = 0) */
 
@@ -166,6 +174,25 @@ void gdg_reset(void)
     hwscroll_reset();
 
     g_framebuffer.screen_changes = SCRSTS_THIS_IS_CHANGED;
+}
+
+void gdg_suc80_set_enabled(unsigned enabled)
+{
+    g_gdg.suc80_enabled = !!enabled;
+    if (!enabled) g_gdg.suc80_mode80 = 0;
+    g_framebuffer.screen_changes = SCRSTS_THIS_IS_CHANGED;
+}
+
+void gdg_suc80_write(uint8_t value)
+{
+    if (!g_gdg.suc80_enabled) return;
+    /* SUC 1990 circuit: the qualified MMIO write clocks D4 into a 74LS74.
+     * 28h and 50h are convenient software values, not complete-byte decodes. */
+    unsigned mode80 = (value >> 4) & 1u;
+    if (mode80 != g_gdg.suc80_mode80) {
+        g_gdg.suc80_mode80 = mode80;
+        g_framebuffer.screen_changes = SCRSTS_THIS_IS_CHANGED;
+    }
 }
 
 uint8_t gdg_read_dmd_status_ioop(void)

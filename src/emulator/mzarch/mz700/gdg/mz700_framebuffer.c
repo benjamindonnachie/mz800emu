@@ -29,9 +29,9 @@
  *
  * VRAM layout (4 KB na 0xD000-0xDFFF):
  *   0x000-0x3FF: CHAR VRAM — kody znaku z CGROM (40x25 = 1000 bajtu)
- *   0x400-0x7FF: unused
+ *   0x400-0x7FF: upper character bank (SUC 80-column display)
  *   0x800-0xBFF: ATTR VRAM — atributy (fg/bg barva, CGROM)
- *   0xC00-0xFFF: unused
+ *   0xC00-0xFFF: upper attribute bank (SUC 80-column display)
  *
  * Rezimy zobrazeni:
  *   MZ-700 rezim (jen CHAR + ATTR)
@@ -86,6 +86,26 @@ static inline void framebuffer_update_MZ700_screen_row(unsigned beam_row)
     uint8_t *p = g_framebuffer.pixels + (beam_row * VIDEO_DISPLAY_WIDTH + VIDEO_BORDER_LEFT_WIDTH);
 
     unsigned pos_Y = beam_row - VIDEO_BEAM_CANVAS_FIRST_ROW;
+    if (g_gdg.suc80_enabled && g_gdg.suc80_mode80) {
+        /* John Edwards' published layout: D000,D401,D001,D402,... .
+         * Both character and attribute RAM share the added A10 selection.
+         * Eight pixels per character occupy the existing 640-dot canvas. */
+        unsigned first_char = (pos_Y / 8) * 80;
+        unsigned char_line = pos_Y % 8;
+        for (unsigned x = 0; x < 80; ++x) {
+            unsigned index = first_char + x;
+            unsigned offset = index / 2 + ((index & 1u) ? 0x401u : 0u);
+            unsigned attr = VRAM_ATTR[offset];
+            unsigned cg_addr = ((attr << 4) & 0x800u) | (VRAM_CHAR[offset] * 8);
+            unsigned mask = CGROM[cg_addr + char_line];
+            uint8_t fg = c_MZ700_COLORMAP[(attr >> 4) & 7u];
+            uint8_t bg = c_MZ700_COLORMAP[attr & 7u];
+            for (unsigned bit = 0; bit < 8; ++bit) {
+                *p++ = (mask & (1u << bit)) ? fg : bg;
+            }
+        }
+        return;
+    }
     unsigned vram_addr = (pos_Y / 8) * CHARS_WIDTH;
     unsigned char_line = pos_Y % 8;
 
@@ -166,42 +186,7 @@ void framebuffer_update_MZ700_all_rows(void)
  */
 static inline void framebuffer_MZ700_screen_row_fill(unsigned beam_row)
 {
-    uint8_t *CGROM = g_rom.cgrom;
-    uint8_t *VRAM = g_memory.VRAM;
-
-    uint8_t *p = g_framebuffer.pixels + (beam_row * VIDEO_DISPLAY_WIDTH + VIDEO_BORDER_LEFT_WIDTH);
-
-    unsigned pos_Y = beam_row - VIDEO_BEAM_CANVAS_FIRST_ROW;
-    unsigned vram_addr = (pos_Y / 8) * CHARS_WIDTH;
-    unsigned char_line = pos_Y % 8;
-
-    uint8_t *char_p = &VRAM[MZ700_VRAM_CHAR + vram_addr];
-    uint8_t *attr_p = &VRAM[MZ700_VRAM_ATTR + vram_addr];
-
-    for (unsigned char_x = 0; char_x < CHARS_WIDTH; char_x++)
-    {
-        unsigned attr_fgc = (*attr_p >> 4) & 0x07;
-        unsigned attr_bgc = *attr_p & 0x07;
-        unsigned attr_grp = ((*attr_p << 4) & 0x0800);
-
-        unsigned cg_addr = attr_grp | (*char_p * 8);
-        unsigned mask = CGROM[cg_addr + char_line];
-
-        uint8_t fgc = c_MZ700_COLORMAP[attr_fgc];
-        uint8_t bgc = c_MZ700_COLORMAP[attr_bgc];
-
-        for (int bit = 0; bit < 8; bit++)
-        {
-            uint8_t color = (mask & 1) ? fgc : bgc;
-            p[0] = color;
-            p[1] = color;
-            p += 2;
-            mask >>= 1;
-        }
-
-        char_p++;
-        attr_p++;
-    }
+    framebuffer_update_MZ700_screen_row(beam_row);
 }
 
 
