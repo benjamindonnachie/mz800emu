@@ -15,6 +15,9 @@
 #include "snapshot/snapshot_xml.h"
 #include "hw-generic/gdg/gdg.h"
 #include "hw-generic/gdg/video.h"
+#if MZARCH == 700
+#include "mzarch/mz700/gdg/mz700_kp80.h"
+#endif
 #if MZARCH == 800
 #include "mzarch/mz800/gdg/mz800_hwscroll.h"
 #endif
@@ -42,6 +45,14 @@ static en_SNAPSHOT_RESULT snap_gdg_save(st_SNAPSHOT_CONTEXT *ctx)
 #if MZARCH == 700
     snapshot_xml_write_uint(w, "suc80_enabled", g_gdg.suc80_enabled);
     snapshot_xml_write_uint(w, "suc80_mode80", g_gdg.suc80_mode80);
+    snapshot_xml_write_uint(w, "suc80_kp_interface", g_gdg.suc80_kp_interface);
+    snapshot_xml_write_uint(w, "suc80_kp_index", g_gdg.kp80_index);
+    snapshot_xml_write_uint(w, "suc80_kp_address", g_gdg.kp80_address);
+    for (unsigned i = 0; i < 32; ++i) {
+        char key[32];
+        snprintf(key, sizeof(key), "suc80_kp_r%02u", i);
+        snapshot_xml_write_uint(w, key, g_gdg.kp80_registers[i]);
+    }
 #endif
 #if MZARCH == 800
     snapshot_xml_write_uint(w, "regPALGRP", g_gdg.regPALGRP);
@@ -228,6 +239,8 @@ static en_SNAPSHOT_RESULT snap_gdg_load(st_SNAPSHOT_CONTEXT *ctx)
 #if MZARCH == 700
     /* Legacy snapshots predate this latch and represent a 40-column machine. */
     g_gdg.suc80_mode80 = 0;
+    g_gdg.suc80_kp_interface = 0;
+    kp80_reset();
 #endif
     if (snapshot_xml_enter_element(r, "registers")) {
         snapshot_xml_read_uint(r, "regDMD", &g_gdg.regDMD);
@@ -235,6 +248,18 @@ static en_SNAPSHOT_RESULT snap_gdg_load(st_SNAPSHOT_CONTEXT *ctx)
 #if MZARCH == 700
         snapshot_xml_read_uint(r, "suc80_enabled", &g_gdg.suc80_enabled);
         snapshot_xml_read_uint(r, "suc80_mode80", &g_gdg.suc80_mode80);
+        snapshot_xml_read_uint(r, "suc80_kp_interface", &g_gdg.suc80_kp_interface);
+        snapshot_xml_read_uint(r, "suc80_kp_index", &g_gdg.kp80_index);
+        snapshot_xml_read_uint(r, "suc80_kp_address", &g_gdg.kp80_address);
+        g_gdg.suc80_kp_interface = !!g_gdg.suc80_kp_interface;
+        g_gdg.kp80_index &= 31;
+        g_gdg.kp80_address &= 0x3fff;
+        for (unsigned i = 0; i < 32; ++i) {
+            char key[32];
+            snprintf(key, sizeof(key), "suc80_kp_r%02u", i);
+            snapshot_xml_read_uint(r, key, &g_gdg.kp80_registers[i]);
+            g_gdg.kp80_registers[i] &= 0xff;
+        }
         g_gdg.suc80_enabled = !!g_gdg.suc80_enabled;
         g_gdg.suc80_mode80 = g_gdg.suc80_enabled && !!g_gdg.suc80_mode80;
 #endif

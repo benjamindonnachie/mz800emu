@@ -44,6 +44,7 @@
 #include "mz700_framebuffer.h"
 #include "mz700_framebuffer_done.h"
 #include "mz700_gdg.h"
+#include "mz700_kp80.h"
 #include "hw-generic/gdg/video.h"
 #include "memory/memory.h"
 #include "iface/iface_video.h"
@@ -94,10 +95,14 @@ static inline void framebuffer_update_MZ700_screen_row(unsigned beam_row)
         unsigned char_line = pos_Y % 8;
         for (unsigned x = 0; x < 80; ++x) {
             unsigned index = first_char + x;
-            unsigned offset = index / 2 + ((index & 1u) ? 0x401u : 0u);
+            int kp = g_gdg.suc80_kp_interface != 0;
+            if (kp) index = (index + kp80_display_start()) & 0x7ffu;
+            unsigned offset = suc80_vram_offset(index);
             unsigned attr = VRAM_ATTR[offset];
-            unsigned cg_addr = ((attr << 4) & 0x800u) | (VRAM_CHAR[offset] * 8);
+            unsigned code = kp ? kp80_display_code(VRAM_CHAR[offset]) : VRAM_CHAR[offset];
+            unsigned cg_addr = ((attr << 4) & 0x800u) | (code * 8);
             unsigned mask = CGROM[cg_addr + char_line];
+            if (kp) mask |= kp80_cursor_mask(index, char_line);
             uint8_t fg = c_MZ700_COLORMAP[(attr >> 4) & 7u];
             uint8_t bg = c_MZ700_COLORMAP[attr & 7u];
             for (unsigned bit = 0; bit < 8; ++bit) {

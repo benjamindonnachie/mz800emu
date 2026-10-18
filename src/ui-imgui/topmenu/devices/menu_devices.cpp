@@ -11,6 +11,7 @@
 #include "ui-imgui/topmenu/topmenu.h"
 #if MZARCH == 700
 #include "mzarch/mz700/gdg/mz700_gdg.h"
+#include "mzarch/mz700/gdg/mz700_kp80.h"
 #include "hw-generic/gide/gide.h"
 #include "baseui/baseui_filechooser.h"
 extern "C" {
@@ -88,6 +89,11 @@ void imgui_menu_devices(void)
             gdg_suc80_set_enabled(!g_gdg.suc80_enabled);
         }
         ImGui::SetItemTooltip("Optional John Edwards display. Reset selects 40 columns; software selects 80 via E00C-E00F.");
+        if (ImGui::BeginMenu("SUC display interface", g_gdg.suc80_enabled != 0)) {
+            if (ImGui::MenuItem("SUC memory interface", NULL, !g_gdg.suc80_kp_interface)) kp80_set_interface(0);
+            if (ImGui::MenuItem("K&P I/O interface", NULL, g_gdg.suc80_kp_interface != 0)) kp80_set_interface(1);
+            ImGui::EndMenu();
+        }
 #endif
 
 #if (MZARCH == 800) || (MZARCH == 1500)
