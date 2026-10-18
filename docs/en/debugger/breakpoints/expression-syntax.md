@@ -275,6 +275,7 @@ Function identifiers are case-insensitive. Arguments are expressions.
 | `s8(x)` | 1 | sign-extend low byte (= `(int8_t)(x & 0xFF)`) |
 | `s16(x)` | 1 | sign-extend low word (= `(int16_t)(x & 0xFFFF)`) |
 | `s32(x)` | 1 | identity for 32-bit (= `x`) |
+| `lastwriter(addr)` | 1 | address of the instruction that last wrote the memory cell at CPU address `addr` (current mapping; MZ-800 graphic VRAM = the newest of its planes) according to the [RAM write log](../ram-write-log.md); `-1` = not written since the log was started or emptied, no log was started, or a memory-mapped port (the value stays readable after the log is stopped) |
 
 Wrong arity (= a different number of arguments) is a parser-time
 error. A function not on the list yields the parse error "unknown

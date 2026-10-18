@@ -648,25 +648,18 @@ inline uint8_t vramctrl_mz800_memop_read_byte(uint16_t addr)
 }
 
 /**
- * Zapis do VRAM v rezimu MZ-800
+ * @brief Plán zápisu do VRAM v režimu MZ-800: fyzická adresa a zapisované roviny.
  *
- * TODO: ten write je 1:1 prepis z VHDL ... asi by jej slo zrychlit
+ * Čistá funkce stavu GDG (DMD, hwscroll, WF_MODE, WF_PLANE, VBANK), bez
+ * vedlejších efektů; zápis (vramctrl_mz800_memop_write_byte()) a záznam
+ * zápisů debuggeru (vramctrl_mz800_write_target()) tak počítají totéž.
  *
- * @param addr
- * @param value
+ * @param addr    Mz800 VRAM offset (0x0000 - 0x3FFF).
+ * @param out_phy Výstup: fyzická adresa v rovině (po 640 a hwscroll).
+ * @return Maska rovin DEF_PLANE1..DEF_PLANE4 (WE), které zápis změní.
  */
-inline void vramctrl_mz800_memop_write_byte(uint16_t addr, uint8_t value)
+static inline int vramctrl_mz800_write_plan(uint16_t addr, int *out_phy)
 {
-
-    /* TODO: meli by jsme volat asi jen pokud se pise do viditelne VRAM */
-    framebuffer_MZ800_screen_changed();
-
-    /* Signál pro debugger_memory_write_byte: tento zápis v aktuálním banking
-     * kontextu skončil ve VRAM. Při debuggerem-iniciovaném zápisu (memop_call)
-     * pak na konci debugger_memory_write_byte() proběhne screen refresh,
-     * pokud je v menu zapnutý "Auto refresh on edit". */
-    VRAMCTRL_DBG_NOTIFY_VRAM_TOUCH();
-
     /* Obecna dostupnost jednotlivych rovin */
     int avlb_plane;
 
@@ -678,8 +671,6 @@ inline void vramctrl_mz800_memop_write_byte(uint16_t addr, uint8_t value)
 
     /* Pokud jsme v rozliseni 640x200, tak potrebujeme vedet, zda se saha na dudy^H^H^H^Hsudy, nebo lichy byte */
     int addr_is_odd = addr & 0x01;
-
-    uint8_t wrvalue = 0;
 
     /* Skutecna adresa ve VRAM */
     int phy_vram_addr = addr;
@@ -911,6 +902,46 @@ inline void vramctrl_mz800_memop_write_byte(uint16_t addr, uint8_t value)
             };
         };
     };
+
+    *out_phy = phy_vram_addr;
+    return WE;
+}
+
+
+void vramctrl_mz800_write_target(uint16_t addr, unsigned *out_phy, unsigned *out_we)
+{
+    int phy = 0;
+    int we = vramctrl_mz800_write_plan(addr, &phy);
+    *out_phy = (unsigned) phy;
+    *out_we = (unsigned) we;
+}
+
+
+/**
+ * Zapis do VRAM v rezimu MZ-800
+ *
+ * TODO: ten write je 1:1 prepis z VHDL ... asi by jej slo zrychlit
+ *
+ * @param addr
+ * @param value
+ */
+inline void vramctrl_mz800_memop_write_byte(uint16_t addr, uint8_t value)
+{
+
+    /* TODO: meli by jsme volat asi jen pokud se pise do viditelne VRAM */
+    framebuffer_MZ800_screen_changed();
+
+    /* Signál pro debugger_memory_write_byte: tento zápis v aktuálním banking
+     * kontextu skončil ve VRAM. Při debuggerem-iniciovaném zápisu (memop_call)
+     * pak na konci debugger_memory_write_byte() proběhne screen refresh,
+     * pokud je v menu zapnutý "Auto refresh on edit". */
+    VRAMCTRL_DBG_NOTIFY_VRAM_TOUCH();
+
+    /* Do kterych rovin a na kterou fyzickou adresu se bude psat */
+    int phy_vram_addr;
+    int WE = vramctrl_mz800_write_plan(addr, &phy_vram_addr);
+
+    uint8_t wrvalue = 0;
 
     /******************************************************************************/
     /*		Nyni uz jsme pripraveni podle typu operace provest zapis do VRAM  */

@@ -51,6 +51,8 @@
 #include "snapshot/snapshot.h"     /* snapshot: snapshot_save */
 #include "emulator.h"              /* snapshot gating: g_emulator.paused (safe-point) */
 #include "dbgapi_cmdrq.h"          /* trace: dbgapi_trace_lifecycle + en_DBGAPI_TRACE_* */
+#include "debugger/trace/ramlog.h"
+#include "debugger/trace/ramlog_hook.h"   /* ramlog_start/stop: ramlog_hook_start/stop */
 
 
 /* ========================================================================= */
@@ -93,7 +95,10 @@ typedef enum {
     FWD_TRACE_START,  /**< trace_start <chan> - dbgapi_trace_lifecycle(START) */
     FWD_TRACE_STOP,   /**< trace_stop <chan> - dbgapi_trace_lifecycle(STOP) */
     FWD_TRACE_SAVE,   /**< trace_save <chan>, "<file>"[, args] - lifecycle(SAVE) */
-    FWD_SNAPSHOT      /**< snapshot "<file>"[, args] - snapshot_save(rendered) */
+    FWD_SNAPSHOT,     /**< snapshot "<file>"[, args] - snapshot_save(rendered) */
+    FWD_RAMLOG_START, /**< ramlog_start [<from>, <to>] - ramlog_hook_start (bez argumentů celá paměť) */
+    FWD_RAMLOG_STOP,  /**< ramlog_stop - ramlog_hook_stop */
+    FWD_RAMLOG_CLEAR  /**< ramlog_clear - ramlog_clear (nový segment) */
 } fwd_op_t;
 
 
@@ -830,6 +835,41 @@ static bool parse_fwd_path ( const char *args_str,
 
 
 /**
+ * @brief Parsuje `ramlog_start [<from>, <to>]`.
+ *
+ * Bez argumentů = záznam zápisů do celé paměti. S argumenty jeden rozsah CPU
+ * adres; oba výrazy se vyhodnotí až při hitu BP (např. `ramlog_start HL,
+ * HL+15`), hodnota se ořízne na 16 bitů a prohozené meze se seřadí.
+ *
+ * @param args_str Text za klíčovým slovem (po skip_ws).
+ * @param out Cílový statement (STMT_FWD, FWD_RAMLOG_START).
+ * @param errbuf Buffer pro chybovou zprávu.
+ * @param errbuf_size Velikost errbuf.
+ * @return true = OK; false = chyba syntaxe (zpráva v errbuf), out->fwd.args
+ *         vlastní už naparsované výrazy (uvolní je bp_action_stmt_free_inner).
+ */
+static bool parse_fwd_ramlog_start ( const char *args_str, bp_action_stmt_t *out,
+                                     char *errbuf, size_t errbuf_size ) {
+    out->kind       = STMT_FWD;
+    out->fwd.op     = FWD_RAMLOG_START;
+    out->fwd.fmt    = NULL;
+    out->fwd.n_args = 0;
+    if ( *args_str == '\0' || *args_str == '#' ) return true;
+    /* parse_comma_args čeká čárku před každým argumentem. */
+    char *tmp = g_strconcat ( ",", args_str, NULL );
+    const char *cur = tmp;
+    bool ok = parse_comma_args ( &cur, out->fwd.args, &out->fwd.n_args, 2,
+                                 "ramlog_start", errbuf, errbuf_size );
+    g_free ( tmp );
+    if ( ok && out->fwd.n_args != 2 ) {
+        return ac_err ( errbuf, errbuf_size,
+                        "ramlog_start: expected no arguments or <from>, <to>" );
+    };
+    return ok;
+}
+
+
+/**
  * @brief Parsuje trace_* forward příkaz: trace_<op> <channel>[, "<file>"[, args]].
  *
  * Pro start/stop bere jen jméno kanálu. Pro save bere kanál, pak povinný
@@ -1152,6 +1192,19 @@ static bool parse_stmt ( const char *src,
     if ( match_keyword ( p, "trace_save" ) ) {
         return parse_fwd_trace ( skip_ws ( p + 10 ), FWD_TRACE_SAVE, out,
                                   "trace_save", errbuf, errbuf_size );
+    };
+    if ( match_keyword ( p, "ramlog_start" ) ) {
+        return parse_fwd_ramlog_start ( skip_ws ( p + 12 ), out, errbuf, errbuf_size );
+    };
+    if ( match_keyword ( p, "ramlog_stop" ) ) {
+        out->kind = STMT_FWD; out->fwd.op = FWD_RAMLOG_STOP;
+        out->fwd.fmt = NULL;  out->fwd.n_args = 0;
+        return true;
+    };
+    if ( match_keyword ( p, "ramlog_clear" ) ) {
+        out->kind = STMT_FWD; out->fwd.op = FWD_RAMLOG_CLEAR;
+        out->fwd.fmt = NULL;  out->fwd.n_args = 0;
+        return true;
     };
     if ( match_keyword ( p, "snapshot" ) ) {
         out->kind = STMT_FWD; out->fwd.op = FWD_SNAPSHOT;
@@ -1942,6 +1995,33 @@ static void execute_fwd ( const bp_action_stmt_t *s,
             g_free ( path );
             break;
         };
+        case FWD_RAMLOG_START: {
+            /* Stejný efekt jako MCP ramlog_start (výchozí ring a kapacita).
+             * Běží v emu vlákně jako dbgapi; přepnutí zápisového callbacku
+             * platí od příštího zápisu. */
+            st_RAMLOG_CONFIG cfg;
+            memset ( &cfg, 0, sizeof ( cfg ) );
+            cfg.mode = RAMLOG_MODE_RING;
+            cfg.capacity = RAMLOG_DEFAULT_CAPACITY;
+            if ( s->fwd.n_args == 2 ) {
+                uint32_t a = (uint16_t) bp_expr_eval ( s->fwd.args[0], ctx );
+                uint32_t b = (uint16_t) bp_expr_eval ( s->fwd.args[1], ctx );
+                cfg.n_ranges = 1;
+                cfg.ranges[0].phys = false;
+                cfg.ranges[0].from = ( a < b ) ? a : b;
+                cfg.ranges[0].to = ( a < b ) ? b : a;
+            };
+            if ( !ramlog_hook_start ( &cfg ) ) {
+                fprintf ( stderr, "[BP-ACTION] ramlog_start failed (out of memory)\n" );
+            };
+            break;
+        };
+        case FWD_RAMLOG_STOP:
+            ramlog_hook_stop ( );
+            break;
+        case FWD_RAMLOG_CLEAR:
+            ramlog_clear ( );
+            break;
     };
 }
 
@@ -1995,7 +2075,10 @@ static void execute_stmt ( const bp_action_stmt_t *s,
         case STMT_POKE: {
             int32_t addr = eval_arg ( s->poke.addr, ctx );
             int32_t val  = eval_arg ( s->poke.value, ctx );
+            /* Záznam zápisů: zdroj POKE, insn_pc = instrukce, u které BP padl. */
+            uint32_t rl_saved = ramlog_source_push ( RAMLOG_SRC_POKE, g_mzarch_main.instruction_addr );
             memory_write_byte ( (uint16_t) addr, (uint8_t) val );
+            ramlog_source_pop ( rl_saved );
             break;
         };
         case STMT_SET_REG: {

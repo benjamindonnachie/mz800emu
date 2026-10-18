@@ -61,6 +61,9 @@ SdlApp *g_sdlapp = NULL;
 /* Sdílené allowed-values seznamy pro ENUM options. NULL-terminated. */
 static const char *const MODE_VALUES[] = { "off", "window", "always", NULL };
 
+/* Režim ringu záznamu zápisů pro --ramlog-ring. */
+static const char *const RAMLOG_RING_VALUES[] = { "ring", "fill", NULL };
+
 /* FDC voličí pro --fdc-bus-xlate. */
 static const char *const FDC_BUS_XLATE_VALUES[] = { "invert", "passthrough", NULL };
 
@@ -145,6 +148,19 @@ static const st_SDLAPP_OPTION_DEF g_known_options[] = {
     { "--cputrack-pc-hi",        SDLAPP_OPTION_VALUE, SDLAPP_OPTVAL_STRING,      NULL,        "<addr>",
       "Upper PC bound (inclusive) for range-scoped tracking. Dec or 0x hex. "
       "Default 0xFFFF (= whole address space, no filter)." },
+    /* Záznam zápisů do paměti (ramlog). */
+    { "--ramlog-mode",           SDLAPP_OPTION_VALUE, SDLAPP_OPTVAL_ENUM,        MODE_VALUES, "<off|window|always>",
+      "Record writes into memory (RAM write log): off, while the debugger window is open, or from start. "
+      "Read the log over MCP (ramlog_who_wrote, trace_read channel ramlog) or in the RAM Write Log window." },
+    { "--ramlog-ring",           SDLAPP_OPTION_VALUE, SDLAPP_OPTVAL_ENUM,        RAMLOG_RING_VALUES, "<ring|fill>",
+      "RAM write log when full: ring keeps the newest records, fill keeps the first ones (default ring)." },
+    { "--ramlog-capacity",       SDLAPP_OPTION_VALUE, SDLAPP_OPTVAL_UINT,        NULL,        "<N>",
+      "RAM write log size in records, 32 bytes each (16-16777216, default 1048576)." },
+    { "--ramlog-lo",             SDLAPP_OPTION_VALUE, SDLAPP_OPTVAL_STRING,      NULL,        "<addr>",
+      "First CPU address recorded by the RAM write log. Dec or 0x hex. Default 0." },
+    { "--ramlog-hi",             SDLAPP_OPTION_VALUE, SDLAPP_OPTVAL_STRING,      NULL,        "<addr>",
+      "Last CPU address recorded by the RAM write log. Dec or 0x hex. Default 0xFFFF "
+      "(with --ramlog-lo 0 = all memory, no filter)." },
     /* trace-suite iorqlog options. */
     { "--iorqlog-mode",         SDLAPP_OPTION_VALUE, SDLAPP_OPTVAL_ENUM,        MODE_VALUES, "<off|window|always>",
       "Set the IORQ log recording mode (trace-suite iorqlog)." },

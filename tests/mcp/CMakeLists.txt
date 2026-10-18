@@ -62,6 +62,7 @@ mz_add_test(mcp_dispatch
         ${CMAKE_SOURCE_DIR}/src/emulator/screenshot/screenshot.c
         ${CMAKE_SOURCE_DIR}/src/emulator/debugger/trace/trace_reader.c
         ${CMAKE_SOURCE_DIR}/src/emulator/audio_analysis.c
+        ${CMAKE_SOURCE_DIR}/src/emulator/debugger/trace/ramlog.c
     LABELS   "standalone;mcp"
 )
 
@@ -507,6 +508,24 @@ if(Python3_FOUND)
         SKIP_RETURN_CODE 77
     )
     message(STATUS "  tests/mcp: registered mcp_audio_read "
+                   "(Python ${Python3_VERSION})")
+
+    # Záznam zápisů do paměti (ramlog) přes MCP: insn_pc, old/new, PUSH,
+    # LDIR, dotazy kdo zapsal, malý ring, přijetí přerušení, banking RAM/VRAM
+    # a plány WF REPLACE, reset a snapshot, bitová shoda se zapnutým záznamem,
+    # MZ-700 a MZ-1500 (pokud binárky existují). Pipe.
+    add_test(
+        NAME    mcp_ramlog
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_ramlog.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_ramlog PROPERTIES
+        LABELS  "e2e;mcp;pipe;ramlog"
+        TIMEOUT 300
+        SKIP_RETURN_CODE 77
+    )
+    message(STATUS "  tests/mcp: registered mcp_ramlog "
                    "(Python ${Python3_VERSION})")
 
     # Snapshot uloží a obnoví skrytý stav Z80 (WZ, čekající INT/NMI,

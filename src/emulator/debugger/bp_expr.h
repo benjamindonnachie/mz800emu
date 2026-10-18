@@ -60,7 +60,8 @@
  *
  * Built-in funkce:
  *   min(a,b), max(a,b), abs(x), if(cond,a,b),
- *   bit(value,n), s8(x), s16(x), s32(x)
+ *   bit(value,n), s8(x), s16(x), s32(x),
+ *   lastwriter(addr) - PC posledního zápisu do buňky podle ramlogu (-1 = neznámý)
  *
  * ----------------------------- License -------------------------------------
  * GPL-3.0-or-later, see breakpoints.h header for full notice.

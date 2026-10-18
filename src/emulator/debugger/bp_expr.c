@@ -51,6 +51,8 @@
 #include "bp_vars.h"
 #include "libs/cpu-z80/z80.h"
 #include "hw-generic/memory/memory.h"
+#include "debugger/trace/ramlog.h"        /* lastwriter(): mapa posledních zapisovatelů */
+#include "debugger/trace/ramlog_hook.h"   /* lastwriter(): buňky CPU adresy po platformách */
 
 /* V1.6+ TODO 4.2 5b: per-arch IORQ no_se probe API. Side-effect read
  * pres regular port_read_cb(); side-effect-free pres port_read_no_se_cb().
@@ -512,6 +514,7 @@ typedef enum {
 typedef enum {
     FN_MIN, FN_MAX, FN_ABS, FN_IF,
     FN_BIT, FN_S8, FN_S16, FN_S32,
+    FN_LASTWRITER,  /**< lastwriter(addr) - PC posledního zápisu do buňky (ramlog), -1 = neznámý */
     FN_INVALID
 } fn_kind_t;
 
@@ -659,6 +662,7 @@ static fn_kind_t parser_lookup_fn ( const char *name ) {
     if ( strcmp ( lc, "s8" )  == 0 ) return FN_S8;
     if ( strcmp ( lc, "s16" ) == 0 ) return FN_S16;
     if ( strcmp ( lc, "s32" ) == 0 ) return FN_S32;
+    if ( strcmp ( lc, "lastwriter" ) == 0 ) return FN_LASTWRITER;
     return FN_INVALID;
 }
 
@@ -669,7 +673,7 @@ static fn_kind_t parser_lookup_fn ( const char *name ) {
 static int parser_fn_arity ( fn_kind_t fn ) {
     switch ( fn ) {
         case FN_MIN: case FN_MAX: case FN_BIT: return 2;
-        case FN_ABS: case FN_S8: case FN_S16: case FN_S32: return 1;
+        case FN_ABS: case FN_S8: case FN_S16: case FN_S32: case FN_LASTWRITER: return 1;
         case FN_IF: return 3;
         default: return -1;
     };
@@ -1180,6 +1184,36 @@ static int32_t eval_binop ( const bp_node_t *n, const bp_expr_ctx_t *ctx ) {
 }
 
 
+/**
+ * @brief Funkce lastwriter(addr): PC instrukce, která naposledy zapsala buňku.
+ *
+ * Buňka se určí podle aktuálního mapování CPU adresy (jako MCP
+ * ramlog_who_wrote). Grafická VRAM MZ-800 = 4 plány; vrací se zapisovatel
+ * nejnovějšího zápisu z nich. Údaj pochází z mapy posledních zapisovatelů
+ * ramlogu, platí i pro záznamy, které ring už přepsal.
+ *
+ * @param addr CPU adresa.
+ * @return insn_pc posledního zápisu (0-FFFFh); -1 = buňka od spuštění nebo
+ *         vyprázdnění záznamu nezapsána, ramlog neběžel, adresa je MMIO.
+ */
+static int32_t eval_lastwriter ( uint16_t addr ) {
+    st_RAMLOG_TARGET t[RAMLOG_TARGETS_MAX];
+    bool mmio = false;
+    unsigned n = ramlog_platform_query_cells ( addr, t, &mmio );
+    int32_t best = -1;
+    uint64_t best_seq = 0;
+    for ( unsigned i = 0; i < n; i++ ) {
+        st_RAMLOG_MAPENT e;
+        if ( !ramlog_lastwriter ( (en_RAMLOG_SPACE) t[i].space, t[i].offset, &e ) ) continue;
+        if ( best < 0 || e.seq1 > best_seq ) {
+            best = e.insn_pc;
+            best_seq = e.seq1;
+        };
+    };
+    return best;
+}
+
+
 static int32_t eval_fncall ( const bp_node_t *n, const bp_expr_ctx_t *ctx ) {
     /* Eval všech argumentů eagerly (kromě FN_IF, kde děláme short-circuit). */
     if ( n->fn.fn == FN_IF ) {
@@ -1205,6 +1239,7 @@ static int32_t eval_fncall ( const bp_node_t *n, const bp_expr_ctx_t *ctx ) {
         case FN_S8:  return (int32_t) (int8_t)  ( a[0] & 0xFF );
         case FN_S16: return (int32_t) (int16_t) ( a[0] & 0xFFFF );
         case FN_S32: return a[0];  /* už je 32b signed */
+        case FN_LASTWRITER: return eval_lastwriter ( (uint16_t) a[0] );
         case FN_IF:  /* handled above */
         case FN_INVALID: break;
     };

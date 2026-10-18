@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mz800emu 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-13 21:57+0200\n"
+"POT-Creation-Date: 2026-10-18 11:34+0200\n"
 "PO-Revision-Date: 2026-03-11 21:00+0100\n"
 "Last-Translator: Michal Hucik <hucik@ordoz.com>\n"
 "Language-Team: Czech\n"
@@ -100,7 +100,7 @@ msgstr "Soubory pásek"
 msgid "Select CMT file to open"
 msgstr "Vyberte CMT soubor k otevření"
 
-#: src/emulator/hw-generic/cmt/cmthack.c:206
+#: src/emulator/hw-generic/cmt/cmthack.c:216
 msgid "Select a MZF File"
 msgstr "Vyberte MZF soubor"
 
@@ -635,6 +635,7 @@ msgstr "Velikost"
 
 #: src/ui-imgui/cmt/cmt_tape_index.cpp:284
 #: src/ui-imgui/cmt/cmt_tape_index.cpp:314
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:416
 msgid "Start"
 msgstr "Start"
 
@@ -732,6 +733,7 @@ msgid "No tape loaded"
 msgstr "Není vložena páska"
 
 #: src/ui-imgui/cmt/cmt_window.cpp:872
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:363
 msgid "Recording"
 msgstr "Nahrávání"
 
@@ -1007,7 +1009,7 @@ msgstr "Záložky###bm_window"
 
 #: src/ui-imgui/debugger/bookmarks/bm_window.cpp:962
 #: src/ui-imgui/topmenu/menu_debugger.cpp:156
-#: src/ui-imgui/topmenu/menu_debugger.cpp:495
+#: src/ui-imgui/topmenu/menu_debugger.cpp:503
 msgid "Bookmarks"
 msgstr "Záložky"
 
@@ -1022,6 +1024,7 @@ msgstr "Název"
 
 #: src/ui-imgui/debugger/bookmarks/bm_window.cpp:981
 #: src/ui-imgui/debugger/membrowser/membrowser_window.cpp:1150
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:314
 msgid "Address"
 msgstr "Adresa"
 
@@ -2296,10 +2299,10 @@ msgstr "Poslední řídicí slovo"
 #: src/ui-imgui/debugger/pioz80_window.cpp:268
 #: src/ui-imgui/debugger/pioz80_window.cpp:293
 #: src/ui-imgui/debugger/pioz80_window.cpp:405
-#: src/ui-imgui/debugger/psg_window.cpp:360
-#: src/ui-imgui/debugger/psg_window.cpp:410
-#: src/ui-imgui/debugger/psg_window.cpp:456
-#: src/ui-imgui/debugger/psg_window.cpp:534
+#: src/ui-imgui/debugger/psg_window.cpp:362
+#: src/ui-imgui/debugger/psg_window.cpp:412
+#: src/ui-imgui/debugger/psg_window.cpp:458
+#: src/ui-imgui/debugger/psg_window.cpp:536
 msgid "Field"
 msgstr "Pole"
 
@@ -2309,10 +2312,10 @@ msgstr "Pole"
 #: src/ui-imgui/debugger/fdc_window.cpp:126
 #: src/ui-imgui/debugger/pioz80_window.cpp:294
 #: src/ui-imgui/debugger/pioz80_window.cpp:406
-#: src/ui-imgui/debugger/psg_window.cpp:361
-#: src/ui-imgui/debugger/psg_window.cpp:411
-#: src/ui-imgui/debugger/psg_window.cpp:457
-#: src/ui-imgui/debugger/psg_window.cpp:535
+#: src/ui-imgui/debugger/psg_window.cpp:363
+#: src/ui-imgui/debugger/psg_window.cpp:413
+#: src/ui-imgui/debugger/psg_window.cpp:459
+#: src/ui-imgui/debugger/psg_window.cpp:537
 #: src/ui-imgui/debugger/vars/vars_window.cpp:1504
 #: src/ui-imgui/debugger/watch/watch_window.cpp:1702
 msgid "Value"
@@ -3084,7 +3087,8 @@ msgstr "Žádné"
 #: src/ui-imgui/debugger/eventview/event_viewer_window.cpp:2156
 #: src/ui-imgui/debugger/eventview/event_viewer_window.cpp:2682
 #: src/ui-imgui/debugger/eventview/event_viewer_window.cpp:2845
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3200
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3160
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:312
 msgid "Frame"
 msgstr "Frame"
 
@@ -3094,6 +3098,7 @@ msgstr "Kategorie"
 
 #: src/ui-imgui/debugger/eventview/event_viewer_window.cpp:2158
 #: src/ui-imgui/debugger/eventview/event_viewer_window.cpp:2693
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:313
 msgid "PC"
 msgstr "PC"
 
@@ -3580,7 +3585,7 @@ msgid "Drives"
 msgstr "Mechaniky"
 
 #: src/ui-imgui/debugger/fdc_window.cpp:187
-#: src/ui-imgui/topmenu/menu_debugger.cpp:588
+#: src/ui-imgui/topmenu/menu_debugger.cpp:596
 msgid "FDC State"
 msgstr "FDC State"
 
@@ -3690,6 +3695,7 @@ msgstr "DMD"
 #: src/ui-imgui/debugger/gdg_window_mz800.cpp:185
 #: src/ui-imgui/debugger/gdg_window_mz800.cpp:189
 #: src/ui-imgui/debugger/membrowser/membrowser_fill_dialog.cpp:223
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:408
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:99
 msgid "Mode"
 msgstr "Režim"
@@ -3879,13 +3885,13 @@ msgid "VBANK (WF/RF)"
 msgstr "VBANK (WF/RF)"
 
 #: src/ui-imgui/debugger/gdg_window_mz800.cpp:253
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:794
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:793
 #: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:122
 msgid "B"
 msgstr "B"
 
 #: src/ui-imgui/debugger/gdg_window_mz800.cpp:253
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:793
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:792
 msgid "A"
 msgstr "A"
 
@@ -4280,7 +4286,7 @@ msgid "Disassembler window"
 msgstr "Okno Disassembleru"
 
 #: src/ui-imgui/debugger/ide8_window.cpp:123
-#: src/ui-imgui/topmenu/menu_debugger.cpp:606
+#: src/ui-imgui/topmenu/menu_debugger.cpp:614
 msgid "IDE8 State"
 msgstr "IDE8 State"
 
@@ -4637,100 +4643,100 @@ msgstr "Smazat"
 msgid "Annotation @ 0x%08X"
 msgstr "Poznámka @ 0x%08X"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:405
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:404
 msgid "Live"
 msgstr "Živě"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:406
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:405
 #: src/ui-imgui/topmenu/menu_snapshot.cpp:60
 msgid "Snapshot"
 msgstr "Snímek"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:407
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:406
 msgid "Auto @ pause"
 msgstr "Auto @ pauza"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:512
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:511
 msgid "Export diff as text"
 msgstr "Exportovat diff jako text"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:531
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:530
 #: src/ui-imgui/debugger/membrowser/membrowser_fileio.cpp:281
 #: src/ui-imgui/memext/memext_save_dialog.cpp:254
 msgid "Cannot open file for writing"
 msgstr "Nelze otevřít soubor pro zápis"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:569
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:568
 msgid "Export error###mb_diff_export_err"
 msgstr "Chyba exportu###mb_diff_export_err"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:574
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:573
 msgid "OK###mb_diff_export_err_ok"
 msgstr "OK###mb_diff_export_err_ok"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:610
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:609
 msgid "No data - pick region and take snapshot"
 msgstr "Žádná data - vyberte region a pořiďte snímek"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:720
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:719
 #, c-format
 msgid "Changed: %llu of %llu (%.2f %%)  [size mismatch A=%llu B=%llu]"
 msgstr "Změněno: %llu z %llu (%.2f %%)  [rozdílná velikost A=%llu B=%llu]"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:727
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:726
 #, c-format
 msgid "Changed: %llu of %llu (%.2f %%)"
 msgstr "Změněno: %llu z %llu (%.2f %%)"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:738
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:737
 #, c-format
 msgid "auto-snapshots taken: %d"
 msgstr "auto-snímků pořízeno: %d"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:765
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:764
 #: src/ui-imgui/debugger/membrowser/membrowser_layers.cpp:496
 msgid "Snapshot Now"
 msgstr "Pořídit snímek"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:773
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:772
 msgid "Capture current region content as snapshot"
 msgstr "Zachytit aktuální obsah regionu jako snímek"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:779
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:778
 msgid "(live)"
 msgstr "(živě)"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:781
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:780
 #, c-format
 msgid "(%u B)"
 msgstr "(%u B)"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:785
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:784
 msgid "(no snapshot)"
 msgstr "(bez snímku)"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:797
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:796
 msgid "Auto-snapshot at pause###mb_diff_auto_pause"
 msgstr "Auto-snímek při pauze###mb_diff_auto_pause"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:801
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:800
 msgid "Take fresh snapshot in AUTO sources on emulator pause"
 msgstr "Pořídit nový snímek v AUTO zdrojích při pauze emulátoru"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:808
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:807
 msgid "Refresh A+B###mb_diff_refresh"
 msgstr "Obnovit A+B###mb_diff_refresh"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:822
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:821
 msgid "Export...###mb_diff_export"
 msgstr "Exportovat...###mb_diff_export"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:827
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:826
 msgid "Export diff as text file (addr: AA -> BB per line)"
 msgstr "Exportovat diff jako textový soubor (adr: AA -> BB na řádek)"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:849
-#: src/ui-imgui/topmenu/menu_debugger.cpp:405
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:848
+#: src/ui-imgui/topmenu/menu_debugger.cpp:413
 msgid "Memory Diff"
 msgstr "Memory Diff"
 
@@ -4846,7 +4852,7 @@ msgid "Size (hex)###mb_save_size"
 msgstr "Velikost (hex)###mb_save_size"
 
 #: src/ui-imgui/debugger/membrowser/membrowser_fileio.cpp:473
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1873
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1833
 #: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:307
 msgid "Range:"
 msgstr "Rozsah:"
@@ -5051,69 +5057,74 @@ msgstr "Redo selhalo: zápis do backendu vrátil chybu"
 msgid "Redo: applied"
 msgstr "Redo: provedeno"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:985
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:987
 msgid "Memext bank"
 msgstr "Memext banka"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:987
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:989
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:117
 msgid "RAM"
 msgstr "RAM"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1409
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1411
 msgid "Backend not ready"
 msgstr "Backend není připraven"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1415
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1417
 msgid "Region empty or disconnected"
 msgstr "Region je prázdný nebo odpojený"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1568
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1570
 msgid "Add bookmark for current cursor"
 msgstr "Přidat záložku na pozici kurzoru"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1579
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1581
 msgid "Show in Memory Map"
 msgstr "Zobrazit v Memory Map"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1601
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1603
 msgid "Unfreeze byte at cursor"
 msgstr "Odemknout bajt na kurzoru"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1608
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1610
 #, c-format
 msgid "Freeze byte at cursor (= 0x%02X)"
 msgstr "Zmrazit bajt na kurzoru (= 0x%02X)"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1626
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1628
 msgid "Insert character..."
 msgstr "Vložit znak..."
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1636
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1638
 msgid "Open in PCG editor..."
 msgstr "Otevřít v PCG editoru..."
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1650
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1652
+msgid "Who wrote this byte?"
+msgstr "Kdo zapsal tento bajt?"
+
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1663
 msgid "Edit annotation at cursor..."
 msgstr "Upravit poznámku na kurzoru..."
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1651
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1664
 msgid "Add annotation at cursor..."
 msgstr "Přidat poznámku na kurzoru..."
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1658
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1671
 msgid "Delete annotation at cursor"
 msgstr "Smazat poznámku na kurzoru"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1674
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1687
 msgid "Fill at cursor..."
 msgstr "Vyplnit od kurzoru..."
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1685
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1698
 #, c-format
 msgid "Undo  (%d levels)\tCtrl+Z"
 msgstr "Undo  (%d úrovní)\tCtrl+Z"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1687
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1700
 #, c-format
 msgid "Redo  (%d levels)\tCtrl+Y"
 msgstr "Redo  (%d úrovní)\tCtrl+Y"
@@ -5315,7 +5326,7 @@ msgstr "Zmrazené bajty"
 
 #: src/ui-imgui/debugger/membrowser/membrowser_layers.cpp:499
 #: src/ui-imgui/topmenu/menu_debugger.cpp:161
-#: src/ui-imgui/topmenu/menu_debugger.cpp:485
+#: src/ui-imgui/topmenu/menu_debugger.cpp:493
 msgid "Symbols"
 msgstr "Symboly"
 
@@ -5368,6 +5379,7 @@ msgid "Rotate 90 CW"
 msgstr "Otočit 90 CW"
 
 #: src/ui-imgui/debugger/membrowser/membrowser_pcg.cpp:250
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:428
 #: src/ui-imgui/debugger/sections/dbg_stack_panel.cpp:2538
 msgid "Clear"
 msgstr "Vymazat"
@@ -5515,6 +5527,7 @@ msgid "Monitor ROM"
 msgstr "Monitor ROM"
 
 #: src/ui-imgui/debugger/membrowser/membrowser_regions.cpp:549
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:118
 msgid "VRAM"
 msgstr "VRAM"
 
@@ -5531,6 +5544,7 @@ msgid "Plane IV (8 KB) [exVRAM]"
 msgstr "Rovina IV (8 KB) [exVRAM]"
 
 #: src/ui-imgui/debugger/membrowser/membrowser_regions.cpp:556
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:119
 msgid "PCG"
 msgstr "PCG"
 
@@ -6760,248 +6774,248 @@ msgstr "Funkce###profiler_tab_func"
 msgid "Per PC###profiler_tab_pc"
 msgstr "Podle PC###profiler_tab_pc"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1173
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1328
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1159
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1314
 msgid "no data"
 msgstr "žádná data"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1182
-#: src/ui-imgui/debugger/psg_window.cpp:261
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1168
+#: src/ui-imgui/debugger/psg_window.cpp:263
 msgid "silent"
 msgstr "ticho"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1200
-#: src/ui-imgui/debugger/psg_window.cpp:280
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1186
+#: src/ui-imgui/debugger/psg_window.cpp:282
 msgid "DC"
 msgstr "DC"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1449
-#: src/ui-imgui/debugger/psg_window.cpp:72
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1435
+#: src/ui-imgui/debugger/psg_window.cpp:73
 msgid "TONE"
 msgstr "TÓN"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1451
-#: src/ui-imgui/debugger/psg_window.cpp:73
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1437
+#: src/ui-imgui/debugger/psg_window.cpp:74
 msgid "NOISE"
 msgstr "ŠUM"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1455
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1812
-#: src/ui-imgui/debugger/psg_window.cpp:592
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1441
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1772
+#: src/ui-imgui/debugger/psg_window.cpp:594
 msgid "Channel"
 msgstr "Kanál"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1813
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1773
 msgid "chip"
 msgstr "chip"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1816
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1776
 msgid "Pitch: Noise"
 msgstr "Výška: šum"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1821
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1781
 msgid "Pitch"
 msgstr "Výška"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1822
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1782
 msgid "cents"
 msgstr "centů"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1824
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1784
 msgid "Duration"
 msgstr "Doba trvání"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1825
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1785
 msgid "Velocity"
 msgstr "Velocity"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1838
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1798
 msgid "Volume changes"
 msgstr "Změny hlasitosti"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1842
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1802
 msgid "overflowed"
 msgstr "přetečeno"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1846
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3218
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1806
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3178
 msgid "active"
 msgstr "aktivní"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1875
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1835
 msgid "Last 10s###PSGScopeRoll10s"
 msgstr "Posledních 10s###PSGScopeRoll10s"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1878
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1838
 msgid "Last 30s###PSGScopeRoll30s"
 msgstr "Posledních 30s###PSGScopeRoll30s"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1881
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1841
 msgid "All###PSGScopeRollAll"
 msgstr "Vše###PSGScopeRollAll"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1885
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1845
 msgid "Channels:"
 msgstr "Kanály:"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1897
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1857
 msgid "CH3 (Noise)"
 msgstr "CH3 (šum)"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1963
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1923
 msgid "No notes recorded yet. Play some audio to populate the piano roll."
 msgstr ""
 "Zatím nebyly zaznamenány žádné noty. Přehrajte zvuk pro naplnění piano rollu."
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:2040
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:2000
 msgid "NS"
 msgstr "NS"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:2980
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:2940
 msgid "Export PSG notes as CSV"
 msgstr "Exportovat PSG noty jako CSV"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3008
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:2968
 msgid "Export PSG notes as MIDI"
 msgstr "Exportovat PSG noty jako MIDI"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3090
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3050
 msgid "Export error###PSGScopeExportError"
 msgstr "Chyba exportu###PSGScopeExportError"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3093
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3053
 msgid "Failed to open file for writing"
 msgstr "Nepodařilo se otevřít soubor pro zápis"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3097
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3057
 msgid "OK###PSGScopeExportErrorOK"
 msgstr "OK###PSGScopeExportErrorOK"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3127
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3087
 msgid "Export MIDI...###PSGScopeExportMidiBtn"
 msgstr "Exportovat MIDI...###PSGScopeExportMidiBtn"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3134
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3146
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3094
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3106
 msgid "No notes recorded yet"
 msgstr "Zatím nebyly zaznamenány žádné noty"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3139
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3099
 msgid "Export CSV...###PSGScopeExportCsvBtn"
 msgstr "Exportovat CSV...###PSGScopeExportCsvBtn"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3157
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3117
 msgid "Tempo BPM###PSGScopeTempoBpm"
 msgstr "Tempo BPM###PSGScopeTempoBpm"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3168
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3128
 msgid "Clear###PSGScopeClearBtn"
 msgstr "Vymazat###PSGScopeClearBtn"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3175
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3135
 msgid "Reset scope sample buffer and recorded notes"
 msgstr "Resetuje vzorkovací buffer scope a zaznamenané noty"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3206
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3166
 msgid "Notes"
 msgstr "Noty"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3228
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3188
 msgid "Log samples###PSGScopeLogSamples"
 msgstr "Logovat vzorky###PSGScopeLogSamples"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3237
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3197
 msgid "Write per-frame sample log to TSV file"
 msgstr "Zapisuje log vzorků na každý snímek do TSV souboru"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3242
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3202
 msgid "Log events###PSGScopeLogEvents"
 msgstr "Logovat události###PSGScopeLogEvents"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3251
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3211
 msgid "Write state machine event log to TSV file"
 msgstr "Zapisuje log událostí stavového automatu do TSV souboru"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3262
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3222
 msgid "Log writes###PSGScopeLogWrites"
 msgstr "Logovat zápisy###PSGScopeLogWrites"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3297
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3257
 msgid "Log every PSG register write to file (1:1 reconstruction)"
 msgstr "Logovat každý zápis do PSG registru do souboru (1:1 rekonstrukce)"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3326
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3286
 msgid "PSG Audio Scope###PSGAudioScope"
 msgstr "PSG Audio Scope###PSGAudioScope"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3397
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3357
 msgid "PSG Left (chip 0)###PSGScopeLeftHdr"
 msgstr "PSG levý (chip 0)###PSGScopeLeftHdr"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3403
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3363
 msgid "PSG Right (chip 1)###PSGScopeRightHdr"
 msgstr "PSG pravý (chip 1)###PSGScopeRightHdr"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3412
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3372
 msgid "PSG (chip 0)###PSGScopeMonoHdr"
 msgstr "PSG (chip 0)###PSGScopeMonoHdr"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3420
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3380
 msgid "Piano roll###PSGScopePianoRollHdr"
 msgstr "Piano roll###PSGScopePianoRollHdr"
 
-#: src/ui-imgui/debugger/psg_window.cpp:82
+#: src/ui-imgui/debugger/psg_window.cpp:83
 msgid "DIV /16 (fast)"
 msgstr "DIV /16 (rychle)"
 
-#: src/ui-imgui/debugger/psg_window.cpp:83
+#: src/ui-imgui/debugger/psg_window.cpp:84
 msgid "DIV /32 (mid)"
 msgstr "DIV /32 (střední)"
 
-#: src/ui-imgui/debugger/psg_window.cpp:84
+#: src/ui-imgui/debugger/psg_window.cpp:85
 msgid "DIV /64 (slow)"
 msgstr "DIV /64 (pomalu)"
 
-#: src/ui-imgui/debugger/psg_window.cpp:85
+#: src/ui-imgui/debugger/psg_window.cpp:86
 msgid "DIV from CH2 tone"
 msgstr "DIV z tónu CH2"
 
-#: src/ui-imgui/debugger/psg_window.cpp:92
+#: src/ui-imgui/debugger/psg_window.cpp:93
 msgid "PERIODIC"
 msgstr "PERIODICKÝ"
 
-#: src/ui-imgui/debugger/psg_window.cpp:93
+#: src/ui-imgui/debugger/psg_window.cpp:94
 msgid "WHITE"
 msgstr "BÍLÝ"
 
-#: src/ui-imgui/debugger/psg_window.cpp:116
+#: src/ui-imgui/debugger/psg_window.cpp:117
 msgid "0 dB (max)"
 msgstr "0 dB (max)"
 
-#: src/ui-imgui/debugger/psg_window.cpp:118
+#: src/ui-imgui/debugger/psg_window.cpp:119
 msgid "silent (off)"
 msgstr "ticho (vypnuto)"
 
-#: src/ui-imgui/debugger/psg_window.cpp:362
-#: src/ui-imgui/debugger/psg_window.cpp:412
-#: src/ui-imgui/debugger/psg_window.cpp:458
-#: src/ui-imgui/debugger/psg_window.cpp:536
+#: src/ui-imgui/debugger/psg_window.cpp:364
+#: src/ui-imgui/debugger/psg_window.cpp:414
+#: src/ui-imgui/debugger/psg_window.cpp:460
+#: src/ui-imgui/debugger/psg_window.cpp:538
 msgid "Bin/Note"
 msgstr "Bin/nota"
 
-#: src/ui-imgui/debugger/psg_window.cpp:368
+#: src/ui-imgui/debugger/psg_window.cpp:370
 msgid "Latched channel (CS)"
 msgstr "Zachycený kanál (CS)"
 
-#: src/ui-imgui/debugger/psg_window.cpp:369
+#: src/ui-imgui/debugger/psg_window.cpp:371
 msgid "Index kanalu (0..3) ktery prijme dalsi DATA byte."
 msgstr "Index kanálu (0..3) který přijme další DATA bajt."
 
-#: src/ui-imgui/debugger/psg_window.cpp:374
+#: src/ui-imgui/debugger/psg_window.cpp:376
 msgid "Next DATA byte targets"
 msgstr "Cíl dalšího DATA bajtu"
 
-#: src/ui-imgui/debugger/psg_window.cpp:377
+#: src/ui-imgui/debugger/psg_window.cpp:379
 msgid ""
 "Bit [4] posledniho LATCH bytu. 1 = attn, 0 = tone (TONE kanal) / noise cfg "
 "(CH3)."
@@ -7009,45 +7023,45 @@ msgstr ""
 "Bit [4] posledního LATCH bajtu. 1 = attn, 0 = tone (TONE kanál) / noise cfg "
 "(CH3)."
 
-#: src/ui-imgui/debugger/psg_window.cpp:380
+#: src/ui-imgui/debugger/psg_window.cpp:382
 msgid "attenuation"
 msgstr "útlum"
 
-#: src/ui-imgui/debugger/psg_window.cpp:382
+#: src/ui-imgui/debugger/psg_window.cpp:384
 msgid "tone / noise cfg"
 msgstr "tone / noise cfg"
 
-#: src/ui-imgui/debugger/psg_window.cpp:416
+#: src/ui-imgui/debugger/psg_window.cpp:418
 msgid "Channel type"
 msgstr "Typ kanálu"
 
-#: src/ui-imgui/debugger/psg_window.cpp:418
+#: src/ui-imgui/debugger/psg_window.cpp:420
 msgid "CH0-2 vzdy TONE, CH3 vzdy NOISE (initializace v psg_instance_init)."
 msgstr "CH0-2 vždy TONE, CH3 vždy NOISE (inicializace v psg_instance_init)."
 
-#: src/ui-imgui/debugger/psg_window.cpp:423
+#: src/ui-imgui/debugger/psg_window.cpp:425
 msgid "Attenuation"
 msgstr "Útlum"
 
-#: src/ui-imgui/debugger/psg_window.cpp:426
+#: src/ui-imgui/debugger/psg_window.cpp:428
 msgid "4-bit volume: 0 = max (0 dB), krok -2 dB, 15 = silent (channel off)."
 msgstr ""
 "4bitová hlasitost: 0 = max (0 dB), krok -2 dB, 15 = ticho (kanál vypnutý).4-"
 "bit hlasitost: 0 = max (0 dB), krok -2 dB, 15 = silent (kanál vypnut)."
 
-#: src/ui-imgui/debugger/psg_window.cpp:464
+#: src/ui-imgui/debugger/psg_window.cpp:466
 msgid "Tone divider (10-bit)"
 msgstr "Dělič tónu (10-bit)"
 
-#: src/ui-imgui/debugger/psg_window.cpp:467
+#: src/ui-imgui/debugger/psg_window.cpp:469
 msgid "10-bit value 0..1023. f_out = CPU_CLOCK / (32 * divider). <2 = DC."
 msgstr "10bitová hodnota 0..1023. f_out = CPU_CLOCK / (32 * dělič). <2 = DC."
 
-#: src/ui-imgui/debugger/psg_window.cpp:476
+#: src/ui-imgui/debugger/psg_window.cpp:478
 msgid "Frequency"
 msgstr "Frekvence"
 
-#: src/ui-imgui/debugger/psg_window.cpp:479
+#: src/ui-imgui/debugger/psg_window.cpp:481
 msgid ""
 "CPU_CLOCK / (32 * divider). MZ-800: 3.5469 MHz, MZ-700/MZ-1500: 3.5796 MHz "
 "CPU clock."
@@ -7055,15 +7069,15 @@ msgstr ""
 "CPU_CLOCK / (32 * dělič). MZ-800: 3,5469 MHz, MZ-700/MZ-1500: 3,5796 MHz CPU "
 "clock."
 
-#: src/ui-imgui/debugger/psg_window.cpp:482
+#: src/ui-imgui/debugger/psg_window.cpp:484
 msgid "DC (no oscillation)"
 msgstr "DC (bez oscilace)"
 
-#: src/ui-imgui/debugger/psg_window.cpp:496
+#: src/ui-imgui/debugger/psg_window.cpp:498
 msgid "MIDI note"
 msgstr "MIDI nota"
 
-#: src/ui-imgui/debugger/psg_window.cpp:499
+#: src/ui-imgui/debugger/psg_window.cpp:501
 msgid ""
 "12 * log2(f / 440) + 69. A4 = 440 Hz = 69. Cents = odchylka od rovnomerne "
 "temperace."
@@ -7071,31 +7085,31 @@ msgstr ""
 "12 * log2(f / 440) + 69. A4 = 440 Hz = 69. Cents = odchylka od rovnoměrné "
 "temperace."
 
-#: src/ui-imgui/debugger/psg_window.cpp:539
+#: src/ui-imgui/debugger/psg_window.cpp:541
 msgid "Noise divider type"
 msgstr "Typ děliče šumu"
 
-#: src/ui-imgui/debugger/psg_window.cpp:542
+#: src/ui-imgui/debugger/psg_window.cpp:544
 msgid "0..2 = fixed PSG dividery 16/32/64, 3 = CH2 tone divider rizeny shift."
 msgstr "0..2 = pevné PSG děliče 16/32/64, 3 = CH2 tone divider řízený shift."
 
-#: src/ui-imgui/debugger/psg_window.cpp:544
+#: src/ui-imgui/debugger/psg_window.cpp:546
 msgid "Noise feedback"
 msgstr "Zpětná vazba šumu"
 
-#: src/ui-imgui/debugger/psg_window.cpp:547
+#: src/ui-imgui/debugger/psg_window.cpp:549
 msgid "Periodic = LFSR top bit only, White = XOR feedback (sirsi spektrum)."
 msgstr "Periodic = pouze top bit LFSR, White = XOR feedback (širší spektrum)."
 
-#: src/ui-imgui/debugger/psg_window.cpp:552
+#: src/ui-imgui/debugger/psg_window.cpp:554
 msgid "Tone divider: N/A (NOISE channel)"
 msgstr "Tone divider: N/A (NOISE kanál)"
 
-#: src/ui-imgui/debugger/psg_window.cpp:557
+#: src/ui-imgui/debugger/psg_window.cpp:559
 msgid "Waveform"
 msgstr "Průběh"
 
-#: src/ui-imgui/debugger/psg_window.cpp:560
+#: src/ui-imgui/debugger/psg_window.cpp:562
 msgid ""
 "Oscilloscope view: TONE = square wave (4 periods fixed), NOISE = pseudo-"
 "random pattern. Amplitude scaled by attenuation."
@@ -7103,28 +7117,28 @@ msgstr ""
 "Pohled osciloskopu: TONE = obdélník (pevně 4 periody), NOISE = pseudonáhodný "
 "vzor. Amplituda škálovaná attenuací."
 
-#: src/ui-imgui/debugger/psg_window.cpp:576
+#: src/ui-imgui/debugger/psg_window.cpp:578
 msgid "Latch state"
 msgstr "Stav latch"
 
-#: src/ui-imgui/debugger/psg_window.cpp:611
+#: src/ui-imgui/debugger/psg_window.cpp:613
 msgid "PSG SN76489 State###PSGState"
 msgstr "Stav PSG SN76489###PSGState"
 
-#: src/ui-imgui/debugger/psg_window.cpp:626
+#: src/ui-imgui/debugger/psg_window.cpp:628
 msgid "PSG Left (chip 0)###PSGLeftHdr"
 msgstr "PSG levý (chip 0)###PSGLeftHdr"
 
-#: src/ui-imgui/debugger/psg_window.cpp:633
+#: src/ui-imgui/debugger/psg_window.cpp:635
 msgid "PSG Right (chip 1)###PSGRightHdr"
 msgstr "PSG pravý (chip 1)###PSGRightHdr"
 
-#: src/ui-imgui/debugger/psg_window.cpp:643
+#: src/ui-imgui/debugger/psg_window.cpp:645
 msgid "PSG (chip 0)###PSGMonoHdr"
 msgstr "PSG (chip 0)###PSGMonoHdr"
 
 #: src/ui-imgui/debugger/qdisk_window.cpp:147
-#: src/ui-imgui/topmenu/menu_debugger.cpp:594
+#: src/ui-imgui/topmenu/menu_debugger.cpp:602
 msgid "QDisk State"
 msgstr "QDisk State"
 
@@ -7151,7 +7165,7 @@ msgid "Virtual mode"
 msgstr "Virtuální režim"
 
 #: src/ui-imgui/debugger/ramdisk_window.cpp:139
-#: src/ui-imgui/topmenu/menu_debugger.cpp:600
+#: src/ui-imgui/topmenu/menu_debugger.cpp:608
 msgid "Memory Disk State"
 msgstr "Memory Disk State"
 
@@ -7168,6 +7182,255 @@ msgstr "Pezik 0xE8 - 0xEF"
 #: src/ui-imgui/topmenu/devices/menu_ramdisk.cpp:108
 msgid "Pezik 0x68 - 0x6F"
 msgstr "Pezik 0x68 - 0x6F"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:120
+#: src/ui-imgui/topmenu/devices/menu_memext.cpp:56
+msgid "MemExt"
+msgstr "MemExt"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:121
+#: src/ui-imgui/topmenu/devices/menu_rom.cpp:24
+msgid "ROM"
+msgstr "ROM"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:130
+msgid "Instruction"
+msgstr "Instrukce"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:131
+msgid "Interrupt (return address)"
+msgstr "Přerušení (návratová adresa)"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:132
+msgid "NMI (return address)"
+msgstr "NMI (návratová adresa)"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:133
+#: src/ui-imgui/topmenu/menu_debugger.cpp:63
+msgid "Debugger"
+msgstr "Debugger"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:134
+msgid "Breakpoint poke"
+msgstr "Poke z breakpointu"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:135
+msgid "Freeze"
+msgstr "Zmrazení"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:136
+msgid "Tape (CMT hack)"
+msgstr "Páska (CMT hack)"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:137
+#: src/ui-imgui/memext/memext_load_dialog.cpp:162
+msgid "Load"
+msgstr "Načíst"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:157
+msgid "plane"
+msgstr "plán"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:188
+msgid "Command failed:"
+msgstr "Příkaz selhal:"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:190
+msgid "The emulator did not respond in time."
+msgstr "Emulátor neodpověděl včas."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:289
+msgid ""
+"Enter the range as hex CPU addresses (From, optionally To), or leave both "
+"empty for all memory."
+msgstr "Zadejte rozsah jako hex adresy CPU (From, volitelně To), nebo obě pole nechte prázdná pro celou paměť."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:311
+msgid "Seq"
+msgstr "Pořadí"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:315
+msgid "Cell"
+msgstr "Buňka"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:316
+msgid "Old"
+msgstr "Původní"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:317
+msgid "New"
+msgstr "Nová"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:318
+msgid "Source"
+msgstr "Zdroj"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:319
+msgid "Note"
+msgstr "Poznámka"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:348
+#, c-format
+msgid "%u bytes loaded"
+msgstr "nahráno %u bajtů"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:350
+msgid "dropped (ROM)"
+msgstr "zahozeno (ROM)"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:352
+msgid "value unchanged"
+msgstr "hodnota beze změny"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:365
+msgid "Stopped"
+msgstr "Zastaveno"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:367
+msgid "Not started"
+msgstr "Nespuštěno"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:371
+#, c-format
+msgid ""
+"Records: %llu of %llu writes, overwritten %llu, dropped %llu, memory %.1f MB"
+msgstr "Záznamů: %llu z %llu zápisů, přepsáno %llu, zahozeno %llu, paměť %.1f MB"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:378
+msgid "Range: all memory"
+msgstr "Rozsah: celá paměť"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:382
+#, c-format
+msgid "Range: %s %05X-%05X"
+msgstr "Rozsah: %s %05X-%05X"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:385
+#, c-format
+msgid "Range: CPU %04X-%04X"
+msgstr "Rozsah: CPU %04X-%04X"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:389
+#, c-format
+msgid "(+%u more)"
+msgstr "(+%u další)"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:395
+msgid "From"
+msgstr "Od"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:397
+msgid "First CPU address (hex). Leave From and To empty to record all memory."
+msgstr "První adresa CPU (hex). Pro záznam celé paměti nechte Od i Do prázdné."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:401
+msgid "To"
+msgstr "Do"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:403
+msgid "Last CPU address (hex); empty = only the From address."
+msgstr "Poslední adresa CPU (hex); prázdné = jen adresa Od."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:406
+msgid "Ring (keep newest)"
+msgstr "Kruh (drží nejnovější)"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:406
+msgid "Fill (keep first)"
+msgstr "Plnění (drží první)"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:411
+msgid "Records"
+msgstr "Záznamů"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:413
+msgid "Log size in records (16-16777216), 32 bytes each."
+msgstr "Velikost záznamu v položkách (16-16777216), každá 32 bajtů."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:418
+msgid ""
+"Start recording; a running log is replaced. Reset and snapshot load empty "
+"the log."
+msgstr "Spustí záznam; běžící záznam se nahradí. Reset a načtení snapshotu záznam vyprázdní."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:423
+msgid "Stop"
+msgstr "Zastavit"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:432
+msgid "(all memory: emulation is slower)"
+msgstr "(celá paměť: emulace je pomalejší)"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:439
+msgid "Who wrote"
+msgstr "Kdo zapsal"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:441
+msgid "CPU address"
+msgstr "Adresa CPU"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:444
+msgid "Find"
+msgstr "Najít"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:451
+msgid "Enter a hex CPU address."
+msgstr "Zadejte hex adresu CPU."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:455
+msgid "Include unchanged writes"
+msgstr "Včetně zápisů beze změny"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:463
+msgid ""
+"Enter an address, or use \"Who wrote this byte?\" in the Memory Browser."
+msgstr "Zadejte adresu, nebo použijte \"Kdo zapsal tento bajt?\" v Memory Browseru."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:467
+msgid "This address is a memory-mapped I/O port, not a memory cell."
+msgstr "Tato adresa je port mapovaný do paměti, ne paměťová buňka."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:471
+msgid "No memory cell is mapped at this address."
+msgstr "Na této adrese není namapovaná žádná paměťová buňka."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:480
+#, c-format
+msgid "%s: last written by PC %04X (%s), record %u"
+msgstr "%s: naposledy zapsala PC %04X (%s), záznam %u"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:483
+#, c-format
+msgid "%s: not written since the log started"
+msgstr "%s: od spuštění záznamu nezapsáno"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:490
+msgid ""
+"The write is no longer in the log (overwritten); only the last writer is "
+"known."
+msgstr "Zápis už v záznamu není (přepsán); známý je jen poslední zapisovatel."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:548
+msgid "RAM Write Log###ramlog_window"
+msgstr "Záznam zápisů do RAM###ramlog_window"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:574
+msgid "Newest writes"
+msgstr "Nejnovější zápisy"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:575
+msgid "Auto refresh"
+msgstr "Automaticky obnovovat"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:577
+#: src/ui-imgui/memext/memext_map_window.cpp:93
+#: src/ui-imgui/memext/memext_map_window.cpp:95
+msgid "Refresh"
+msgstr "Obnovit"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:579
+msgid "Show unchanged writes"
+msgstr "Zobrazit zápisy beze změny"
 
 #: src/ui-imgui/debugger/sections/dbg_callstack.cpp:256
 msgid "Active###cs_active"
@@ -7666,25 +7929,25 @@ msgstr "Disassembly #1"
 
 #: src/ui-imgui/debugger/sections/dbg_disassembled.cpp:3299
 #: src/ui-imgui/topmenu/menu_debugger.cpp:177
-#: src/ui-imgui/topmenu/menu_debugger.cpp:458
+#: src/ui-imgui/topmenu/menu_debugger.cpp:466
 msgid "Disassembly #2"
 msgstr "Disassembly #2"
 
 #: src/ui-imgui/debugger/sections/dbg_disassembled.cpp:3300
 #: src/ui-imgui/topmenu/menu_debugger.cpp:182
-#: src/ui-imgui/topmenu/menu_debugger.cpp:463
+#: src/ui-imgui/topmenu/menu_debugger.cpp:471
 msgid "Disassembly #3"
 msgstr "Disassembly #3"
 
 #: src/ui-imgui/debugger/sections/dbg_disassembled.cpp:3301
 #: src/ui-imgui/topmenu/menu_debugger.cpp:187
-#: src/ui-imgui/topmenu/menu_debugger.cpp:468
+#: src/ui-imgui/topmenu/menu_debugger.cpp:476
 msgid "Disassembly #4"
 msgstr "Disassembly #4"
 
 #: src/ui-imgui/debugger/sections/dbg_disassembled.cpp:3302
 #: src/ui-imgui/topmenu/menu_debugger.cpp:192
-#: src/ui-imgui/topmenu/menu_debugger.cpp:473
+#: src/ui-imgui/topmenu/menu_debugger.cpp:481
 msgid "Disassembly #5"
 msgstr "Disassembly #5"
 
@@ -9791,7 +10054,7 @@ msgstr "Znovu prohledat zařízení"
 msgid "Joystick"
 msgstr "Joystick"
 
-#: src/ui-imgui/main_window.cpp:105
+#: src/ui-imgui/main_window.cpp:106
 msgid "No audio device - running without sound"
 msgstr "Žádné zvukové zařízení - běží bez zvuku"
 
@@ -10246,10 +10509,6 @@ msgstr "Od:"
 msgid "Size:"
 msgstr "Velikost:"
 
-#: src/ui-imgui/memext/memext_load_dialog.cpp:162
-msgid "Load"
-msgstr "Načíst"
-
 #: src/ui-imgui/memext/memext_load_dialog.cpp:177
 msgid "Cannot open file"
 msgstr "Nelze otevřít soubor"
@@ -10257,11 +10516,6 @@ msgstr "Nelze otevřít soubor"
 #: src/ui-imgui/memext/memext_map_window.cpp:87
 msgid "MemExt Map Settings"
 msgstr "Nastavení mapy MemExt"
-
-#: src/ui-imgui/memext/memext_map_window.cpp:93
-#: src/ui-imgui/memext/memext_map_window.cpp:95
-msgid "Refresh"
-msgstr "Obnovit"
 
 #: src/ui-imgui/memext/memext_map_window.cpp:106
 msgid "Bank size"
@@ -11104,10 +11358,6 @@ msgstr "Stav IDE8 (debugger)..."
 msgid "Select FLASH image file to open"
 msgstr "Vyberte soubor obrazu FLASH"
 
-#: src/ui-imgui/topmenu/devices/menu_memext.cpp:56
-msgid "MemExt"
-msgstr "MemExt"
-
 #: src/ui-imgui/topmenu/devices/menu_memext.cpp:64
 msgid "Model - 'Peroutka & Hučík'"
 msgstr "Model - 'Peroutka & Hučík'"
@@ -11461,10 +11711,6 @@ msgstr "Centronics (výchozí)"
 #: src/ui-imgui/topmenu/devices/menu_rear_dip_switch.cpp:80
 msgid " (locked: plotter connected)"
 msgstr " (uzamčeno: plotter připojen)"
-
-#: src/ui-imgui/topmenu/devices/menu_rom.cpp:24
-msgid "ROM"
-msgstr "ROM"
 
 #: src/ui-imgui/topmenu/devices/menu_rom.cpp:54
 msgid "Settings for User Defined..."
@@ -11829,10 +12075,6 @@ msgstr "Nastavení joysticku..."
 msgid "DbgTool"
 msgstr "DbgTool"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:63
-msgid "Debugger"
-msgstr "Debugger"
-
 #: src/ui-imgui/topmenu/menu_debugger.cpp:75
 msgid "MZ-800 Debugger"
 msgstr "MZ-800 Debugger"
@@ -11872,22 +12114,22 @@ msgid "Memory Browser"
 msgstr "Prohlížeč paměti"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:131
-#: src/ui-imgui/topmenu/menu_debugger.cpp:378
+#: src/ui-imgui/topmenu/menu_debugger.cpp:386
 msgid "Memory Browser #2"
 msgstr "Prohlížeč paměti č. 2"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:136
-#: src/ui-imgui/topmenu/menu_debugger.cpp:383
+#: src/ui-imgui/topmenu/menu_debugger.cpp:391
 msgid "Memory Browser #3"
 msgstr "Prohlížeč paměti č. 3"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:141
-#: src/ui-imgui/topmenu/menu_debugger.cpp:388
+#: src/ui-imgui/topmenu/menu_debugger.cpp:396
 msgid "Memory Browser #4"
 msgstr "Prohlížeč paměti č. 4"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:146
-#: src/ui-imgui/topmenu/menu_debugger.cpp:393
+#: src/ui-imgui/topmenu/menu_debugger.cpp:401
 msgid "Memory Browser #5"
 msgstr "Prohlížeč paměti č. 5"
 
@@ -11902,32 +12144,32 @@ msgid "Variables"
 msgstr "Proměnné"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:202
-#: src/ui-imgui/topmenu/menu_debugger.cpp:539
+#: src/ui-imgui/topmenu/menu_debugger.cpp:547
 msgid "CTC State"
 msgstr "Stav CTC"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:207
-#: src/ui-imgui/topmenu/menu_debugger.cpp:543
+#: src/ui-imgui/topmenu/menu_debugger.cpp:551
 msgid "PPI State"
 msgstr "Stav PPI"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:215
-#: src/ui-imgui/topmenu/menu_debugger.cpp:548
+#: src/ui-imgui/topmenu/menu_debugger.cpp:556
 msgid "Z80 PIO State"
 msgstr "Stav Z80 PIO"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:224
-#: src/ui-imgui/topmenu/menu_debugger.cpp:554
+#: src/ui-imgui/topmenu/menu_debugger.cpp:562
 msgid "PSG State"
 msgstr "Stav PSG"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:231
-#: src/ui-imgui/topmenu/menu_debugger.cpp:561
+#: src/ui-imgui/topmenu/menu_debugger.cpp:569
 msgid "PSG Audio Scope"
 msgstr "PSG Audio Scope"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:238
-#: src/ui-imgui/topmenu/menu_debugger.cpp:568
+#: src/ui-imgui/topmenu/menu_debugger.cpp:576
 msgid "GDG State"
 msgstr "GDG State"
 
@@ -11935,39 +12177,43 @@ msgstr "GDG State"
 msgid "Stack Regions"
 msgstr "Oblasti zásobníku"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:376
+#: src/ui-imgui/topmenu/menu_debugger.cpp:380
+msgid "RAM Write Log"
+msgstr "Záznam zápisů do RAM"
+
+#: src/ui-imgui/topmenu/menu_debugger.cpp:384
 msgid "Other memory browsers"
 msgstr "Další prohlížeče paměti"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:415
+#: src/ui-imgui/topmenu/menu_debugger.cpp:423
 msgid "Memory Heatmap"
 msgstr "Heatmapa paměti"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:426
+#: src/ui-imgui/topmenu/menu_debugger.cpp:434
 msgid "Char Inserter"
 msgstr "Vkládání znaků"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:444
+#: src/ui-imgui/topmenu/menu_debugger.cpp:452
 msgid "Disassembler"
 msgstr "Disassembler"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:456
+#: src/ui-imgui/topmenu/menu_debugger.cpp:464
 msgid "Other disassembly"
 msgstr "Další disassembly"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:508
+#: src/ui-imgui/topmenu/menu_debugger.cpp:516
 msgid "I/O Ports"
 msgstr "I/O porty"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:518
+#: src/ui-imgui/topmenu/menu_debugger.cpp:526
 msgid "Events"
 msgstr "Události"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:537
+#: src/ui-imgui/topmenu/menu_debugger.cpp:545
 msgid "Chips"
 msgstr "Čipy"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:585
+#: src/ui-imgui/topmenu/menu_debugger.cpp:593
 msgid "Storage"
 msgstr "Úložiště"
 

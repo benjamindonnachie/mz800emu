@@ -44,11 +44,12 @@ skriptu.
 
 ## Příkazy
 
-Action mini-DSL poskytuje 19 příkazů: 11 základních (log, continue,
+Action mini-DSL poskytuje 22 příkazů: 11 základních (log, continue,
 disable_self, enable, disable, poke, set, mark, přiřazení `$name`,
-clear_vars, if) a 8 forward příkazů pro řízení záznamu (cdl_start, cdl_stop,
-cdl_reset, cdl_export, trace_start, trace_stop, trace_save, snapshot - viz
-sekce "Forward příkazy" níže).
+clear_vars, if) a 11 forward příkazů pro řízení záznamu (cdl_start, cdl_stop,
+cdl_reset, cdl_export, trace_start, trace_stop, trace_save, snapshot,
+ramlog_start, ramlog_stop, ramlog_clear - viz sekce "Forward příkazy"
+níže).
 
 ### `log "fmt"[, expr...]`
 
@@ -363,6 +364,26 @@ z jednoho pokračujícího BP.
 snapshot "snap.mzs"
 snapshot "snap-%d.mzs", $id
 ```
+
+### `ramlog_start [<from>, <to>]`, `ramlog_stop`, `ramlog_clear`
+
+Ovládají záznam zápisů do paměti ([RAM Write Log](../ram-write-log.md)).
+`ramlog_start` bez argumentů zaznamenává zápisy do celé paměti, se dvěma
+výrazy jeden rozsah CPU adres. Výrazy se vyhodnotí při zásahu breakpointu
+(na pořadí obou hodnot nezáleží). `ramlog_start` nahradí běžící záznam
+(režim ring, výchozí velikost). `ramlog_stop` záznam zastaví (záznamy
+zůstanou čitelné), `ramlog_clear` záznam vyprázdní.
+
+```
+ramlog_start
+ramlog_start 0x4000, 0x40FF
+ramlog_start HL, HL + 15
+ramlog_stop
+```
+
+Funkce výrazu `lastwriter(addr)` vrací adresu instrukce, která naposledy
+zapsala buňku na `addr`, např.
+`if lastwriter(0x4000) == 0x3009 then ramlog_stop`.
 
 Všechny šablony názvu (`cdl_export` / `trace_save` / `snapshot`) sdílejí
 stejný renderer jako `log`, takže lze generovat číslované soubory pomocí

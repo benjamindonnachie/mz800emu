@@ -218,6 +218,9 @@ Další debugger dokumenty:
   formáty .noi/.map/.sym/.lbl, UI panel Symbols)
 - [`debugger/io-ports.md`](debugger/io-ports.md) - I/O Ports panel V1.5
   (Overview tab, History tab, activity tracking, naming konvence)
+- [`debugger/ram-write-log.md`](debugger/ram-write-log.md) - RAM Write Log:
+  kdo zapsal bajt, historie zápisů buňky, nejnovější zápisy
+  (`--ramlog-*`, `[RAMLOG]`)
 - [`debugger/disassembler-window.md`](debugger/disassembler-window.md) -
   samostatné Disassembler okno V1 (range disasm, auto-labely S/L/D/W,
   sym_db/CDL gating, export .asm/.s pro pasmo/sjasmplus/sdcc-asz80)

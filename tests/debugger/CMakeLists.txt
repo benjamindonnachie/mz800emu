@@ -216,6 +216,16 @@ mz_add_test(callstack_window_queue
     LABELS   "emu;debugger;ui-callstack"
 )
 
+# Okno RAM Write Log a Memory Browser (Who wrote this byte?): záznam zápisů
+# se ovládá a čte přes CMDRQ frontu (DBGAPI_CMD_RAMLOG, UI helper
+# dbg_ui_ramlog v dbgapi_helpers.cpp), ne přímo z UI vlákna.
+mz_add_test(ramlog_window_queue
+    TYPE     EMU
+    SOURCES  test_ramlog_window_queue.c
+             ${CMAKE_SOURCE_DIR}/src/ui-imgui/debugger/dbgapi_helpers.cpp
+    LABELS   "emu;debugger;ramlog"
+)
+
 # Okno debuggeru (Ctrl+R) a menu Emulation: vynucený refresh obrazovky jde
 # přes CMDRQ frontu (DBGAPI_CMD_SCREEN_REFRESH, UI helper v dbgapi_helpers.cpp),
 # ne přímo z UI vlákna.
@@ -369,4 +379,22 @@ mz_add_test(debugger_init_flag
     TYPE     EMU
     SOURCES  test_debugger_init_flag.c
     LABELS   "emu;debugger"
+)
+
+# Jádro záznamu zápisů do paměti (ramlog): ring, mapa posledního
+# zapisovatele, filtr, dotazy - bez emulátoru.
+mz_add_test(ramlog
+    TYPE     STANDALONE
+    SOURCES  test_ramlog.c
+             ${CMAKE_SOURCE_DIR}/src/emulator/debugger/trace/ramlog.c
+    LABELS   "standalone;debugger;ramlog"
+)
+target_include_directories(test_ramlog PRIVATE ${CMAKE_SOURCE_DIR}/src/emulator/debugger/trace)
+
+# Napojení záznamu zápisů (ramlog_hook) na jádro MZ-800: callback, maska
+# RAM fast-path, RAM / ROM / plány VRAM, zdroje, reset.
+mz_add_test(ramlog_hook
+    TYPE     EMU
+    SOURCES  test_ramlog_hook.c
+    LABELS   "emu;debugger;ramlog"
 )

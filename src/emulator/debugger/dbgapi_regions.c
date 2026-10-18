@@ -63,6 +63,7 @@
 #include "hw-generic/memory/memory.h"
 #include "hw-generic/memory/memext.h"
 #include "hw-generic/ramdisk/ramdisk.h"
+#include "debugger/trace/ramlog_hook.h"
 
 #if MZARCH == 800
 #include "mzarch/mz800/memory/mz800_memory.h"
@@ -469,7 +470,8 @@ int dbgapi_regions_read(int region_id, uint32_t offset, uint8_t *out, uint32_t l
  * WRITE per kind
  * ============================================================================ */
 
-int dbgapi_regions_write(int region_id, uint32_t offset, const uint8_t *data, uint32_t len)
+/** @brief Vlastní zápis do regionu (tělo dbgapi_regions_write() bez záznamu zápisů). */
+static int regions_write_impl(int region_id, uint32_t offset, const uint8_t *data, uint32_t len)
 {
     if (!data || len == 0) return -1;
     st_REGION_DESC desc_copy;
@@ -595,6 +597,106 @@ int dbgapi_regions_write(int region_id, uint32_t offset, const uint8_t *data, ui
     default:
         return -1;
     }
+}
+
+
+/**
+ * @brief Buňka paměti CPU pro bajt fyzického regionu (pro záznam zápisů).
+ *
+ * @param desc   Region.
+ * @param off    Offset v regionu.
+ * @param space  Výstup: prostor ramlogu.
+ * @param soff   Výstup: offset v prostoru.
+ * @return Ukazatel na buňku, NULL = region neleží v paměti CPU (RAMdisk,
+ *         Logical - ten zaznamená memory_write_byte_no_bp()).
+ */
+static uint8_t *regions_ramlog_cell(const st_REGION_DESC *desc, uint32_t off,
+                                    uint8_t *space, uint32_t *soff)
+{
+    uint8_t *p = NULL;
+    switch (desc->kind) {
+    case REGION_KIND_RAM:
+        p = g_memory.memram_write[(off >> 12) & 0xF] + (off & 0x0FFF);
+        return ramlog_platform_ram_cell(p, space, soff) ? p : NULL;
+    case REGION_KIND_MEMEXT_RAM:
+        if (!MEMEXT_TEST_CONNECTED) return NULL;
+        p = memext_get_ram_write_pointer_by_rawbank(desc->sub_id);
+        if (!p) return NULL;
+        p += off;
+        return ramlog_platform_ram_cell(p, space, soff) ? p : NULL;
+#if MZARCH == 800
+    case REGION_KIND_CGRAM_700:
+        *space = RAMLOG_SPACE_VRAM; *soff = off;
+        return &g_memory.VRAM[off];
+    case REGION_KIND_VRAM_700_CHAR:
+        *space = RAMLOG_SPACE_VRAM; *soff = 0x1000u + off;
+        return &g_memory.VRAM[*soff];
+    case REGION_KIND_VRAM_700_ATTR:
+        *space = RAMLOG_SPACE_VRAM; *soff = 0x1800u + off;
+        return &g_memory.VRAM[*soff];
+    case REGION_KIND_VRAM_PHYS_PLANE:
+        p = vram_plane_pointer(desc->sub_id);
+        if (!p) return NULL;
+        *space = RAMLOG_SPACE_VRAM; *soff = (uint32_t)desc->sub_id * MEMORY_SIZE_VRAM_BANK + off;
+        return p + off;
+#else
+    case REGION_KIND_VRAM_700_CHAR:
+        *space = RAMLOG_SPACE_VRAM; *soff = off;
+        return &g_memory.VRAM[off];
+    case REGION_KIND_VRAM_700_ATTR:
+        *space = RAMLOG_SPACE_VRAM; *soff = 0x0800u + off;
+        return &g_memory.VRAM[*soff];
+#endif
+#if MZARCH == 1500
+    case REGION_KIND_PCG_1500:
+        if (desc->sub_id < 0 || desc->sub_id > 2) return NULL;
+        *space = RAMLOG_SPACE_PCG; *soff = (uint32_t)desc->sub_id * MEMORY_SIZE_PCG_BANK + off;
+        return &g_memory.PCG[*soff];
+#endif
+    default:
+        return NULL;
+    }
+}
+
+
+int dbgapi_regions_write(int region_id, uint32_t offset, const uint8_t *data, uint32_t len)
+{
+    /* Záznam zápisů (ramlog): fyzické regiony v paměti CPU zaznamenat po
+     * bajtech (old/new přímo z buňky); Logical zaznamená sám
+     * memory_write_byte_no_bp(). */
+    st_REGION_DESC desc;
+    if (!g_ramlog_active || !data || len == 0 || !lookup_region_copy(region_id, &desc)
+        || desc.kind == REGION_KIND_LOGICAL || !desc.connected || !desc.writable) {
+        return regions_write_impl(region_id, offset, data, len);
+    }
+    uint32_t n = clamp_len(&desc, offset, len);
+    uint8_t **cell = (uint8_t **)g_malloc0((gsize)(n ? n : 1) * sizeof(uint8_t *));
+    uint8_t *old = (uint8_t *)g_malloc0(n ? n : 1);
+    uint8_t *sp = (uint8_t *)g_malloc0(n ? n : 1);
+    uint32_t *so = (uint32_t *)g_malloc0((gsize)(n ? n : 1) * sizeof(uint32_t));
+    for (uint32_t i = 0; i < n; i++) {
+        cell[i] = regions_ramlog_cell(&desc, offset + i, &sp[i], &so[i]);
+        if (cell[i]) old[i] = *cell[i];
+    }
+    int rc = regions_write_impl(region_id, offset, data, len);
+    for (uint32_t i = 0; rc > 0 && i < n && i < (uint32_t)rc; i++) {
+        if (cell[i]) ramlog_hook_cell_write((en_RAMLOG_SPACE)sp[i], so[i], old[i], *cell[i]);
+    }
+    g_free(cell);
+    g_free(old);
+    g_free(sp);
+    g_free(so);
+    return rc;
+}
+
+bool dbgapi_regions_ramlog_cell(int kind, int sub_id, uint32_t offset,
+                                uint8_t *out_space, uint32_t *out_offset)
+{
+    if (kind < 0 || kind >= REGION_KIND_COUNT) return false;
+    st_REGION_DESC desc;
+    if (!dbgapi_regions_find_kind((en_REGION_KIND)kind, sub_id, &desc)) return false;
+    if (offset >= desc.size) return false;
+    return regions_ramlog_cell(&desc, offset, out_space, out_offset) != NULL;
 }
 
 #endif /* MZ800EMU_CFG_DEBUGGER_ENABLED */

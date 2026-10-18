@@ -66,6 +66,18 @@ extern "C"
     extern void vramctrl_mz800_memop_write_byte(uint16_t addr, uint8_t value);
     extern void vramctrl_mz800_memop_write_byte_sync(uint16_t addr, uint8_t value);
 
+    /**
+     * @brief Kam by zápis do VRAM v režimu MZ-800 zapsal (bez zápisu a bez vedlejších efektů).
+     *
+     * Stejný výpočet jako vramctrl_mz800_memop_write_byte() (640 režim,
+     * hwscroll, WF_MODE, WF_PLANE, VBANK); pro záznam zápisů debuggeru.
+     *
+     * @param addr   Mz800 VRAM offset (0x0000 - 0x3FFF, = CPU adresa & 0x3FFF).
+     * @param out_phy Výstup: fyzická adresa v rovině (0x0000 - 0x1FFF).
+     * @param out_we  Výstup: maska rovin bit 0 = I, 1 = II, 2 = III, 3 = IV.
+     */
+    extern void vramctrl_mz800_write_target(uint16_t addr, unsigned *out_phy, unsigned *out_we);
+
 #include "mz800_gdg.h"
 #include "mz800_framebuffer.h"
 #include "memory/memory.h"

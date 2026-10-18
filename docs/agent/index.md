@@ -19,6 +19,7 @@ Read individual topics on demand via `resources/read`.
 | `emulator://docs/cmt_workflow` | CMT cassette workflow: real tape (`emu_cmt_*`) vs cmthack instant load, starting a program in a defined state (`emu_media_run_mzf`), transport flow, WAV recording, speed ratios / polarity / cpu boost / mzfsize check, SIMPLE_TAPE multi-block seek + per-block speed. Cross-refs `emulator://periph/cmt` and `emulator://periph/cmt/tape`. |
 | `emulator://docs/videorec_workflow` | Recording a gameplay video (all builds): `emu_videorec_*` tools, recipe start -> play with keystrokes -> markers -> snapshot retake -> stop, error messages, export of the recording to MP4. |
 | `emulator://docs/trace_read` | Reading trace records page by page: `emu_trace_status` / `emu_trace_read` for cputrack, iorqlog, intlog, hwlog, marklog and the Event Viewer ring - recipe, cursor, filters, character budget, columns (time `t`, `asm` from recorded bytes, `INT ACK`), `segment_replaced` and `gap`. |
+| `emulator://docs/ramlog` | Who wrote a byte: RAM write log `emu_ramlog_start` / `_who_wrote` / `_writers` / `_stop`, channel `ramlog` of `emu_trace_read` - recipe, record fields (`pc` of the writing instruction, physical cell, old / new, source), banking and VRAM planes, hidden unchanged writes, last-writer map after ring wrap. |
 | `emulator://docs/audio_capture_read` | Analysing sound without hearing it: audio capture memory read via MCP - `emu_audio_capture_summary` (silence, PSG notes, speaker tone or PCM estimate, reference vs output path delay and difference), `emu_trace_read` channels `audio_psg_writes` / `audio_levels` / `audio_frames`, `emu_audio_capture_pcm` (short WAV window, exact 44100 Hz copy); recipe, memory limits, what is heuristic. |
 | `emulator://docs/screenshot_workflow` | Saving and comparing pictures of the screen: `emu_screenshot_save_to_file` with `area` (full / canvas), `scale` (framebuffer / native dots / window 1-4) and `crop`, picture sizes per build, recipes (what the program drew, a part of the screen, a picture for a person); frame series `emu_screenshot_series_*` - every changed emulated frame as PNG for finding animation bugs. |
 
@@ -46,6 +47,8 @@ Read individual topics on demand via `resources/read`.
   for YouTube -> `videorec_workflow`.
 - Reading what the CPU executed, which ports it touched, interrupts or
   Event Viewer events after a run -> `trace_read`.
+- Finding out which code wrote a value into memory, or which code writes
+  into an area -> `ramlog`.
 - Finding out what a program plays (notes, silence, speaker PCM) or whether
   the audio output differs from the emulated sound -> `audio_capture_read`.
 - Checking what a program draws, comparing the screen with expected pixels

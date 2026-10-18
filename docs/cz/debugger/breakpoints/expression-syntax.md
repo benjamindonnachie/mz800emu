@@ -263,6 +263,7 @@ Identifikátory funkcí jsou case-insensitive. Argumenty jsou výrazy.
 | `s8(x)` | 1 | sign-extend low byte (= `(int8_t)(x & 0xFF)`) |
 | `s16(x)` | 1 | sign-extend low word (= `(int16_t)(x & 0xFFFF)`) |
 | `s32(x)` | 1 | identita pro 32-bit (= `x`) |
+| `lastwriter(addr)` | 1 | adresa instrukce, která naposledy zapsala paměťovou buňku na CPU adrese `addr` (aktuální mapování; grafická VRAM MZ-800 = nejnovější z jejích plánů) podle [záznamu zápisů](../ram-write-log.md); `-1` = od spuštění nebo vyprázdnění záznamu nezapsána, záznam se nespustil, nebo port mapovaný do paměti (po zastavení záznamu hodnota zůstává) |
 
 Špatná arita (= jiný počet argumentů) je parser-time chyba. Funkce
 mimo seznam vrací parse error "unknown function 'name'".

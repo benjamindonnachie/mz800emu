@@ -78,6 +78,8 @@ typedef struct st_DISPATCH_STUB_STATE {
     unsigned             aud_records;               /**< audio_capture_stream_copy: next_seq každého proudu. */
     uint64_t             aud_origin;                /**< audio_capture_stream_copy: origin_ticks. */
     int                  aud_copy_calls;            /**< Počet audio_capture_stream_copy. */
+    st_DBGAPI_RAMLOG_PARAM rl_last;                 /**< Kopie vstupu posledního DBGAPI_CMD_RAMLOG (výstupní ukazatele neplatné). */
+    int                  rl_calls;                  /**< Počet DBGAPI_CMD_RAMLOG. */
     void                *last_result;  /**< result_ptr poslední call. */
     int                  call_count;   /**< Počet volání mocku. */
     bool                 fail_next;    /**< Pokud true, příští call vrátí false. */

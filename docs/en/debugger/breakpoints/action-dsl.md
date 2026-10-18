@@ -47,11 +47,12 @@ BP, or Stop mode without a Custom script.
 
 ## Commands
 
-The action mini-DSL provides 19 commands: 11 basic ones (log, continue,
+The action mini-DSL provides 22 commands: 11 basic ones (log, continue,
 disable_self, enable, disable, poke, set, mark, `$name` assignment,
-clear_vars, if) and 8 forward commands for recording control (cdl_start,
+clear_vars, if) and 11 forward commands for recording control (cdl_start,
 cdl_stop, cdl_reset, cdl_export, trace_start, trace_stop, trace_save,
-snapshot - see the "Forward commands" section below).
+snapshot, ramlog_start, ramlog_stop, ramlog_clear - see the "Forward
+commands" section below).
 
 ### `log "fmt"[, expr...]`
 
@@ -377,6 +378,27 @@ single continuing BP capture both a trace segment and a snapshot.
 snapshot "snap.mzs"
 snapshot "snap-%d.mzs", $id
 ```
+
+### `ramlog_start [<from>, <to>]`, `ramlog_stop`, `ramlog_clear`
+
+Control the RAM write log ([RAM Write Log](../ram-write-log.md)).
+`ramlog_start` without arguments records writes into all memory; with
+two expressions it records one range of CPU addresses. The expressions
+are evaluated when the breakpoint hits (the order of the two values does
+not matter). `ramlog_start` replaces a running log (ring mode, default
+size). `ramlog_stop` stops recording (the records stay readable),
+`ramlog_clear` empties the log.
+
+```
+ramlog_start
+ramlog_start 0x4000, 0x40FF
+ramlog_start HL, HL + 15
+ramlog_stop
+```
+
+The expression function `lastwriter(addr)` returns the address of the
+instruction that last wrote the cell at `addr`, e.g.
+`if lastwriter(0x4000) == 0x3009 then ramlog_stop`.
 
 All file-name templates (`cdl_export` / `trace_save` / `snapshot`)
 share the same renderer as `log`, so you can generate numbered files

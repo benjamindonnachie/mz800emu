@@ -47,6 +47,7 @@ typedef enum en_TRACE_KIND
     TRACE_KIND_AUDIO_PSG_WRITES, /**< 24B zápis do PSG z paměti zachycení zvuku (st_AUDIO_CAPTURE_PSG_REC). */
     TRACE_KIND_AUDIO_LEVELS,     /**< 16B změna úrovně kanálu (st_AUDIO_CAPTURE_LEVEL_REC). */
     TRACE_KIND_AUDIO_FRAMES,     /**< 192B souhrn zvukového snímku (st_AUDIO_CAPTURE_FRAME_REC). */
+    TRACE_KIND_RAMLOG,           /**< 32B zápis do paměti (st_RAMLOG_REC, ring ramlog). */
     TRACE_KIND_COUNT         /**< Počet druhů (není platná hodnota). */
 } en_TRACE_KIND;
 
@@ -124,6 +125,12 @@ typedef struct st_TRACE_FILTER
     int      marker;     /**< marklog: -1 = nefiltrovat, jinak marker_id. */
     uint32_t channels;   /**< audio_levels / audio_psg_writes: bity zvukových kanálů (0 = ctc0, 1..4 psg0, 5..8 psg1), 0 = nefiltrovat. */
     int      reg;        /**< audio_psg_writes: -1 = nefiltrovat, jinak en_AUDIO_CAPTURE_PSG_REG. */
+    bool     has_addr;   /**< ramlog: CPU adresa zápisu v [addr_from, addr_to]. */
+    uint16_t addr_from;
+    uint16_t addr_to;
+    int      space;      /**< ramlog: -1 = nefiltrovat, jinak en_RAMLOG_SPACE. */
+    int      src;        /**< ramlog: -1 = nefiltrovat, jinak en_RAMLOG_SRC. */
+    bool     all;        /**< ramlog: i záznamy nezměněné a potlačené (výchozí skryté). */
     bool     has_t;      /**< t v [t_from, t_to] (jen řádky s časem). */
     uint64_t t_from;
     uint64_t t_to;

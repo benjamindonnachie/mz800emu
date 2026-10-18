@@ -385,7 +385,8 @@ bool dbgapi_ui_submit_cmd_sync_with_origin(st_DBGAPI_CMDRQ_QUEUE *queue,
                 if (g_stub_state.tr_bump_on_call > 0 &&
                     g_stub_state.tr_snap_calls >= g_stub_state.tr_bump_on_call) seg++;
                 size_t rs = (p->channel == DBGAPI_TRACE_CHANNEL_CPUTRACK) ? 12
-                          : (p->channel == DBGAPI_TRACE_CHANNEL_EVENTLOG) ? 32 : 24;
+                          : (p->channel == DBGAPI_TRACE_CHANNEL_EVENTLOG
+                             || p->channel == DBGAPI_TRACE_CHANNEL_RAMLOG) ? 32 : 24;
                 p->out.segment = seg;
                 p->out.live = 1;
                 p->out.record_size = rs;
@@ -402,6 +403,21 @@ bool dbgapi_ui_submit_cmd_sync_with_origin(st_DBGAPI_CMDRQ_QUEUE *queue,
                         uint8_t *r = p->out.ram_copy + (i - lo) * rs;
                         if (rs == 12) {
                             r[0] = (uint8_t)i; r[1] = 0x10; r[2] = 1; r[11] = 4;
+                        } else if (p->channel == DBGAPI_TRACE_CHANNEL_RAMLOG) {
+                            /* ramlog: insn_pc 3000h + i, CPU adresa 4000h + i, RAM,
+                             * old AA, new i; liché i nezměněné (skryté bez all). */
+                            st_RAMLOG_REC *rr = (st_RAMLOG_REC *)r;
+                            rr->t = 100u * i;
+                            rr->insn_pc = (uint16_t)(0x3000 + i);
+                            rr->cpu_addr = (uint16_t)(0x4000 + i);
+                            rr->offset = (uint32_t)(0x4000 + i);
+                            rr->space = RAMLOG_SPACE_RAM;
+                            rr->old_value = 0xAA;
+                            rr->new_value = (uint8_t)i;
+                            rr->src = RAMLOG_SRC_INSN;
+                            rr->tin = (uint8_t)(10 + i);
+                            rr->flags = (i & 1) ? RAMLOG_FLAG_UNCHANGED : 0;
+                            rr->count = 1;
                         } else {
                             uint64_t t = 100u * i;
                             memcpy(r, &t, 8);
@@ -430,6 +446,55 @@ bool dbgapi_ui_submit_cmd_sync_with_origin(st_DBGAPI_CMDRQ_QUEUE *queue,
                 }
                 for (size_t i = 0; i < p->n_events; i++) {
                     g_snprintf(p->out_event_texts[i], DBGAPI_EVENT_TEXT_MAX, "EV%u", p->events[i * 32 + 16]);
+                }
+            }
+            break;
+
+        case DBGAPI_CMD_RAMLOG:
+            /* ramlog: zapamatuje vstup; WHO_WROTE = jedna buňka RAM, poslední
+             * zapisovatel 3009h, historie 1 záznam; WRITERS = 2 zapisovatelé. */
+            if (data_ptr) {
+                st_DBGAPI_RAMLOG_PARAM *p = (st_DBGAPI_RAMLOG_PARAM *)data_ptr;
+                g_stub_state.rl_calls++;
+                g_stub_state.rl_last = *p;
+                p->out_error[0] = '\0';
+                memset(&p->out_status, 0, sizeof(p->out_status));
+                p->out_status.active = (p->op != DBGAPI_RAMLOG_OP_STOP);
+                p->out_status.allocated = true;
+                p->out_status.segment = 4;
+                p->out_status.capacity = p->cfg.capacity;
+                p->out_status.mode = p->cfg.mode;
+                p->out_status.next_seq = 10;
+                p->out_status.n_ranges = p->cfg.n_ranges;
+                memcpy(p->out_status.ranges, p->cfg.ranges, sizeof(p->out_status.ranges));
+                if (p->op == DBGAPI_RAMLOG_OP_WHO_WROTE) {
+                    p->out_n_cells = 1;
+                    memset(&p->out_cells[0], 0, sizeof(p->out_cells[0]));
+                    p->out_cells[0].space = RAMLOG_SPACE_RAM;
+                    p->out_cells[0].offset = p->by_cpu ? p->cpu_from : p->off_from;
+                    p->out_cells[0].has_last = true;
+                    p->out_cells[0].last.seq1 = 2;
+                    p->out_cells[0].last.insn_pc = 0x3009;
+                    p->out_cells[0].last.src = RAMLOG_SRC_INSN;
+                    if (p->out_recs && p->limit) {
+                        memset(&p->out_recs[0], 0, sizeof(p->out_recs[0]));
+                        p->out_recs[0].insn_pc = 0x3009;
+                        p->out_recs[0].cpu_addr = p->cpu_from;
+                        p->out_recs[0].old_value = 0xAA;
+                        p->out_recs[0].new_value = 0x66;
+                        p->out_seqs[0] = 1;
+                        p->out_cells[0].n_recs = 1;
+                    }
+                } else if (p->op == DBGAPI_RAMLOG_OP_WRITERS && p->out_writers && p->limit) {
+                    st_RAMLOG_WRITER w0 = { 0x3011, RAMLOG_SRC_INSN, 2, 2, 3 };
+                    st_RAMLOG_WRITER w1 = { 0x3003, RAMLOG_SRC_INSN, 1, 0, 0 };
+                    p->out_writers[0] = w0;
+                    p->out_n_writers = 1;
+                    if (p->limit > 1) {
+                        p->out_writers[1] = w1;
+                        p->out_n_writers = 2;
+                    }
+                    p->out_total_writers = 2;
                 }
             }
             break;

@@ -257,6 +257,7 @@ static void dbgapi_cmt_pulses_to_us ( const st_MZTAPE_PULSES_LENGTH *pulses, dou
 #include "libs/cfgfile/cfgmodule.h"
 #include "libs/cfgfile/cfgelement.h"
 #include "libs/cfgfile/cfgcommon.h"
+#include "debugger/trace/ramlog_hook.h"
 
 
 #if CFG_HWEXT_HAVE_FDC
@@ -981,6 +982,7 @@ const char *dbgapi_cmd_to_str(en_DBGAPI_CMD cmd)
         case DBGAPI_CMD_AUDIO_CAPTURE:             return "audio_capture";
         case DBGAPI_CMD_TRACE_SNAPSHOT:            return "trace_snapshot";
         case DBGAPI_CMD_TRACE_RESOLVE:             return "trace_resolve";
+        case DBGAPI_CMD_RAMLOG:                    return "ramlog";
         /* V1.D.1 - Core + CPU extras Resources */
         case DBGAPI_CMD_GET_CPU_IM2_VECTOR:        return "get_cpu_im2_vector";
         case DBGAPI_CMD_GET_CPU_INTERRUPT_BUS:     return "get_cpu_interrupt_bus";
@@ -5630,6 +5632,43 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
             p->out_pc_range_full = false;
             p->out_ram_prefix_t = 0;
             p->out_cpu_divider = tlog_common_get_cpu_divider ( );
+            if ( p->channel == DBGAPI_TRACE_CHANNEL_RAMLOG )
+            {
+                /* Ring záznamu zápisů: vše "v RAM" (ramlog_copy), first_seq
+                 * roste v režimu ring, nový segment po start/clear/resetu. */
+                memset ( &p->out, 0, sizeof ( p->out ) );
+                st_RAMLOG_STATUS rs;
+                ramlog_get_status ( &rs );
+                p->out.segment = rs.segment;
+                p->out.live = rs.active ? 1 : 0;
+                p->out.record_size = rs.allocated ? sizeof ( st_RAMLOG_REC ) : 0;
+                p->out.next_seq = rs.next_seq;
+                p->out.first_seq = rs.first_seq;
+                p->out.ram_first_seq = rs.first_seq;
+                p->out.chunks = g_array_new ( FALSE, FALSE, sizeof ( st_TLOG_CHUNK_META ) );
+                uint64_t lo = ( p->from_seq > rs.first_seq ) ? p->from_seq : rs.first_seq;
+                uint64_t want = ( lo < rs.next_seq ) ? rs.next_seq - lo : 0;
+                if ( want > p->count ) want = p->count;
+                uint64_t max_rec = p->max_copy_bytes / sizeof ( st_RAMLOG_REC );
+                if ( want > max_rec ) want = max_rec;
+                if ( want > 0 )
+                {
+                    p->out.ram_copy = (uint8_t *) g_try_malloc ( (size_t) want * sizeof ( st_RAMLOG_REC ) );
+                    if ( !p->out.ram_copy )
+                    {
+                        tlog_read_snapshot_clear ( &p->out );
+                        rq->success = false;
+                        break;
+                    };
+                    uint64_t first = 0;
+                    p->out.ram_copy_count = ramlog_copy ( lo, want, (st_RAMLOG_REC *) p->out.ram_copy, &first );
+                    p->out.ram_copy_seq = first;
+                };
+                p->out_ok = true;
+                p->out_pc_range_full = true;
+                rq->success = true;
+                break;
+            };
             if ( p->channel == DBGAPI_TRACE_CHANNEL_EVENTLOG )
             {
                 /* Ring Event Vieweru: vše "v RAM", nejstarší čitelný záznam
@@ -5737,6 +5776,119 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
                 eventlog_decode_detail ( &e, p->out_event_texts[ i ], DBGAPI_EVENT_TEXT_MAX );
             };
             rq->success = true;
+            break;
+        }
+
+        case DBGAPI_CMD_RAMLOG:
+        {
+            /* Záznam zápisů do paměti (ramlog_hook.h): start/stop přepíná
+             * callbacky CPU, proto jen v emu vlákně (drain). */
+            st_DBGAPI_RAMLOG_PARAM *p = (st_DBGAPI_RAMLOG_PARAM *) rq->data_ptr;
+            if ( !p )
+            {
+                rq->success = false;
+                break;
+            };
+            p->out_error[ 0 ] = 0;
+            switch ( p->op )
+            {
+                case DBGAPI_RAMLOG_OP_START:
+                    if ( !ramlog_hook_start ( &p->cfg ) )
+                    {
+                        g_strlcpy ( p->out_error, "Not enough memory for the RAM write log", sizeof ( p->out_error ) );
+                    };
+                    break;
+                case DBGAPI_RAMLOG_OP_STOP:
+                    ramlog_hook_stop ( );
+                    break;
+                case DBGAPI_RAMLOG_OP_CLEAR:
+                    ramlog_clear ( );
+                    break;
+                case DBGAPI_RAMLOG_OP_STATUS:
+                    break;
+                case DBGAPI_RAMLOG_OP_WHO_WROTE:
+                {
+                    st_RAMLOG_TARGET t[ RAMLOG_TARGETS_MAX ];
+                    unsigned n = 0;
+                    p->out_mmio = false;
+                    if ( p->by_cpu )
+                    {
+                        n = ramlog_platform_query_cells ( p->cpu_from, t, &p->out_mmio );
+                    }
+                    else if ( p->by_region )
+                    {
+                        /* Region Memory Browseru -> buňka (stejný převod jako
+                         * zápis přes regions_write). */
+                        memset ( &t[ 0 ], 0, sizeof ( t[ 0 ] ) );
+                        if ( !dbgapi_regions_ramlog_cell ( p->region_kind, p->region_sub, p->region_off,
+                                                           &t[ 0 ].space, &t[ 0 ].offset ) )
+                        {
+                            g_strlcpy ( p->out_error, "The RAM write log does not cover this memory region",
+                                        sizeof ( p->out_error ) );
+                            p->out_n_cells = 0;
+                            break;
+                        };
+                        if ( p->region_kind == REGION_KIND_VRAM_PHYS_PLANE )
+                        {
+                            /* Fyzický plán grafické VRAM MZ-800. */
+                            t[ 0 ].has_plane = true;
+                            t[ 0 ].plane = (uint8_t) p->region_sub;
+                        };
+                        n = 1;
+                    }
+                    else
+                    {
+                        memset ( &t[ 0 ], 0, sizeof ( t[ 0 ] ) );
+                        t[ 0 ].space = p->space;
+                        t[ 0 ].offset = p->off_from;
+                        n = 1;
+                    };
+                    p->out_n_cells = n;
+                    for ( unsigned i = 0; i < n; i++ )
+                    {
+                        st_DBGAPI_RAMLOG_CELL *c = &p->out_cells[ i ];
+                        memset ( c, 0, sizeof ( *c ) );
+                        c->space = t[ i ].space;
+                        c->offset = t[ i ].offset;
+                        c->has_plane = t[ i ].has_plane;
+                        c->plane = t[ i ].plane;
+                        c->has_last = ramlog_lastwriter ( (en_RAMLOG_SPACE) c->space, c->offset, &c->last );
+                        if ( p->out_recs && p->limit )
+                        {
+                            c->n_recs = ramlog_who_wrote ( (en_RAMLOG_SPACE) c->space, c->offset,
+                                                           p->out_seqs ? p->out_seqs + i * p->limit : NULL,
+                                                           p->out_recs + i * p->limit, p->limit,
+                                                           !p->include_unchanged );
+                        };
+                    };
+                    break;
+                }
+                case DBGAPI_RAMLOG_OP_WRITERS:
+                    p->out_n_writers = 0;
+                    p->out_total_writers = 0;
+                    if ( p->out_writers && p->limit )
+                    {
+                        p->out_n_writers = p->by_cpu
+                            ? ramlog_writers_cpu ( p->cpu_from, p->cpu_to, p->out_writers, p->limit,
+                                                   &p->out_total_writers, !p->include_unchanged )
+                            : ramlog_writers ( (en_RAMLOG_SPACE) p->space, p->off_from, p->off_to,
+                                               p->out_writers, p->limit, &p->out_total_writers,
+                                               !p->include_unchanged );
+                    };
+                    break;
+                case DBGAPI_RAMLOG_OP_RECENT:
+                    /* Průchod omezený na 64Ki záznamů, aby okno v GUI při
+                     * mnoha skrytých zápisech nebrzdilo emu vlákno. */
+                    p->out_n_recs = ( p->out_recs && p->limit )
+                        ? ramlog_recent ( p->out_seqs, p->out_recs, p->limit, !p->include_unchanged, 65536u )
+                        : 0;
+                    break;
+                default:
+                    g_strlcpy ( p->out_error, "Unknown ramlog operation", sizeof ( p->out_error ) );
+                    break;
+            };
+            ramlog_get_status ( &p->out_status );
+            rq->success = ( p->out_error[ 0 ] == 0 );
             break;
         }
 

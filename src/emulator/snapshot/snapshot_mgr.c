@@ -27,6 +27,9 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
+#include "debugger/trace/ramlog.h"
+#endif
 
 
 /* ========================================================================= */
@@ -568,6 +571,12 @@ static en_SNAPSHOT_RESULT snapshot_load_through_io(snapshot_io_t *io)
 
     /* Video záznam: retake nebo šev (časová osa emulace se právě změnila). */
     snap_videorec_after_load();
+
+#ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
+    /* Záznam zápisů: záznamy patří k předchozímu stavu - vyprázdnit (nový
+     * segment, běžící záznam pokračuje). */
+    ramlog_clear();
+#endif
 
     return SNAPSHOT_OK;
 }

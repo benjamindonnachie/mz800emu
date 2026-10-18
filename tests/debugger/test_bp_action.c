@@ -25,6 +25,8 @@
 #include "debugger/bp_vars.h"
 #include "debugger/symbols/sym_db.h"
 #include "emulator/emulator.h"     /* g_emulator.paused - gating snapshotu */
+#include "debugger/trace/ramlog.h" /* ramlog_start/stop: stav záznamu zápisů */
+#include "hw-generic/memory/memory.h" /* memory_write_byte_no_bp - zápis přes debugger cestu */
 #include "libs/cpu-z80/z80.h"
 
 #include <string.h>
@@ -813,6 +815,66 @@ static void test_fwd_snapshot_parse ( void ) {
     assert_parse_ok ( "snapshot \"snap-%X.mzs\", PC" );
 }
 
+/* --- ramlog parse --- */
+static void test_fwd_ramlog_parse ( void ) {
+    assert_parse_ok ( "ramlog_start" );
+    assert_parse_ok ( "ramlog_start 0x4000, 0x40FF" );
+    assert_parse_ok ( "ramlog_start $a, $a + 15" );
+    assert_parse_ok ( "ramlog_stop" );
+    assert_parse_ok ( "ramlog_clear" );
+    assert_parse_ok ( "if lastwriter(0x4000) == 0x3009 then ramlog_stop" );
+    /* Jen 0 nebo 2 argumenty. */
+    assert_parse_fails ( "ramlog_start 0x4000" );
+    assert_parse_fails ( "ramlog_start 1, 2, 3" );
+    assert_parse_fails ( "ramlog_start 0x4000 0x40FF" );
+}
+
+/*
+ * ramlog_start s výrazy vyhodnocenými při hitu, zápis přes debugger cestu se
+ * zdrojem POKE (pc 1234h), lastwriter() z mapy, ramlog_clear a ramlog_stop.
+ */
+static void test_fwd_ramlog_execute ( void ) {
+    exec_action ( "$a = 0x4001\nramlog_start $a, $a - 1" );
+    st_RAMLOG_STATUS st;
+    ramlog_get_status ( &st );
+    TEST_ASSERT_TRUE ( st.active );
+    TEST_ASSERT_EQUAL_UINT ( 1, st.n_ranges );
+    TEST_ASSERT_EQUAL_UINT32 ( 0x4000, st.ranges[0].from );     /* meze seřazené */
+    TEST_ASSERT_EQUAL_UINT32 ( 0x4001, st.ranges[0].to );
+
+    uint32_t saved = ramlog_source_push ( RAMLOG_SRC_POKE, 0x1234 );
+    memory_write_byte_no_bp ( 0x4000, 0x5A );
+    memory_write_byte_no_bp ( 0x5000, 0x5A );                    /* mimo rozsah */
+    ramlog_source_pop ( saved );
+
+    char err[160] = {0};
+    bp_expr_ctx_t ctx;
+    make_ctx ( &ctx );
+    bp_expr_t *e = bp_expr_parse ( "lastwriter(0x4000)", err, sizeof ( err ) );
+    TEST_ASSERT_NOT_NULL ( e );
+    TEST_ASSERT_EQUAL_INT32 ( 0x1234, bp_expr_eval ( e, &ctx ) );
+    bp_expr_free ( e );
+    e = bp_expr_parse ( "lastwriter(0x4001) + lastwriter(0x5000)", err, sizeof ( err ) );
+    TEST_ASSERT_NOT_NULL ( e );
+    TEST_ASSERT_EQUAL_INT32 ( -2, bp_expr_eval ( e, &ctx ) );    /* obě -1 = nezapsané */
+    bp_expr_free ( e );
+
+    exec_action ( "ramlog_clear" );
+    e = bp_expr_parse ( "lastwriter(0x4000)", err, sizeof ( err ) );
+    TEST_ASSERT_EQUAL_INT32 ( -1, bp_expr_eval ( e, &ctx ) );    /* nový segment */
+    bp_expr_free ( e );
+
+    exec_action ( "ramlog_stop" );
+    ramlog_get_status ( &st );
+    TEST_ASSERT_FALSE ( st.active );
+    exec_action ( "ramlog_start" );
+    ramlog_get_status ( &st );
+    TEST_ASSERT_TRUE ( st.active );
+    TEST_ASSERT_EQUAL_UINT ( 0, st.n_ranges );                   /* celá paměť */
+    exec_action ( "ramlog_stop" );
+    ramlog_free ( );
+}
+
 /* --- chybové stavy --- */
 static void test_fwd_parse_errors ( void ) {
     /* trace bez kanálu / neznámý kanál. */
@@ -1104,6 +1166,8 @@ int main ( int argc, char *argv[] ) {
     RUN_TEST ( test_fwd_cdl_lifecycle_parse );
     RUN_TEST ( test_fwd_trace_parse_channels );
     RUN_TEST ( test_fwd_snapshot_parse );
+    RUN_TEST ( test_fwd_ramlog_parse );
+    RUN_TEST ( test_fwd_ramlog_execute );
     RUN_TEST ( test_fwd_parse_errors );
     RUN_TEST ( test_fwd_classify_continue );
     RUN_TEST ( test_fwd_vision_0017_combo_parse );

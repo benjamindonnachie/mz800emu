@@ -596,6 +596,18 @@ bool dbg_ui_screen_refresh(void)
                                      DBG_UI_SCREEN_REFRESH_TIMEOUT_MS);
 }
 
+
+bool dbg_ui_ramlog(st_DBGAPI_RAMLOG_PARAM *p)
+{
+    if (!p) return false;
+    /* Prázdný out_error po neúspěchu = timeout (handler chybu vždy popíše). */
+    p->out_error[0] = '\0';
+    return dbgapi_ui_submit_cmd_sync(&g_dbgapi_cmdrq_queue,
+                                     DBGAPI_CMD_RAMLOG,
+                                     p, NULL,
+                                     DBG_UI_RAMLOG_CMD_TIMEOUT_MS);
+}
+
 #else /* !MZ800EMU_CFG_DEBUGGER_ENABLED */
 
 /* No-debugger build: pause/run helpery se volají z non-debug UI

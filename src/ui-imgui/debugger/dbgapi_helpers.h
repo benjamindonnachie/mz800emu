@@ -806,6 +806,36 @@ bool dbg_ui_callstack_reset(void);
  */
 bool dbg_ui_screen_refresh(void);
 
+/* ============================================================================
+ * Záznam zápisů do paměti (okno RAM Write Log, Memory Browser)
+ * ============================================================================ */
+
+/**
+ * @brief Limit vyzvednutí příkazu záznamu zápisů emu vláknem (ms).
+ *
+ * Stejná úvaha jako u DBG_UI_IO_CMD_TIMEOUT_MS: za běhu emu vlákno vyzvedá
+ * frontu na konci snímku, v pauze hned. Hodnota 1000 ms [neověřeno]
+ * měřením.
+ */
+#define DBG_UI_RAMLOG_CMD_TIMEOUT_MS 1000
+
+/**
+ * @brief Provede operaci záznamu zápisů přes DBGAPI_CMD_RAMLOG.
+ *
+ * Stejný příkaz jako MCP ramlog_*: start a stop přepínají callbacky CPU,
+ * dotazy čtou ring a mapu posledních zapisovatelů, vše v emu vlákně.
+ *
+ * @param p Vstup a výstup (st_DBGAPI_RAMLOG_PARAM). Výstupní pole out_recs /
+ *          out_seqs / out_writers alokuje volající podle operace.
+ * @return true = provedeno bez chyby; false = chyba operace (anglický text
+ *         v p->out_error) nebo timeout (p->out_error prázdný, příkaz
+ *         neproveden).
+ *
+ * @pre Volat z UI vlákna; blokuje až do dokončení příkazu. Parametr
+ *      i výstupní pole emu vlákno po návratu nepoužívá.
+ */
+bool dbg_ui_ramlog(st_DBGAPI_RAMLOG_PARAM *p);
+
 #ifdef __cplusplus
 }
 #endif

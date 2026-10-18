@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mz800emu 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-13 21:57+0200\n"
+"POT-Creation-Date: 2026-10-18 11:34+0200\n"
 "PO-Revision-Date: 2026-03-11 21:00+0100\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -101,7 +101,7 @@ msgstr "Banddateien"
 msgid "Select CMT file to open"
 msgstr "CMT-Datei zum Öffnen auswählen"
 
-#: src/emulator/hw-generic/cmt/cmthack.c:206
+#: src/emulator/hw-generic/cmt/cmthack.c:216
 msgid "Select a MZF File"
 msgstr "MZF-Datei auswählen"
 
@@ -641,6 +641,7 @@ msgstr "Größe"
 
 #: src/ui-imgui/cmt/cmt_tape_index.cpp:284
 #: src/ui-imgui/cmt/cmt_tape_index.cpp:314
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:416
 msgid "Start"
 msgstr "Start"
 
@@ -738,6 +739,7 @@ msgid "No tape loaded"
 msgstr "Kein Band geladen"
 
 #: src/ui-imgui/cmt/cmt_window.cpp:872
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:363
 msgid "Recording"
 msgstr "Aufnahme"
 
@@ -1014,7 +1016,7 @@ msgstr "Lesezeichen###bm_window"
 
 #: src/ui-imgui/debugger/bookmarks/bm_window.cpp:962
 #: src/ui-imgui/topmenu/menu_debugger.cpp:156
-#: src/ui-imgui/topmenu/menu_debugger.cpp:495
+#: src/ui-imgui/topmenu/menu_debugger.cpp:503
 msgid "Bookmarks"
 msgstr "Lesezeichen"
 
@@ -1029,6 +1031,7 @@ msgstr "Label"
 
 #: src/ui-imgui/debugger/bookmarks/bm_window.cpp:981
 #: src/ui-imgui/debugger/membrowser/membrowser_window.cpp:1150
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:314
 msgid "Address"
 msgstr "Adresse"
 
@@ -2302,10 +2305,10 @@ msgstr "Letztes Steuerwort"
 #: src/ui-imgui/debugger/pioz80_window.cpp:268
 #: src/ui-imgui/debugger/pioz80_window.cpp:293
 #: src/ui-imgui/debugger/pioz80_window.cpp:405
-#: src/ui-imgui/debugger/psg_window.cpp:360
-#: src/ui-imgui/debugger/psg_window.cpp:410
-#: src/ui-imgui/debugger/psg_window.cpp:456
-#: src/ui-imgui/debugger/psg_window.cpp:534
+#: src/ui-imgui/debugger/psg_window.cpp:362
+#: src/ui-imgui/debugger/psg_window.cpp:412
+#: src/ui-imgui/debugger/psg_window.cpp:458
+#: src/ui-imgui/debugger/psg_window.cpp:536
 msgid "Field"
 msgstr "Feld"
 
@@ -2315,10 +2318,10 @@ msgstr "Feld"
 #: src/ui-imgui/debugger/fdc_window.cpp:126
 #: src/ui-imgui/debugger/pioz80_window.cpp:294
 #: src/ui-imgui/debugger/pioz80_window.cpp:406
-#: src/ui-imgui/debugger/psg_window.cpp:361
-#: src/ui-imgui/debugger/psg_window.cpp:411
-#: src/ui-imgui/debugger/psg_window.cpp:457
-#: src/ui-imgui/debugger/psg_window.cpp:535
+#: src/ui-imgui/debugger/psg_window.cpp:363
+#: src/ui-imgui/debugger/psg_window.cpp:413
+#: src/ui-imgui/debugger/psg_window.cpp:459
+#: src/ui-imgui/debugger/psg_window.cpp:537
 #: src/ui-imgui/debugger/vars/vars_window.cpp:1504
 #: src/ui-imgui/debugger/watch/watch_window.cpp:1702
 msgid "Value"
@@ -3095,7 +3098,8 @@ msgstr "Keine"
 #: src/ui-imgui/debugger/eventview/event_viewer_window.cpp:2156
 #: src/ui-imgui/debugger/eventview/event_viewer_window.cpp:2682
 #: src/ui-imgui/debugger/eventview/event_viewer_window.cpp:2845
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3200
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3160
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:312
 msgid "Frame"
 msgstr "Frame"
 
@@ -3105,6 +3109,7 @@ msgstr "Kategorie"
 
 #: src/ui-imgui/debugger/eventview/event_viewer_window.cpp:2158
 #: src/ui-imgui/debugger/eventview/event_viewer_window.cpp:2693
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:313
 msgid "PC"
 msgstr "PC"
 
@@ -3591,7 +3596,7 @@ msgid "Drives"
 msgstr "Laufwerke"
 
 #: src/ui-imgui/debugger/fdc_window.cpp:187
-#: src/ui-imgui/topmenu/menu_debugger.cpp:588
+#: src/ui-imgui/topmenu/menu_debugger.cpp:596
 msgid "FDC State"
 msgstr "FDC-Status"
 
@@ -3701,6 +3706,7 @@ msgstr "DMD"
 #: src/ui-imgui/debugger/gdg_window_mz800.cpp:185
 #: src/ui-imgui/debugger/gdg_window_mz800.cpp:189
 #: src/ui-imgui/debugger/membrowser/membrowser_fill_dialog.cpp:223
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:408
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:99
 msgid "Mode"
 msgstr "Modus"
@@ -3890,13 +3896,13 @@ msgid "VBANK (WF/RF)"
 msgstr "VBANK (WF/RF)"
 
 #: src/ui-imgui/debugger/gdg_window_mz800.cpp:253
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:794
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:793
 #: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:122
 msgid "B"
 msgstr "B"
 
 #: src/ui-imgui/debugger/gdg_window_mz800.cpp:253
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:793
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:792
 msgid "A"
 msgstr "A"
 
@@ -4289,7 +4295,7 @@ msgid "Disassembler window"
 msgstr "Disassembler-Fenster"
 
 #: src/ui-imgui/debugger/ide8_window.cpp:123
-#: src/ui-imgui/topmenu/menu_debugger.cpp:606
+#: src/ui-imgui/topmenu/menu_debugger.cpp:614
 msgid "IDE8 State"
 msgstr "IDE8-Status"
 
@@ -4649,100 +4655,100 @@ msgstr "Löschen"
 msgid "Annotation @ 0x%08X"
 msgstr "Anmerkung @ 0x%08X"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:405
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:404
 msgid "Live"
 msgstr "Live"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:406
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:405
 #: src/ui-imgui/topmenu/menu_snapshot.cpp:60
 msgid "Snapshot"
 msgstr "Schnappschuss"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:407
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:406
 msgid "Auto @ pause"
 msgstr "Auto @ Pause"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:512
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:511
 msgid "Export diff as text"
 msgstr "Diff als Text exportieren"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:531
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:530
 #: src/ui-imgui/debugger/membrowser/membrowser_fileio.cpp:281
 #: src/ui-imgui/memext/memext_save_dialog.cpp:254
 msgid "Cannot open file for writing"
 msgstr "Datei kann nicht zum Schreiben geöffnet werden"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:569
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:568
 msgid "Export error###mb_diff_export_err"
 msgstr "Exportfehler###mb_diff_export_err"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:574
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:573
 msgid "OK###mb_diff_export_err_ok"
 msgstr "OK###mb_diff_export_err_ok"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:610
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:609
 msgid "No data - pick region and take snapshot"
 msgstr "Keine Daten - Region wählen und Schnappschuss erstellen"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:720
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:719
 #, c-format
 msgid "Changed: %llu of %llu (%.2f %%)  [size mismatch A=%llu B=%llu]"
 msgstr "Geändert: %llu von %llu (%.2f %%)  [Größenkonflikt A=%llu B=%llu]"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:727
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:726
 #, c-format
 msgid "Changed: %llu of %llu (%.2f %%)"
 msgstr "Geändert: %llu von %llu (%.2f %%)"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:738
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:737
 #, c-format
 msgid "auto-snapshots taken: %d"
 msgstr "automatische Schnappschüsse erstellt: %d"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:765
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:764
 #: src/ui-imgui/debugger/membrowser/membrowser_layers.cpp:496
 msgid "Snapshot Now"
 msgstr "Jetzt Schnappschuss"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:773
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:772
 msgid "Capture current region content as snapshot"
 msgstr "Aktuellen Regioninhalt als Schnappschuss erfassen"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:779
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:778
 msgid "(live)"
 msgstr "(live)"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:781
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:780
 #, c-format
 msgid "(%u B)"
 msgstr "(%u B)"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:785
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:784
 msgid "(no snapshot)"
 msgstr "(kein Schnappschuss)"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:797
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:796
 msgid "Auto-snapshot at pause###mb_diff_auto_pause"
 msgstr "Auto-Schnappschuss bei Pause###mb_diff_auto_pause"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:801
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:800
 msgid "Take fresh snapshot in AUTO sources on emulator pause"
 msgstr "Neuen Schnappschuss in AUTO-Quellen bei Emulatorpause erstellen"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:808
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:807
 msgid "Refresh A+B###mb_diff_refresh"
 msgstr "A+B aktualisieren###mb_diff_refresh"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:822
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:821
 msgid "Export...###mb_diff_export"
 msgstr "Exportieren...###mb_diff_export"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:827
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:826
 msgid "Export diff as text file (addr: AA -> BB per line)"
 msgstr "Diff als Textdatei exportieren (Adr.: AA -> BB pro Zeile)"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:849
-#: src/ui-imgui/topmenu/menu_debugger.cpp:405
+#: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:848
+#: src/ui-imgui/topmenu/menu_debugger.cpp:413
 msgid "Memory Diff"
 msgstr "Speicher-Diff"
 
@@ -4858,7 +4864,7 @@ msgid "Size (hex)###mb_save_size"
 msgstr "Größe (hex)###mb_save_size"
 
 #: src/ui-imgui/debugger/membrowser/membrowser_fileio.cpp:473
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1873
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1833
 #: src/ui-imgui/debugger/sections/dbg_profiler_pc.cpp:307
 msgid "Range:"
 msgstr "Bereich:"
@@ -5065,69 +5071,74 @@ msgstr "Wiederholen fehlgeschlagen: Backend-Schreibfehler"
 msgid "Redo: applied"
 msgstr "Wiederholen: angewendet"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:985
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:987
 msgid "Memext bank"
 msgstr "Memext-Bank"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:987
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:989
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:117
 msgid "RAM"
 msgstr "RAM"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1409
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1411
 msgid "Backend not ready"
 msgstr "Backend nicht bereit"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1415
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1417
 msgid "Region empty or disconnected"
 msgstr "Region leer oder getrennt"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1568
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1570
 msgid "Add bookmark for current cursor"
 msgstr "Lesezeichen für aktuellen Cursor hinzufügen"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1579
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1581
 msgid "Show in Memory Map"
 msgstr "In Speicherkarte anzeigen"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1601
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1603
 msgid "Unfreeze byte at cursor"
 msgstr "Byte am Cursor freigeben"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1608
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1610
 #, c-format
 msgid "Freeze byte at cursor (= 0x%02X)"
 msgstr "Byte am Cursor einfrieren (= 0x%02X)"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1626
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1628
 msgid "Insert character..."
 msgstr "Zeichen einfügen..."
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1636
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1638
 msgid "Open in PCG editor..."
 msgstr "Im PCG-Editor öffnen..."
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1650
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1652
+msgid "Who wrote this byte?"
+msgstr "Wer hat dieses Byte geschrieben?"
+
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1663
 msgid "Edit annotation at cursor..."
 msgstr "Anmerkung am Cursor bearbeiten..."
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1651
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1664
 msgid "Add annotation at cursor..."
 msgstr "Anmerkung am Cursor hinzufügen..."
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1658
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1671
 msgid "Delete annotation at cursor"
 msgstr "Anmerkung am Cursor löschen"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1674
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1687
 msgid "Fill at cursor..."
 msgstr "Am Cursor füllen..."
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1685
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1698
 #, c-format
 msgid "Undo  (%d levels)\tCtrl+Z"
 msgstr "Rückgängig  (%d Ebenen)\tStrg+Z"
 
-#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1687
+#: src/ui-imgui/debugger/membrowser/membrowser_hexview.cpp:1700
 #, c-format
 msgid "Redo  (%d levels)\tCtrl+Y"
 msgstr "Wiederholen  (%d Ebenen)\tStrg+Y"
@@ -5331,7 +5342,7 @@ msgstr "Eingefrorene Bytes"
 
 #: src/ui-imgui/debugger/membrowser/membrowser_layers.cpp:499
 #: src/ui-imgui/topmenu/menu_debugger.cpp:161
-#: src/ui-imgui/topmenu/menu_debugger.cpp:485
+#: src/ui-imgui/topmenu/menu_debugger.cpp:493
 msgid "Symbols"
 msgstr "Symbole"
 
@@ -5384,6 +5395,7 @@ msgid "Rotate 90 CW"
 msgstr "90 im Uhrzeigersinn drehen"
 
 #: src/ui-imgui/debugger/membrowser/membrowser_pcg.cpp:250
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:428
 #: src/ui-imgui/debugger/sections/dbg_stack_panel.cpp:2538
 msgid "Clear"
 msgstr "Leeren"
@@ -5531,6 +5543,7 @@ msgid "Monitor ROM"
 msgstr "Monitor-ROM"
 
 #: src/ui-imgui/debugger/membrowser/membrowser_regions.cpp:549
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:118
 msgid "VRAM"
 msgstr "VRAM"
 
@@ -5547,6 +5560,7 @@ msgid "Plane IV (8 KB) [exVRAM]"
 msgstr "Ebene IV (8 KB) [exVRAM]"
 
 #: src/ui-imgui/debugger/membrowser/membrowser_regions.cpp:556
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:119
 msgid "PCG"
 msgstr "PCG"
 
@@ -6785,249 +6799,249 @@ msgstr "Funktionen###profiler_tab_func"
 msgid "Per PC###profiler_tab_pc"
 msgstr "Pro PC###profiler_tab_pc"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1173
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1328
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1159
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1314
 msgid "no data"
 msgstr "keine Daten"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1182
-#: src/ui-imgui/debugger/psg_window.cpp:261
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1168
+#: src/ui-imgui/debugger/psg_window.cpp:263
 msgid "silent"
 msgstr "stumm"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1200
-#: src/ui-imgui/debugger/psg_window.cpp:280
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1186
+#: src/ui-imgui/debugger/psg_window.cpp:282
 msgid "DC"
 msgstr "DC"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1449
-#: src/ui-imgui/debugger/psg_window.cpp:72
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1435
+#: src/ui-imgui/debugger/psg_window.cpp:73
 msgid "TONE"
 msgstr "TON"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1451
-#: src/ui-imgui/debugger/psg_window.cpp:73
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1437
+#: src/ui-imgui/debugger/psg_window.cpp:74
 msgid "NOISE"
 msgstr "RAUSCHEN"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1455
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1812
-#: src/ui-imgui/debugger/psg_window.cpp:592
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1441
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1772
+#: src/ui-imgui/debugger/psg_window.cpp:594
 msgid "Channel"
 msgstr "Kanal"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1813
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1773
 msgid "chip"
 msgstr "Chip"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1816
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1776
 msgid "Pitch: Noise"
 msgstr "Tonhöhe: Rauschen"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1821
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1781
 msgid "Pitch"
 msgstr "Tonhöhe"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1822
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1782
 msgid "cents"
 msgstr "Cent"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1824
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1784
 msgid "Duration"
 msgstr "Dauer"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1825
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1785
 msgid "Velocity"
 msgstr "Velocity"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1838
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1798
 msgid "Volume changes"
 msgstr "Lautstärkeänderungen"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1842
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1802
 msgid "overflowed"
 msgstr "übergelaufen"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1846
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3218
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1806
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3178
 msgid "active"
 msgstr "aktiv"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1875
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1835
 msgid "Last 10s###PSGScopeRoll10s"
 msgstr "Letzte 10s###PSGScopeRoll10s"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1878
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1838
 msgid "Last 30s###PSGScopeRoll30s"
 msgstr "Letzte 30s###PSGScopeRoll30s"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1881
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1841
 msgid "All###PSGScopeRollAll"
 msgstr "Alle###PSGScopeRollAll"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1885
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1845
 msgid "Channels:"
 msgstr "Kanäle:"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1897
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1857
 msgid "CH3 (Noise)"
 msgstr "CH3 (Rauschen)"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1963
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:1923
 msgid "No notes recorded yet. Play some audio to populate the piano roll."
 msgstr ""
 "Noch keine Noten aufgezeichnet. Spielen Sie Audio ab, um die Piano-Roll zu "
 "füllen."
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:2040
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:2000
 msgid "NS"
 msgstr "NS"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:2980
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:2940
 msgid "Export PSG notes as CSV"
 msgstr "PSG-Noten als CSV exportieren"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3008
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:2968
 msgid "Export PSG notes as MIDI"
 msgstr "PSG-Noten als MIDI exportieren"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3090
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3050
 msgid "Export error###PSGScopeExportError"
 msgstr "Exportfehler###PSGScopeExportError"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3093
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3053
 msgid "Failed to open file for writing"
 msgstr "Datei konnte nicht zum Schreiben geöffnet werden"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3097
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3057
 msgid "OK###PSGScopeExportErrorOK"
 msgstr "OK###PSGScopeExportErrorOK"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3127
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3087
 msgid "Export MIDI...###PSGScopeExportMidiBtn"
 msgstr "MIDI exportieren...###PSGScopeExportMidiBtn"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3134
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3146
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3094
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3106
 msgid "No notes recorded yet"
 msgstr "Noch keine Noten aufgezeichnet"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3139
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3099
 msgid "Export CSV...###PSGScopeExportCsvBtn"
 msgstr "CSV exportieren...###PSGScopeExportCsvBtn"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3157
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3117
 msgid "Tempo BPM###PSGScopeTempoBpm"
 msgstr "Tempo BPM###PSGScopeTempoBpm"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3168
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3128
 msgid "Clear###PSGScopeClearBtn"
 msgstr "Leeren###PSGScopeClearBtn"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3175
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3135
 msgid "Reset scope sample buffer and recorded notes"
 msgstr "Scope-Sample-Puffer und aufgezeichnete Noten zurücksetzen"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3206
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3166
 msgid "Notes"
 msgstr "Noten"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3228
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3188
 msgid "Log samples###PSGScopeLogSamples"
 msgstr "Samples protokollieren###PSGScopeLogSamples"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3237
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3197
 msgid "Write per-frame sample log to TSV file"
 msgstr "Pro-Frame-Sample-Log in TSV-Datei schreiben"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3242
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3202
 msgid "Log events###PSGScopeLogEvents"
 msgstr "Ereignisse protokollieren###PSGScopeLogEvents"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3251
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3211
 msgid "Write state machine event log to TSV file"
 msgstr "State-Machine-Ereignisprotokoll in TSV-Datei schreiben"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3262
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3222
 msgid "Log writes###PSGScopeLogWrites"
 msgstr "Schreibzugriffe protokollieren###PSGScopeLogWrites"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3297
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3257
 msgid "Log every PSG register write to file (1:1 reconstruction)"
 msgstr "Jeden PSG-Registerzugriff in Datei protokollieren (1:1-Rekonstruktion)"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3326
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3286
 msgid "PSG Audio Scope###PSGAudioScope"
 msgstr "PSG Audio Scope###PSGAudioScope"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3397
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3357
 msgid "PSG Left (chip 0)###PSGScopeLeftHdr"
 msgstr "PSG Links (Chip 0)###PSGScopeLeftHdr"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3403
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3363
 msgid "PSG Right (chip 1)###PSGScopeRightHdr"
 msgstr "PSG Rechts (Chip 1)###PSGScopeRightHdr"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3412
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3372
 msgid "PSG (chip 0)###PSGScopeMonoHdr"
 msgstr "PSG (Chip 0)###PSGScopeMonoHdr"
 
-#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3420
+#: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3380
 msgid "Piano roll###PSGScopePianoRollHdr"
 msgstr "Piano-Roll###PSGScopePianoRollHdr"
 
-#: src/ui-imgui/debugger/psg_window.cpp:82
+#: src/ui-imgui/debugger/psg_window.cpp:83
 msgid "DIV /16 (fast)"
 msgstr "DIV /16 (schnell)"
 
-#: src/ui-imgui/debugger/psg_window.cpp:83
+#: src/ui-imgui/debugger/psg_window.cpp:84
 msgid "DIV /32 (mid)"
 msgstr "DIV /32 (mittel)"
 
-#: src/ui-imgui/debugger/psg_window.cpp:84
+#: src/ui-imgui/debugger/psg_window.cpp:85
 msgid "DIV /64 (slow)"
 msgstr "DIV /64 (langsam)"
 
-#: src/ui-imgui/debugger/psg_window.cpp:85
+#: src/ui-imgui/debugger/psg_window.cpp:86
 msgid "DIV from CH2 tone"
 msgstr "DIV von CH2-Ton"
 
-#: src/ui-imgui/debugger/psg_window.cpp:92
+#: src/ui-imgui/debugger/psg_window.cpp:93
 msgid "PERIODIC"
 msgstr "PERIODISCH"
 
-#: src/ui-imgui/debugger/psg_window.cpp:93
+#: src/ui-imgui/debugger/psg_window.cpp:94
 msgid "WHITE"
 msgstr "WEISS"
 
-#: src/ui-imgui/debugger/psg_window.cpp:116
+#: src/ui-imgui/debugger/psg_window.cpp:117
 msgid "0 dB (max)"
 msgstr "0 dB (max)"
 
-#: src/ui-imgui/debugger/psg_window.cpp:118
+#: src/ui-imgui/debugger/psg_window.cpp:119
 msgid "silent (off)"
 msgstr "stumm (aus)"
 
-#: src/ui-imgui/debugger/psg_window.cpp:362
-#: src/ui-imgui/debugger/psg_window.cpp:412
-#: src/ui-imgui/debugger/psg_window.cpp:458
-#: src/ui-imgui/debugger/psg_window.cpp:536
+#: src/ui-imgui/debugger/psg_window.cpp:364
+#: src/ui-imgui/debugger/psg_window.cpp:414
+#: src/ui-imgui/debugger/psg_window.cpp:460
+#: src/ui-imgui/debugger/psg_window.cpp:538
 msgid "Bin/Note"
 msgstr "Bin/Note"
 
-#: src/ui-imgui/debugger/psg_window.cpp:368
+#: src/ui-imgui/debugger/psg_window.cpp:370
 msgid "Latched channel (CS)"
 msgstr "Gelatchter Kanal (CS)"
 
-#: src/ui-imgui/debugger/psg_window.cpp:369
+#: src/ui-imgui/debugger/psg_window.cpp:371
 msgid "Index kanalu (0..3) ktery prijme dalsi DATA byte."
 msgstr "Kanalindex (0..3), der das naechste DATA-Byte erhaelt."
 
-#: src/ui-imgui/debugger/psg_window.cpp:374
+#: src/ui-imgui/debugger/psg_window.cpp:376
 msgid "Next DATA byte targets"
 msgstr "Ziel des naechsten DATA-Bytes"
 
-#: src/ui-imgui/debugger/psg_window.cpp:377
+#: src/ui-imgui/debugger/psg_window.cpp:379
 msgid ""
 "Bit [4] posledniho LATCH bytu. 1 = attn, 0 = tone (TONE kanal) / noise cfg "
 "(CH3)."
@@ -7035,48 +7049,48 @@ msgstr ""
 "Bit [4] des letzten LATCH-Bytes. 1 = attn, 0 = tone (TONE-Kanal) / noise cfg "
 "(CH3)."
 
-#: src/ui-imgui/debugger/psg_window.cpp:380
+#: src/ui-imgui/debugger/psg_window.cpp:382
 msgid "attenuation"
 msgstr "Dämpfung"
 
-#: src/ui-imgui/debugger/psg_window.cpp:382
+#: src/ui-imgui/debugger/psg_window.cpp:384
 msgid "tone / noise cfg"
 msgstr "tone / noise cfg"
 
-#: src/ui-imgui/debugger/psg_window.cpp:416
+#: src/ui-imgui/debugger/psg_window.cpp:418
 msgid "Channel type"
 msgstr "Kanaltyp"
 
-#: src/ui-imgui/debugger/psg_window.cpp:418
+#: src/ui-imgui/debugger/psg_window.cpp:420
 msgid "CH0-2 vzdy TONE, CH3 vzdy NOISE (initializace v psg_instance_init)."
 msgstr ""
 "CH0-2 immer TONE, CH3 immer NOISE (Initialisierung in "
 "psg_instance_init).CH0-2 immer TONE, CH3 immer NOISE (Initialisierung in "
 "psg_instance_init)."
 
-#: src/ui-imgui/debugger/psg_window.cpp:423
+#: src/ui-imgui/debugger/psg_window.cpp:425
 msgid "Attenuation"
 msgstr "Dämpfung"
 
-#: src/ui-imgui/debugger/psg_window.cpp:426
+#: src/ui-imgui/debugger/psg_window.cpp:428
 msgid "4-bit volume: 0 = max (0 dB), krok -2 dB, 15 = silent (channel off)."
 msgstr ""
 "4-Bit-Lautstärke: 0 = max (0 dB), Schritt -2 dB, 15 = stumm (Kanal aus).4-"
 "Bit-Lautstaerke: 0 = max (0 dB), Schritt -2 dB, 15 = silent (Kanal aus)."
 
-#: src/ui-imgui/debugger/psg_window.cpp:464
+#: src/ui-imgui/debugger/psg_window.cpp:466
 msgid "Tone divider (10-bit)"
 msgstr "Ton-Teiler (10-bit)"
 
-#: src/ui-imgui/debugger/psg_window.cpp:467
+#: src/ui-imgui/debugger/psg_window.cpp:469
 msgid "10-bit value 0..1023. f_out = CPU_CLOCK / (32 * divider). <2 = DC."
 msgstr "10-Bit-Wert 0..1023. f_out = CPU_CLOCK / (32 * divider). <2 = DC."
 
-#: src/ui-imgui/debugger/psg_window.cpp:476
+#: src/ui-imgui/debugger/psg_window.cpp:478
 msgid "Frequency"
 msgstr "Frequenz"
 
-#: src/ui-imgui/debugger/psg_window.cpp:479
+#: src/ui-imgui/debugger/psg_window.cpp:481
 msgid ""
 "CPU_CLOCK / (32 * divider). MZ-800: 3.5469 MHz, MZ-700/MZ-1500: 3.5796 MHz "
 "CPU clock."
@@ -7084,15 +7098,15 @@ msgstr ""
 "CPU_CLOCK / (32 * divider). MZ-800: 3,5469 MHz, MZ-700/MZ-1500: 3,5796 MHz "
 "CPU-Takt."
 
-#: src/ui-imgui/debugger/psg_window.cpp:482
+#: src/ui-imgui/debugger/psg_window.cpp:484
 msgid "DC (no oscillation)"
 msgstr "DC (keine Oszillation)"
 
-#: src/ui-imgui/debugger/psg_window.cpp:496
+#: src/ui-imgui/debugger/psg_window.cpp:498
 msgid "MIDI note"
 msgstr "MIDI-Note"
 
-#: src/ui-imgui/debugger/psg_window.cpp:499
+#: src/ui-imgui/debugger/psg_window.cpp:501
 msgid ""
 "12 * log2(f / 440) + 69. A4 = 440 Hz = 69. Cents = odchylka od rovnomerne "
 "temperace."
@@ -7100,34 +7114,34 @@ msgstr ""
 "12 * log2(f / 440) + 69. A4 = 440 Hz = 69. Cents = Abweichung von "
 "gleichschwebender Stimmung."
 
-#: src/ui-imgui/debugger/psg_window.cpp:539
+#: src/ui-imgui/debugger/psg_window.cpp:541
 msgid "Noise divider type"
 msgstr "Rauschteiler-Typ"
 
-#: src/ui-imgui/debugger/psg_window.cpp:542
+#: src/ui-imgui/debugger/psg_window.cpp:544
 msgid "0..2 = fixed PSG dividery 16/32/64, 3 = CH2 tone divider rizeny shift."
 msgstr "0..2 = feste PSG-Teiler 16/32/64, 3 = CH2-Tonteiler-gesteuerter Shift."
 
-#: src/ui-imgui/debugger/psg_window.cpp:544
+#: src/ui-imgui/debugger/psg_window.cpp:546
 msgid "Noise feedback"
 msgstr "Rausch-Rueckkopplung"
 
-#: src/ui-imgui/debugger/psg_window.cpp:547
+#: src/ui-imgui/debugger/psg_window.cpp:549
 msgid "Periodic = LFSR top bit only, White = XOR feedback (sirsi spektrum)."
 msgstr ""
 "Periodic = nur oberes LFSR-Bit, White = XOR-Rückkopplung (breiteres "
 "Spektrum).Periodic = nur LFSR-Top-Bit, White = XOR-Feedback (breiteres "
 "Spektrum)."
 
-#: src/ui-imgui/debugger/psg_window.cpp:552
+#: src/ui-imgui/debugger/psg_window.cpp:554
 msgid "Tone divider: N/A (NOISE channel)"
 msgstr "Tone Divider: N/A (NOISE-Kanal)"
 
-#: src/ui-imgui/debugger/psg_window.cpp:557
+#: src/ui-imgui/debugger/psg_window.cpp:559
 msgid "Waveform"
 msgstr "Wellenform"
 
-#: src/ui-imgui/debugger/psg_window.cpp:560
+#: src/ui-imgui/debugger/psg_window.cpp:562
 msgid ""
 "Oscilloscope view: TONE = square wave (4 periods fixed), NOISE = pseudo-"
 "random pattern. Amplitude scaled by attenuation."
@@ -7135,28 +7149,28 @@ msgstr ""
 "Oszilloskop-Ansicht: TONE = Rechteck (4 Perioden fest), NOISE = "
 "pseudozufälliges Muster. Amplitude durch Dämpfung skaliert."
 
-#: src/ui-imgui/debugger/psg_window.cpp:576
+#: src/ui-imgui/debugger/psg_window.cpp:578
 msgid "Latch state"
 msgstr "Latch-Zustand"
 
-#: src/ui-imgui/debugger/psg_window.cpp:611
+#: src/ui-imgui/debugger/psg_window.cpp:613
 msgid "PSG SN76489 State###PSGState"
 msgstr "PSG SN76489 Zustand###PSGState"
 
-#: src/ui-imgui/debugger/psg_window.cpp:626
+#: src/ui-imgui/debugger/psg_window.cpp:628
 msgid "PSG Left (chip 0)###PSGLeftHdr"
 msgstr "PSG Links (Chip 0)###PSGLeftHdr"
 
-#: src/ui-imgui/debugger/psg_window.cpp:633
+#: src/ui-imgui/debugger/psg_window.cpp:635
 msgid "PSG Right (chip 1)###PSGRightHdr"
 msgstr "PSG Rechts (Chip 1)###PSGRightHdr"
 
-#: src/ui-imgui/debugger/psg_window.cpp:643
+#: src/ui-imgui/debugger/psg_window.cpp:645
 msgid "PSG (chip 0)###PSGMonoHdr"
 msgstr "PSG (chip 0)###PSGMonoHdr"
 
 #: src/ui-imgui/debugger/qdisk_window.cpp:147
-#: src/ui-imgui/topmenu/menu_debugger.cpp:594
+#: src/ui-imgui/topmenu/menu_debugger.cpp:602
 msgid "QDisk State"
 msgstr "QDisk-Status"
 
@@ -7183,7 +7197,7 @@ msgid "Virtual mode"
 msgstr "Virtueller Modus"
 
 #: src/ui-imgui/debugger/ramdisk_window.cpp:139
-#: src/ui-imgui/topmenu/menu_debugger.cpp:600
+#: src/ui-imgui/topmenu/menu_debugger.cpp:608
 msgid "Memory Disk State"
 msgstr "Speicherdisk-Status"
 
@@ -7200,6 +7214,255 @@ msgstr "Pezik 0xE8 - 0xEF"
 #: src/ui-imgui/topmenu/devices/menu_ramdisk.cpp:108
 msgid "Pezik 0x68 - 0x6F"
 msgstr "Pezik 0x68 - 0x6F"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:120
+#: src/ui-imgui/topmenu/devices/menu_memext.cpp:56
+msgid "MemExt"
+msgstr "MemExt"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:121
+#: src/ui-imgui/topmenu/devices/menu_rom.cpp:24
+msgid "ROM"
+msgstr "ROM"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:130
+msgid "Instruction"
+msgstr "Befehl"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:131
+msgid "Interrupt (return address)"
+msgstr "Interrupt (Rücksprungadresse)"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:132
+msgid "NMI (return address)"
+msgstr "NMI (Rücksprungadresse)"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:133
+#: src/ui-imgui/topmenu/menu_debugger.cpp:63
+msgid "Debugger"
+msgstr "Debugger"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:134
+msgid "Breakpoint poke"
+msgstr "Poke aus Breakpoint"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:135
+msgid "Freeze"
+msgstr "Einfrieren"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:136
+msgid "Tape (CMT hack)"
+msgstr "Band (CMT-Hack)"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:137
+#: src/ui-imgui/memext/memext_load_dialog.cpp:162
+msgid "Load"
+msgstr "Laden"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:157
+msgid "plane"
+msgstr "Ebene"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:188
+msgid "Command failed:"
+msgstr "Befehl fehlgeschlagen:"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:190
+msgid "The emulator did not respond in time."
+msgstr "Der Emulator hat nicht rechtzeitig geantwortet."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:289
+msgid ""
+"Enter the range as hex CPU addresses (From, optionally To), or leave both "
+"empty for all memory."
+msgstr "Geben Sie den Bereich als hexadezimale CPU-Adressen an (From, optional To) oder lassen Sie beide leer für den gesamten Speicher."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:311
+msgid "Seq"
+msgstr "Nr."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:315
+msgid "Cell"
+msgstr "Zelle"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:316
+msgid "Old"
+msgstr "Alt"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:317
+msgid "New"
+msgstr "Neu"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:318
+msgid "Source"
+msgstr "Quelle"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:319
+msgid "Note"
+msgstr "Hinweis"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:348
+#, c-format
+msgid "%u bytes loaded"
+msgstr "%u Bytes geladen"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:350
+msgid "dropped (ROM)"
+msgstr "verworfen (ROM)"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:352
+msgid "value unchanged"
+msgstr "Wert unverändert"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:365
+msgid "Stopped"
+msgstr "Gestoppt"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:367
+msgid "Not started"
+msgstr "Nicht gestartet"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:371
+#, c-format
+msgid ""
+"Records: %llu of %llu writes, overwritten %llu, dropped %llu, memory %.1f MB"
+msgstr "Einträge: %llu von %llu Schreibzugriffen, überschrieben %llu, verworfen %llu, Speicher %.1f MB"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:378
+msgid "Range: all memory"
+msgstr "Bereich: gesamter Speicher"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:382
+#, c-format
+msgid "Range: %s %05X-%05X"
+msgstr "Bereich: %s %05X-%05X"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:385
+#, c-format
+msgid "Range: CPU %04X-%04X"
+msgstr "Bereich: CPU %04X-%04X"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:389
+#, c-format
+msgid "(+%u more)"
+msgstr "(+%u weitere)"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:395
+msgid "From"
+msgstr "Von"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:397
+msgid "First CPU address (hex). Leave From and To empty to record all memory."
+msgstr "Erste CPU-Adresse (hex). Von und Bis leer lassen, um den gesamten Speicher aufzuzeichnen."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:401
+msgid "To"
+msgstr "Bis"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:403
+msgid "Last CPU address (hex); empty = only the From address."
+msgstr "Letzte CPU-Adresse (hex); leer = nur die Von-Adresse."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:406
+msgid "Ring (keep newest)"
+msgstr "Ring (neueste behalten)"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:406
+msgid "Fill (keep first)"
+msgstr "Füllen (erste behalten)"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:411
+msgid "Records"
+msgstr "Einträge"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:413
+msgid "Log size in records (16-16777216), 32 bytes each."
+msgstr "Protokollgröße in Einträgen (16-16777216), je 32 Bytes."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:418
+msgid ""
+"Start recording; a running log is replaced. Reset and snapshot load empty "
+"the log."
+msgstr "Startet die Aufzeichnung; ein laufendes Protokoll wird ersetzt. Reset und Laden eines Snapshots leeren das Protokoll."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:423
+msgid "Stop"
+msgstr "Stopp"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:432
+msgid "(all memory: emulation is slower)"
+msgstr "(gesamter Speicher: Emulation ist langsamer)"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:439
+msgid "Who wrote"
+msgstr "Wer hat geschrieben"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:441
+msgid "CPU address"
+msgstr "CPU-Adresse"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:444
+msgid "Find"
+msgstr "Suchen"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:451
+msgid "Enter a hex CPU address."
+msgstr "Geben Sie eine hexadezimale CPU-Adresse ein."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:455
+msgid "Include unchanged writes"
+msgstr "Unveränderte Schreibzugriffe einbeziehen"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:463
+msgid ""
+"Enter an address, or use \"Who wrote this byte?\" in the Memory Browser."
+msgstr "Geben Sie eine Adresse ein oder verwenden Sie \"Wer hat dieses Byte geschrieben?\" im Memory Browser."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:467
+msgid "This address is a memory-mapped I/O port, not a memory cell."
+msgstr "Diese Adresse ist ein speicherabgebildeter I/O-Port, keine Speicherzelle."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:471
+msgid "No memory cell is mapped at this address."
+msgstr "An dieser Adresse ist keine Speicherzelle eingeblendet."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:480
+#, c-format
+msgid "%s: last written by PC %04X (%s), record %u"
+msgstr "%s: zuletzt geschrieben von PC %04X (%s), Eintrag %u"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:483
+#, c-format
+msgid "%s: not written since the log started"
+msgstr "%s: seit Start des Protokolls nicht geschrieben"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:490
+msgid ""
+"The write is no longer in the log (overwritten); only the last writer is "
+"known."
+msgstr "Der Schreibzugriff ist nicht mehr im Protokoll (überschrieben); nur der letzte Schreiber ist bekannt."
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:548
+msgid "RAM Write Log###ramlog_window"
+msgstr "RAM-Schreibprotokoll###ramlog_window"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:574
+msgid "Newest writes"
+msgstr "Neueste Schreibzugriffe"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:575
+msgid "Auto refresh"
+msgstr "Automatisch aktualisieren"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:577
+#: src/ui-imgui/memext/memext_map_window.cpp:93
+#: src/ui-imgui/memext/memext_map_window.cpp:95
+msgid "Refresh"
+msgstr "Aktualisieren"
+
+#: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:579
+msgid "Show unchanged writes"
+msgstr "Unveränderte Schreibzugriffe anzeigen"
 
 #: src/ui-imgui/debugger/sections/dbg_callstack.cpp:256
 msgid "Active###cs_active"
@@ -7697,25 +7960,25 @@ msgstr "Disassembly #1"
 
 #: src/ui-imgui/debugger/sections/dbg_disassembled.cpp:3299
 #: src/ui-imgui/topmenu/menu_debugger.cpp:177
-#: src/ui-imgui/topmenu/menu_debugger.cpp:458
+#: src/ui-imgui/topmenu/menu_debugger.cpp:466
 msgid "Disassembly #2"
 msgstr "Disassembly #2"
 
 #: src/ui-imgui/debugger/sections/dbg_disassembled.cpp:3300
 #: src/ui-imgui/topmenu/menu_debugger.cpp:182
-#: src/ui-imgui/topmenu/menu_debugger.cpp:463
+#: src/ui-imgui/topmenu/menu_debugger.cpp:471
 msgid "Disassembly #3"
 msgstr "Disassembly #3"
 
 #: src/ui-imgui/debugger/sections/dbg_disassembled.cpp:3301
 #: src/ui-imgui/topmenu/menu_debugger.cpp:187
-#: src/ui-imgui/topmenu/menu_debugger.cpp:468
+#: src/ui-imgui/topmenu/menu_debugger.cpp:476
 msgid "Disassembly #4"
 msgstr "Disassembly #4"
 
 #: src/ui-imgui/debugger/sections/dbg_disassembled.cpp:3302
 #: src/ui-imgui/topmenu/menu_debugger.cpp:192
-#: src/ui-imgui/topmenu/menu_debugger.cpp:473
+#: src/ui-imgui/topmenu/menu_debugger.cpp:481
 msgid "Disassembly #5"
 msgstr "Disassembly #5"
 
@@ -9831,7 +10094,7 @@ msgstr "Geräte erneut scannen"
 msgid "Joystick"
 msgstr "Joystick"
 
-#: src/ui-imgui/main_window.cpp:105
+#: src/ui-imgui/main_window.cpp:106
 msgid "No audio device - running without sound"
 msgstr "Kein Audiogerät - Betrieb ohne Ton"
 
@@ -10286,10 +10549,6 @@ msgstr "Von:"
 msgid "Size:"
 msgstr "Größe:"
 
-#: src/ui-imgui/memext/memext_load_dialog.cpp:162
-msgid "Load"
-msgstr "Laden"
-
 #: src/ui-imgui/memext/memext_load_dialog.cpp:177
 msgid "Cannot open file"
 msgstr "Datei kann nicht geöffnet werden"
@@ -10297,11 +10556,6 @@ msgstr "Datei kann nicht geöffnet werden"
 #: src/ui-imgui/memext/memext_map_window.cpp:87
 msgid "MemExt Map Settings"
 msgstr "MemExt-Map-Einstellungen"
-
-#: src/ui-imgui/memext/memext_map_window.cpp:93
-#: src/ui-imgui/memext/memext_map_window.cpp:95
-msgid "Refresh"
-msgstr "Aktualisieren"
 
 #: src/ui-imgui/memext/memext_map_window.cpp:106
 msgid "Bank size"
@@ -11151,10 +11405,6 @@ msgstr "IDE8-Status (Debugger)..."
 msgid "Select FLASH image file to open"
 msgstr "FLASH-Imagedatei zum Öffnen auswählen"
 
-#: src/ui-imgui/topmenu/devices/menu_memext.cpp:56
-msgid "MemExt"
-msgstr "MemExt"
-
 #: src/ui-imgui/topmenu/devices/menu_memext.cpp:64
 msgid "Model - 'Peroutka & Hučík'"
 msgstr "Model - 'Peroutka & Hučík'"
@@ -11508,10 +11758,6 @@ msgstr "Centronics (Standard)"
 #: src/ui-imgui/topmenu/devices/menu_rear_dip_switch.cpp:80
 msgid " (locked: plotter connected)"
 msgstr " (gesperrt: Plotter verbunden)"
-
-#: src/ui-imgui/topmenu/devices/menu_rom.cpp:24
-msgid "ROM"
-msgstr "ROM"
 
 #: src/ui-imgui/topmenu/devices/menu_rom.cpp:54
 msgid "Settings for User Defined..."
@@ -11884,10 +12130,6 @@ msgstr "Joystick-Einrichtung..."
 msgid "DbgTool"
 msgstr "DbgTool"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:63
-msgid "Debugger"
-msgstr "Debugger"
-
 #: src/ui-imgui/topmenu/menu_debugger.cpp:75
 msgid "MZ-800 Debugger"
 msgstr "MZ-800 Debugger"
@@ -11927,22 +12169,22 @@ msgid "Memory Browser"
 msgstr "Speicher-Browser"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:131
-#: src/ui-imgui/topmenu/menu_debugger.cpp:378
+#: src/ui-imgui/topmenu/menu_debugger.cpp:386
 msgid "Memory Browser #2"
 msgstr "Speicher-Browser #2"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:136
-#: src/ui-imgui/topmenu/menu_debugger.cpp:383
+#: src/ui-imgui/topmenu/menu_debugger.cpp:391
 msgid "Memory Browser #3"
 msgstr "Speicher-Browser #3"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:141
-#: src/ui-imgui/topmenu/menu_debugger.cpp:388
+#: src/ui-imgui/topmenu/menu_debugger.cpp:396
 msgid "Memory Browser #4"
 msgstr "Speicher-Browser #4"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:146
-#: src/ui-imgui/topmenu/menu_debugger.cpp:393
+#: src/ui-imgui/topmenu/menu_debugger.cpp:401
 msgid "Memory Browser #5"
 msgstr "Speicher-Browser #5"
 
@@ -11957,32 +12199,32 @@ msgid "Variables"
 msgstr "Variablen"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:202
-#: src/ui-imgui/topmenu/menu_debugger.cpp:539
+#: src/ui-imgui/topmenu/menu_debugger.cpp:547
 msgid "CTC State"
 msgstr "CTC-Status"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:207
-#: src/ui-imgui/topmenu/menu_debugger.cpp:543
+#: src/ui-imgui/topmenu/menu_debugger.cpp:551
 msgid "PPI State"
 msgstr "PPI-Status"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:215
-#: src/ui-imgui/topmenu/menu_debugger.cpp:548
+#: src/ui-imgui/topmenu/menu_debugger.cpp:556
 msgid "Z80 PIO State"
 msgstr "Z80 PIO-Zustand"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:224
-#: src/ui-imgui/topmenu/menu_debugger.cpp:554
+#: src/ui-imgui/topmenu/menu_debugger.cpp:562
 msgid "PSG State"
 msgstr "PSG-Status"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:231
-#: src/ui-imgui/topmenu/menu_debugger.cpp:561
+#: src/ui-imgui/topmenu/menu_debugger.cpp:569
 msgid "PSG Audio Scope"
 msgstr "PSG Audio Scope"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:238
-#: src/ui-imgui/topmenu/menu_debugger.cpp:568
+#: src/ui-imgui/topmenu/menu_debugger.cpp:576
 msgid "GDG State"
 msgstr "GDG-Zustand"
 
@@ -11990,39 +12232,43 @@ msgstr "GDG-Zustand"
 msgid "Stack Regions"
 msgstr "Stack-Regionen"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:376
+#: src/ui-imgui/topmenu/menu_debugger.cpp:380
+msgid "RAM Write Log"
+msgstr "RAM-Schreibprotokoll"
+
+#: src/ui-imgui/topmenu/menu_debugger.cpp:384
 msgid "Other memory browsers"
 msgstr "Weitere Speicher-Browser"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:415
+#: src/ui-imgui/topmenu/menu_debugger.cpp:423
 msgid "Memory Heatmap"
 msgstr "Speicher-Heatmap"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:426
+#: src/ui-imgui/topmenu/menu_debugger.cpp:434
 msgid "Char Inserter"
 msgstr "Zeichen-Einfüger"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:444
+#: src/ui-imgui/topmenu/menu_debugger.cpp:452
 msgid "Disassembler"
 msgstr "Disassembler"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:456
+#: src/ui-imgui/topmenu/menu_debugger.cpp:464
 msgid "Other disassembly"
 msgstr "Weitere Disassembly"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:508
+#: src/ui-imgui/topmenu/menu_debugger.cpp:516
 msgid "I/O Ports"
 msgstr "I/O-Ports"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:518
+#: src/ui-imgui/topmenu/menu_debugger.cpp:526
 msgid "Events"
 msgstr "Events"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:537
+#: src/ui-imgui/topmenu/menu_debugger.cpp:545
 msgid "Chips"
 msgstr "Chips"
 
-#: src/ui-imgui/topmenu/menu_debugger.cpp:585
+#: src/ui-imgui/topmenu/menu_debugger.cpp:593
 msgid "Storage"
 msgstr "Speicher"
 

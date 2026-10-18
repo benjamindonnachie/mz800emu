@@ -57,6 +57,16 @@
 
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
 #include "debugger/trace/eventlog.h"
+#include "debugger/trace/ramlog.h"
+#include "mzarch/mzarch.h"
+/**
+ * @brief Záznam zápisů: načtení CMT hackem se zdrojem CMT_HACK, insn_pc = PC
+ *        CPU v okamžiku pasti ROM.
+ * @param call Volání memory_load_block().
+ */
+#define CMTHACK_RAMLOG_LOAD(call) do {         uint32_t cmthack_rl_saved = ramlog_source_push(RAMLOG_SRC_CMT_HACK, (uint16_t) g_mzarch_main.cpu->pc);         call;         ramlog_source_pop(cmthack_rl_saved);     } while (0)
+#else
+#define CMTHACK_RAMLOG_LOAD(call) call
 #endif
 
 st_CMTHACK g_cmthack;
@@ -265,7 +275,7 @@ void cmthack_load_mzf_filename(const char *filename)
         cmthack_result(LOADRET_ERROR);
         return;
     };
-    memory_load_block(buff, reg_hl, sizeof(st_MZF_HEADER), MEMORY_LOAD_MAPED);
+    CMTHACK_RAMLOG_LOAD(memory_load_block(buff, reg_hl, sizeof(st_MZF_HEADER), MEMORY_LOAD_MAPED));
 
     int test_fname_term = mzf_header_test_fname_terminator(&g_cmthack.mzf_handler);
 
@@ -282,7 +292,7 @@ void cmthack_load_mzf_filename(const char *filename)
             uint8_t buff = MZF_FNAME_TERMINATOR;
             if (g_cmthack.fix_fname_terminator)
             {
-                memory_load_block(&buff, (reg_hl + sizeof(st_MZF_FILENAME) - 2), 1, MEMORY_LOAD_MAPED);
+                CMTHACK_RAMLOG_LOAD(memory_load_block(&buff, (reg_hl + sizeof(st_MZF_FILENAME) - 2), 1, MEMORY_LOAD_MAPED));
             }
             printf(" (!mising 0x0d%s)", (g_cmthack.fix_fname_terminator) ? " - fixed" : "");
         }
@@ -359,7 +369,7 @@ void cmthack_read_mzf_body(void)
         return;
     };
 
-    memory_load_block(data, reg_hl, reg_bc, MEMORY_LOAD_MAPED);
+    CMTHACK_RAMLOG_LOAD(memory_load_block(data, reg_hl, reg_bc, MEMORY_LOAD_MAPED));
 
     printf("\nCMT hack: load 0x%04x bytes from MZF body to addr 0x%04x.\n", reg_bc, reg_hl);
 

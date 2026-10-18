@@ -107,8 +107,11 @@
  *
  * mcp-trace-read (část B) doplnil audio_capture_summary a audio_capture_pcm
  * (paměť zachycení zvuku, za audio_capture_status) = 183 + 2 = 185.
+ *
+ * ramlog doplnil ramlog_start/stop/clear/status/who_wrote/writers (záznam
+ * zápisů do paměti, za trace_read) = 185 + 6 = 191.
  */
-#define MCP_EXPECTED_CMD_COUNT 185
+#define MCP_EXPECTED_CMD_COUNT 191
 
 
 /* ====================================================================== */
@@ -6941,7 +6944,7 @@ static JsonObject *_tr_data(const char *resp, JsonParser **parser) {
     return json_object_get_object_member(obj, "data");
 }
 
-/** @brief trace_status bez kanálu vypíše všech 9 kanálů, nezaznamenaný = segment 0. */
+/** @brief trace_status bez kanálu vypíše všech 10 kanálů, nezaznamenaný = segment 0. */
 void test_trace_status_all_channels(void) {
     dispatch_stub_reset();
     char *resp = NULL;
@@ -6949,7 +6952,7 @@ void test_trace_status_all_channels(void) {
     JsonParser *parser = NULL;
     JsonObject *data = _tr_data(resp, &parser);
     JsonArray *ch = json_object_get_array_member(data, "channels");
-    TEST_ASSERT_EQUAL_UINT(9, json_array_get_length(ch));
+    TEST_ASSERT_EQUAL_UINT(10, json_array_get_length(ch));
     JsonObject *c0 = json_array_get_object_element(ch, 0);
     TEST_ASSERT_EQUAL_STRING("cputrack", json_object_get_string_member(c0, "channel"));
     TEST_ASSERT_EQUAL_INT64(0, json_object_get_int_member(c0, "segment"));
@@ -7200,6 +7203,148 @@ void test_trace_read_audio_channels(void) {
     for (size_t i = 0; i < G_N_ELEMENTS(bad); i++) {
         TEST_ASSERT_EQUAL_INT_MESSAGE(MCP_DISPATCH_INVALID_PARAMS, _ss_request("trace_read", bad[i], NULL), bad[i]);
     }
+}
+
+/** @brief ramlog_start: rozsahy, režim, kapacita, validace. */
+void test_ramlog_start_params(void) {
+    dispatch_stub_reset();
+    char *resp = NULL;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("ramlog_start", "{}", &resp));
+    const st_DBGAPI_RAMLOG_PARAM *p = &g_stub_state.rl_last;
+    TEST_ASSERT_EQUAL_INT(DBGAPI_RAMLOG_OP_START, p->op);
+    TEST_ASSERT_EQUAL_UINT(0, p->cfg.n_ranges);
+    TEST_ASSERT_EQUAL_INT(RAMLOG_MODE_RING, p->cfg.mode);
+    TEST_ASSERT_EQUAL_UINT32(RAMLOG_DEFAULT_CAPACITY, p->cfg.capacity);
+    TEST_ASSERT_NOT_NULL(strstr(resp, "\"segment\":4"));
+    free(resp);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("ramlog_start",
+        "{\"ranges\":[{\"from\":16384,\"to\":16385},{\"space\":\"vram\",\"from\":8192,\"to\":8447},{\"from\":32768}],"
+        "\"mode\":\"fill\",\"capacity\":64}", &resp));
+    TEST_ASSERT_EQUAL_UINT(3, p->cfg.n_ranges);
+    TEST_ASSERT_FALSE(p->cfg.ranges[0].phys);
+    TEST_ASSERT_EQUAL_UINT32(0x4001, p->cfg.ranges[0].to);
+    TEST_ASSERT_TRUE(p->cfg.ranges[1].phys);
+    TEST_ASSERT_EQUAL_UINT8(RAMLOG_SPACE_VRAM, p->cfg.ranges[1].space);
+    TEST_ASSERT_EQUAL_UINT32(0x8000, p->cfg.ranges[2].to);    /* to chybí = from */
+    TEST_ASSERT_EQUAL_INT(RAMLOG_MODE_FILL, p->cfg.mode);
+    TEST_ASSERT_EQUAL_UINT32(64, p->cfg.capacity);
+    TEST_ASSERT_NOT_NULL(strstr(resp, "\"mode\":\"fill\""));
+    free(resp);
+
+    int calls = g_stub_state.rl_calls;
+    const char *bad[] = {
+        "{\"mode\":\"loop\"}", "{\"capacity\":1}", "{\"ranges\":5}", "{\"ranges\":[{\"to\":5}]}",
+        "{\"ranges\":[{\"from\":70000}]}", "{\"ranges\":[{\"from\":5,\"to\":4}]}",
+        "{\"ranges\":[{\"space\":\"rom\",\"from\":0}]}",
+    };
+    for (size_t i = 0; i < G_N_ELEMENTS(bad); i++) {
+        TEST_ASSERT_EQUAL_INT_MESSAGE(MCP_DISPATCH_INVALID_PARAMS, _ss_request("ramlog_start", bad[i], NULL), bad[i]);
+    }
+    TEST_ASSERT_EQUAL_INT(calls, g_stub_state.rl_calls);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("ramlog_stop", "{}", NULL));
+    TEST_ASSERT_EQUAL_INT(DBGAPI_RAMLOG_OP_STOP, p->op);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("ramlog_clear", "{}", NULL));
+    TEST_ASSERT_EQUAL_INT(DBGAPI_RAMLOG_OP_CLEAR, p->op);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("ramlog_status", "{}", NULL));
+    TEST_ASSERT_EQUAL_INT(DBGAPI_RAMLOG_OP_STATUS, p->op);
+}
+
+/** @brief ramlog_who_wrote a ramlog_writers: cíl dotazu, tvar odpovědi. */
+void test_ramlog_queries(void) {
+    dispatch_stub_reset();
+    char *resp = NULL;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("ramlog_who_wrote", "{\"addr\":16385,\"limit\":5}", &resp));
+    const st_DBGAPI_RAMLOG_PARAM *p = &g_stub_state.rl_last;
+    TEST_ASSERT_EQUAL_INT(DBGAPI_RAMLOG_OP_WHO_WROTE, p->op);
+    TEST_ASSERT_TRUE(p->by_cpu);
+    TEST_ASSERT_EQUAL_UINT16(0x4001, p->cpu_from);
+    TEST_ASSERT_EQUAL_UINT(5, p->limit);
+    TEST_ASSERT_FALSE(p->include_unchanged);
+    JsonParser *parser = NULL;
+    JsonObject *data = _tr_data(resp, &parser);
+    JsonObject *c = json_array_get_object_element(json_object_get_array_member(data, "cells"), 0);
+    TEST_ASSERT_EQUAL_STRING("ram", json_object_get_string_member(c, "space"));
+    TEST_ASSERT_EQUAL_STRING("3009", json_object_get_string_member(json_object_get_object_member(c, "last"), "pc"));
+    JsonObject *h = json_array_get_object_element(json_object_get_array_member(c, "history"), 0);
+    TEST_ASSERT_EQUAL_STRING("66", json_object_get_string_member(h, "new"));
+    TEST_ASSERT_EQUAL_INT64(1, json_object_get_int_member(h, "seq"));
+    g_object_unref(parser);
+    free(resp);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("ramlog_who_wrote", "{\"space\":\"vram\",\"offset\":8208,\"all\":true}", NULL));
+    TEST_ASSERT_FALSE(p->by_cpu);
+    TEST_ASSERT_EQUAL_UINT8(RAMLOG_SPACE_VRAM, p->space);
+    TEST_ASSERT_EQUAL_UINT32(0x2010, p->off_from);
+    TEST_ASSERT_TRUE(p->include_unchanged);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("ramlog_writers", "{\"from\":16384,\"to\":16431,\"limit\":1}", &resp));
+    TEST_ASSERT_TRUE(p->by_cpu);
+    TEST_ASSERT_EQUAL_UINT16(0x402F, p->cpu_to);
+    data = _tr_data(resp, &parser);
+    TEST_ASSERT_EQUAL_INT64(2, json_object_get_int_member(data, "total"));
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(data, "truncated"));
+    TEST_ASSERT_EQUAL_UINT(1, json_array_get_length(json_object_get_array_member(data, "writers")));
+    g_object_unref(parser);
+    free(resp);
+
+    const char *bad_w[] = { "{}", "{\"addr\":70000}", "{\"space\":\"nope\",\"offset\":1}", "{\"addr\":1,\"limit\":2000}" };
+    for (size_t i = 0; i < G_N_ELEMENTS(bad_w); i++) {
+        TEST_ASSERT_EQUAL_INT_MESSAGE(MCP_DISPATCH_INVALID_PARAMS, _ss_request("ramlog_who_wrote", bad_w[i], NULL), bad_w[i]);
+    }
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("ramlog_writers", "{}", NULL));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("ramlog_writers", "{\"from\":1,\"limit\":0}", NULL));
+}
+
+/** @brief trace_read ramlog: nezměněné skryté bez all, filtry pc/addr/src, symbol. */
+void test_trace_read_ramlog(void) {
+    dispatch_stub_reset();
+    g_stub_state.tr_segment = 3;
+    g_stub_state.tr_records = 6;
+    char *resp = NULL;
+    JsonParser *parser = NULL;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("trace_read", "{\"channel\":\"ramlog\"}", &resp));
+    JsonObject *data = _tr_data(resp, &parser);
+    JsonArray *rows = json_object_get_array_member(data, "rows");
+    TEST_ASSERT_EQUAL_UINT(3, json_array_get_length(rows));           /* seq 0, 2, 4 */
+    JsonArray *r2 = json_array_get_array_element(rows, 1);
+    TEST_ASSERT_EQUAL_INT64(2, json_array_get_int_element(r2, 0));
+    TEST_ASSERT_EQUAL_STRING("3002", json_array_get_string_element(r2, 3));
+    TEST_ASSERT_EQUAL_STRING("4002", json_array_get_string_element(r2, 5));
+    TEST_ASSERT_EQUAL_STRING("ram", json_array_get_string_element(r2, 6));
+    TEST_ASSERT_EQUAL_STRING("AA", json_array_get_string_element(r2, 9));
+    TEST_ASSERT_EQUAL_STRING("insn", json_array_get_string_element(r2, 11));
+    TEST_ASSERT_EQUAL_INT64(12, json_array_get_int_element(r2, 14));    /* tin */
+    TEST_ASSERT_TRUE(g_stub_state.tr_resolve_calls > 0);                /* sloupec sym */
+    g_object_unref(parser);
+    free(resp);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("trace_read",
+        "{\"channel\":\"ramlog\",\"filter\":{\"all\":true,\"addr_from\":16385,\"addr_to\":16387},\"columns\":[\"seq\",\"flags\"]}", &resp));
+    data = _tr_data(resp, &parser);
+    rows = json_object_get_array_member(data, "rows");
+    TEST_ASSERT_EQUAL_UINT(3, json_array_get_length(rows));           /* seq 1, 2, 3 */
+    TEST_ASSERT_EQUAL_STRING("unchanged", json_array_get_string_element(json_array_get_array_element(rows, 0), 1));
+    g_object_unref(parser);
+    free(resp);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("trace_read",
+        "{\"channel\":\"ramlog\",\"filter\":{\"pc_from\":12292,\"pc_to\":12292,\"src\":\"insn\",\"space\":\"ram\"}}", &resp));
+    data = _tr_data(resp, &parser);
+    TEST_ASSERT_EQUAL_UINT(1, json_array_get_length(json_object_get_array_member(data, "rows")));
+    g_object_unref(parser);
+    free(resp);
+
+    const char *bad[] = {
+        "{\"channel\":\"ramlog\",\"filter\":{\"src\":\"cpu\"}}",
+        "{\"channel\":\"ramlog\",\"filter\":{\"space\":\"x\"}}",
+        "{\"channel\":\"iorqlog\",\"filter\":{\"all\":true}}",
+        "{\"channel\":\"iorqlog\",\"filter\":{\"addr_from\":1}}",
+    };
+    for (size_t i = 0; i < G_N_ELEMENTS(bad); i++) {
+        TEST_ASSERT_EQUAL_INT_MESSAGE(MCP_DISPATCH_INVALID_PARAMS, _ss_request("trace_read", bad[i], NULL), bad[i]);
+    }
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("trace_start", "{\"channel\":\"ramlog\"}", NULL));
 }
 
 /** @brief trace_read: validace parametrů. */
@@ -7927,6 +8072,9 @@ int main(void) {
     RUN_TEST(test_trace_read_cputrack_symbols_columns_raw);
     RUN_TEST(test_trace_read_invalid_params);
     RUN_TEST(test_trace_read_audio_channels);
+    RUN_TEST(test_ramlog_start_params);
+    RUN_TEST(test_ramlog_queries);
+    RUN_TEST(test_trace_read_ramlog);
     RUN_TEST(test_trace_read_eventlog);
     RUN_TEST(test_audio_capture_start_params);
     RUN_TEST(test_audio_capture_errors);

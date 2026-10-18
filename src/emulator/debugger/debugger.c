@@ -65,6 +65,8 @@
 #include "trace/intlog.h"
 #include "trace/hwlog.h"
 #include "trace/marklog.h"
+#include "trace/ramlog.h"
+#include "trace/ramlog_hook.h"
 #include "trace/eventlog.h"
 #include "trace/eventlog_trigger.h"
 #include "io_activity.h"
@@ -236,6 +238,8 @@ void debugger_exit ( void ) {
     iorqlog_finalize ( );
     intlog_finalize ( );
     hwlog_finalize ( );
+    /* Záznam zápisů do paměti - jen paměť, nic se neukládá. */
+    ramlog_free ( );
     /* Triggery okna Events (Pause / Auto-mark on match) - vypnout a uvolnit
      * jejich filtry dřív, než zanikne ring. Běží na emu vlákně (emulator_quit),
      * callback triggeru proto souběžně neběží. */
@@ -789,6 +793,10 @@ void debugger_init ( void ) {
     hwlog_apply_cli_options ( );
     marklog_init ( );
     marklog_apply_cli_options ( );
+    /* Záznam zápisů do paměti: [RAMLOG] + --ramlog-*; spuštění podle režimu
+     * v ramlog_recompute_active (state_changed níže). */
+    ramlog_cfg_init ( );
+    ramlog_apply_cli_options ( );
 
     /* Event Viewer (mutant event-viewer Vlna 1 Commit 1) - in-memory ring
      * pro Events okno. Volá se po marklog_init() aby cfg propagate proběhl

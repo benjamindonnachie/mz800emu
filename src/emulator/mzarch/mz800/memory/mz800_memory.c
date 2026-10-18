@@ -35,6 +35,9 @@
 #include "memory/memext.h"
 #include "memory/memory.h"
 #include "mz800_memory.h"
+#ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
+#include "debugger/trace/ramlog_hook.h"
+#endif
 #include "memory/rom.h"
 #include "mzarch/mz800/gdg/mz800_gdg.h"
 #include "mzarch/mz800/gdg/mz800_vramctrl.h"
@@ -327,6 +330,17 @@ void mz800_ram_fastpath_rebuild ( void ) {
      * plny callback (enabled=false), aby se nezravala bit-identita.
      */
     bool enabled = ( g_mzarch_main.cpu->mread_cb == memory_read_cb );
+
+#ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
+    /* Záznam zápisů (ramlog, háček A): zápisy na sledované stránky musí jít
+     * přes write callback (ramlog_hook_cpu_write_cb), čtení zůstává na
+     * fast-path. Studená cesta (přestavba tabulky při změně mapování). */
+    if ( g_ramlog_active ) {
+        for ( i = 0; i < 16; i++ ) {
+            if ( write_table[i] && ramlog_page_watched ( (unsigned) i ) ) write_table[i] = NULL;
+        };
+    };
+#endif
 
     z80_set_ram_fastpath ( g_mzarch_main.cpu, read_table, write_table,
                            &g_mzarch_main.regDBUS_latch, enabled );
@@ -1079,7 +1093,12 @@ void memory_write_with_logging_cb ( z80_t *cpu, uint16_t addr, uint8_t value, vo
      * je flag nastaven. memory_write_cb obsahuje makra s return, ale return
      * ukončí jen sub-call; my se vrátíme zpět a flag vypneme. */
     g_dbg_in_cpu_path = 1;
-    memory_write_cb ( cpu, addr, value, user_data );
+    /* Záznam zápisů (ramlog, háček B): logovací cesta je sama alternativní. */
+    if ( g_ramlog_active ) {
+        ramlog_hook_logging_write ( cpu, addr, value, user_data );
+    } else {
+        memory_write_cb ( cpu, addr, value, user_data );
+    };
     g_dbg_in_cpu_path = 0;
 }
 #endif
@@ -1104,17 +1123,12 @@ void memory_write_byte ( uint16_t addr, uint8_t value ) {
 
 
 /**
- * Zapis do aktualne mapovane pameti - bez synchronizace, bez MEM_W breakpointu.
- *
- * Stejny zapis jako memory_write_byte() (banking, VRAM, mapovane porty), ale
- * bez vyhodnoceni MEM_W breakpointu. Pro zapisy debuggerem
- * (debugger_memory_write_byte, region Logical: MCP region_write, Memory
- * Browser, freeze) - MEM_W breakpoint hlida zapisy CPU.
+ * @brief Vlastni zapis bez synchronizace a bez MEM_W breakpointu (telo memory_write_byte_no_bp).
  *
  * @param addr
  * @param value
  */
-void memory_write_byte_no_bp ( uint16_t addr, uint8_t value ) {
+static void memory_write_byte_raw ( uint16_t addr, uint8_t value ) {
     unsigned addr_high = addr >> 12;
     memory_internal_write_0000_0fff ( addr_high );
     memory_internal_write_1000_1fff ( addr_high );
@@ -1125,6 +1139,38 @@ void memory_write_byte_no_bp ( uint16_t addr, uint8_t value ) {
     memory_internal_write_d000_dfff ( addr_high );
     memory_internal_write_e000_efff ( addr_high );
     memory_internal_write_f000_ffff ( addr_high );
+}
+
+
+#ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
+/** @brief memory_write_byte_raw() pro ramlog_hook_write(). */
+static void memory_write_byte_raw_fn ( uint16_t addr, uint8_t value, void *ctx ) {
+    ( void ) ctx;
+    memory_write_byte_raw ( addr, value );
+}
+#endif
+
+
+/**
+ * Zapis do aktualne mapovane pameti - bez synchronizace, bez MEM_W breakpointu.
+ *
+ * Stejny zapis jako memory_write_byte() (banking, VRAM, mapovane porty), ale
+ * bez vyhodnoceni MEM_W breakpointu. Pro zapisy debuggerem
+ * (debugger_memory_write_byte, region Logical: MCP region_write, Memory
+ * Browser, freeze) - MEM_W breakpoint hlida zapisy CPU. Se zaznamem zapisu
+ * (ramlog) se zapis zaznamena se zdrojem z g_ramlog_src, jinak DEBUGGER.
+ *
+ * @param addr
+ * @param value
+ */
+void memory_write_byte_no_bp ( uint16_t addr, uint8_t value ) {
+#ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
+    if ( g_ramlog_active ) {
+        ramlog_hook_write ( addr, value, RAMLOG_SRC_DEBUGGER, memory_write_byte_raw_fn, NULL );
+        return;
+    };
+#endif
+    memory_write_byte_raw ( addr, value );
 }
 
 
@@ -1139,6 +1185,11 @@ void memory_write_byte_no_bp ( uint16_t addr, uint8_t value ) {
 void memory_load_block ( uint8_t *data, uint16_t addr, uint16_t size, en_MEMORY_LOAD type ) {
 
     uint16_t src_addr = 0;
+
+#ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
+    /* Záznam zápisů: souhrnný záznam bloku (studená cesta). */
+    if ( g_ramlog_active ) ramlog_hook_load_block ( addr, size, type == MEMORY_LOAD_RAMONLY );
+#endif
 
     while ( size ) {
         //uint8_t *dst = &g_memory.RAM[addr];

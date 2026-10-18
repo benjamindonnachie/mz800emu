@@ -62,6 +62,7 @@
 #include "../debugger/trace/trace_reader.h"
 #include "../audio_capture.h"
 #include "../audio_analysis.h"
+#include "../debugger/trace/ramlog_hook.h"
 #include <math.h>
 /* CMTSPEED_CUSTOM pro cmt_tape_block_speed s vlastními pulzy */
 #include "libs/cmtspeed/cmtspeed.h"
@@ -481,6 +482,12 @@ static en_MCP_DISPATCH_RESULT _handle_trace_status(const st_JSONL_MESSAGE *req,
                                                    char **out_response);
 static en_MCP_DISPATCH_RESULT _handle_trace_read(const st_JSONL_MESSAGE *req,
                                                  char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_ramlog_start(const st_JSONL_MESSAGE *req, char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_ramlog_stop(const st_JSONL_MESSAGE *req, char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_ramlog_clear(const st_JSONL_MESSAGE *req, char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_ramlog_status(const st_JSONL_MESSAGE *req, char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_ramlog_who_wrote(const st_JSONL_MESSAGE *req, char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_ramlog_writers(const st_JSONL_MESSAGE *req, char **out_response);
 
 /* video-capture Task 15 - video záznam fwd decls */
 static en_MCP_DISPATCH_RESULT _handle_videorec_start(const st_JSONL_MESSAGE *req,
@@ -1129,6 +1136,12 @@ static const st_MCP_CMD_MAP_ENTRY g_cmd_map[] = {
     { "trace_save",              DBGAPI_CMD_TRACE_SAVE,               _handle_trace_save              },
     { "trace_status",            DBGAPI_CMD_TRACE_SNAPSHOT,           _handle_trace_status            },
     { "trace_read",              DBGAPI_CMD_TRACE_SNAPSHOT,           _handle_trace_read              },
+    { "ramlog_start",            DBGAPI_CMD_RAMLOG,                   _handle_ramlog_start            },
+    { "ramlog_stop",             DBGAPI_CMD_RAMLOG,                   _handle_ramlog_stop             },
+    { "ramlog_clear",            DBGAPI_CMD_RAMLOG,                   _handle_ramlog_clear            },
+    { "ramlog_status",           DBGAPI_CMD_RAMLOG,                   _handle_ramlog_status           },
+    { "ramlog_who_wrote",        DBGAPI_CMD_RAMLOG,                   _handle_ramlog_who_wrote        },
+    { "ramlog_writers",          DBGAPI_CMD_RAMLOG,                   _handle_ramlog_writers          },
     /* video-capture Task 15 - video záznam (všechny platformy). Přidáno na KONEC
      * tabulky kvůli stabilitě pozičního indexu v hello supported_commands. */
     { "videorec_start",          DBGAPI_CMD_VIDEOREC,                 _handle_videorec_start          },
@@ -7165,7 +7178,7 @@ static en_MCP_DISPATCH_RESULT _handle_trace_save(const st_JSONL_MESSAGE *req,
 /** @brief Čitelné kanály v pořadí výpisu trace_status (= en_DBGAPI_TRACE_CHANNEL = en_TRACE_KIND). */
 static const char *const s_trace_read_channels[] = {
     "cputrack", "iorqlog", "intlog", "hwlog", "marklog", "eventlog",
-    "audio_psg_writes", "audio_levels", "audio_frames"
+    "audio_psg_writes", "audio_levels", "audio_frames", "ramlog"
 };
 
 G_STATIC_ASSERT(G_N_ELEMENTS(s_trace_read_channels) == TRACE_KIND_COUNT);
@@ -7237,6 +7250,10 @@ static bool _trace_snapshot(st_DBGAPI_TRACE_SNAPSHOT_PARAM *p) {
 static bool _trace_snapshot_kind(en_TRACE_KIND kind, st_DBGAPI_TRACE_SNAPSHOT_PARAM *p,
                                  uint64_t *origin) {
     if (origin) *origin = 0;
+    if (kind == TRACE_KIND_RAMLOG) {
+        p->channel = DBGAPI_TRACE_CHANNEL_RAMLOG;
+        return _trace_snapshot(p);
+    }
     if (!_trace_kind_is_audio(kind)) {
         p->channel = (en_DBGAPI_TRACE_CHANNEL)kind;
         return _trace_snapshot(p);
@@ -7379,7 +7396,7 @@ static const char *_trace_parse_filter(JsonObject *f, en_TRACE_KIND kind, st_TRA
     trace_filter_init(out);
     if (!f) return NULL;
     if (json_object_has_member(f, "pc_from") || json_object_has_member(f, "pc_to")) {
-        if (kind != TRACE_KIND_CPUTRACK) return "filter pc_from/pc_to is only for cputrack";
+        if (kind != TRACE_KIND_CPUTRACK && kind != TRACE_KIND_RAMLOG) return "filter pc_from/pc_to is only for cputrack and ramlog";
         out->has_pc = true;
         out->pc_from = (uint16_t)_obj_int_or(f, "pc_from", 0);
         out->pc_to = (uint16_t)_obj_int_or(f, "pc_to", 0xFFFF);
@@ -7415,6 +7432,31 @@ static const char *_trace_parse_filter(JsonObject *f, en_TRACE_KIND kind, st_TRA
     if (json_object_has_member(f, "marker")) {
         if (kind != TRACE_KIND_MARKLOG) return "filter marker is only for marklog";
         out->marker = (int)_obj_int_or(f, "marker", -1);
+    }
+    if (json_object_has_member(f, "addr_from") || json_object_has_member(f, "addr_to")) {
+        if (kind != TRACE_KIND_RAMLOG) return "filter addr_from/addr_to is only for ramlog";
+        out->has_addr = true;
+        out->addr_from = (uint16_t)_obj_int_or(f, "addr_from", 0);
+        out->addr_to = (uint16_t)_obj_int_or(f, "addr_to", 0xFFFF);
+    }
+    if (json_object_has_member(f, "space")) {
+        int sp = (kind == TRACE_KIND_RAMLOG && _obj_is_string(f, "space"))
+                 ? ramlog_space_from_name(json_object_get_string_member(f, "space")) : -1;
+        if (sp < 0) return "filter space must be ram, vram, pcg, memext or rom (ramlog)";
+        out->space = sp;
+    }
+    if (json_object_has_member(f, "src")) {
+        int sr = -1;
+        if (kind == TRACE_KIND_RAMLOG && _obj_is_string(f, "src")) {
+            const char *v = json_object_get_string_member(f, "src");
+            for (int i = 0; i < RAMLOG_SRC_COUNT; i++) if (g_strcmp0(v, ramlog_src_name((unsigned)i)) == 0) sr = i;
+        }
+        if (sr < 0) return "filter src must be insn, int_ack, nmi_ack, debugger, poke, freeze, cmt_hack or load (ramlog)";
+        out->src = sr;
+    }
+    if (json_object_has_member(f, "all")) {
+        if (kind != TRACE_KIND_RAMLOG) return "filter all is only for ramlog";
+        out->all = json_object_get_boolean_member(f, "all");
     }
     if (json_object_has_member(f, "channels")) {
         if (kind != TRACE_KIND_AUDIO_LEVELS && kind != TRACE_KIND_AUDIO_PSG_WRITES) {
@@ -15811,6 +15853,376 @@ static en_MCP_DISPATCH_RESULT _handle_audio_capture_pcm(const st_JSONL_MESSAGE *
     g_free(b64);
     g_free(buf);
     audio_capture_stream_copy_clear(&c);
+    return _ok_response(req_id, resp, out_response);
+}
+
+
+/* ---------------- Záznam zápisů do paměti: ramlog (M2 debug-gaps) ---------------- */
+
+/** @brief Nejvýš záznamů historie na buňku v ramlog_who_wrote. */
+#define RAMLOG_MCP_MAX_LIMIT 1000
+/** @brief Nejvýš zapisovatelů v ramlog_writers. */
+#define RAMLOG_MCP_MAX_WRITERS 5000
+
+/** @brief Stav ramlogu jako JSON objekt. */
+static JsonObject *_ramlog_status_json(const st_RAMLOG_STATUS *st) {
+    JsonObject *o = json_object_new();
+    json_object_set_boolean_member(o, "active", st->active);
+    json_object_set_boolean_member(o, "allocated", st->allocated);
+    json_object_set_int_member(o, "segment", (gint64)st->segment);
+    json_object_set_string_member(o, "mode", st->mode == RAMLOG_MODE_FILL ? "fill" : "ring");
+    json_object_set_int_member(o, "capacity", (gint64)st->capacity);
+    json_object_set_int_member(o, "first_seq", (gint64)st->first_seq);
+    json_object_set_int_member(o, "next_seq", (gint64)st->next_seq);
+    json_object_set_int_member(o, "total", (gint64)st->total);
+    json_object_set_int_member(o, "dropped", (gint64)st->dropped);
+    json_object_set_int_member(o, "overwritten", (gint64)st->overwritten);
+    json_object_set_int_member(o, "memory_bytes", (gint64)st->memory_bytes);
+    JsonArray *ra = json_array_new();
+    for (unsigned i = 0; i < st->n_ranges; i++) {
+        const st_RAMLOG_RANGE *r = &st->ranges[i];
+        JsonObject *x = json_object_new();
+        if (r->phys) json_object_set_string_member(x, "space", ramlog_space_name(r->space));
+        json_object_set_int_member(x, "from", (gint64)r->from);
+        json_object_set_int_member(x, "to", (gint64)r->to);
+        json_array_add_object_element(ra, x);
+    }
+    json_object_set_array_member(o, "ranges", ra);
+    return o;
+}
+
+/**
+ * @brief Provede DBGAPI_CMD_RAMLOG.
+ * @return false = příkaz se nepodařilo předat; jinak true a chyba operace v p->out_error.
+ */
+static bool _ramlog_submit(st_DBGAPI_RAMLOG_PARAM *p) {
+    p->out_error[0] = '\0';
+    bool ok = _submit_dbgapi(DBGAPI_CMD_RAMLOG, p, NULL);
+    return ok || p->out_error[0];
+}
+
+/** @brief Odpověď stavu nebo chyby po DBGAPI_CMD_RAMLOG. */
+static en_MCP_DISPATCH_RESULT _ramlog_status_response(int64_t req_id, st_DBGAPI_RAMLOG_PARAM *p,
+                                                      char **out_response) {
+    if (!_ramlog_submit(p)) {
+        return _err_response(req_id, "ramlog command failed", MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    if (p->out_error[0]) {
+        return _err_response(req_id, p->out_error, MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    return _ok_response(req_id, _ramlog_status_json(&p->out_status), out_response);
+}
+
+/**
+ * @brief Naparsuje jeden rozsah `{from, to}` (CPU) nebo `{space, from, to}` (fyzický).
+ * @return NULL OK, jinak statická chybová zpráva.
+ */
+static const char *_ramlog_parse_range(JsonNode *n, st_RAMLOG_RANGE *out) {
+    memset(out, 0, sizeof(*out));
+    if (!n || json_node_get_node_type(n) != JSON_NODE_OBJECT) return "ranges items must be objects {from, to} or {space, from, to}";
+    JsonObject *o = json_node_get_object(n);
+    int hf = _videorec_member(o, "from", G_TYPE_INT64);
+    int ht = _videorec_member(o, "to", G_TYPE_INT64);
+    int hs = _videorec_member(o, "space", G_TYPE_STRING);
+    if (hf <= 0 || ht < 0 || hs < 0) return "ranges items need integer from (and optional to, space name)";
+    gint64 from = json_object_get_int_member(o, "from");
+    gint64 to = ht ? json_object_get_int_member(o, "to") : from;
+    if (hs) {
+        int sp = ramlog_space_from_name(json_object_get_string_member(o, "space"));
+        if (sp < 0 || sp == RAMLOG_SPACE_ROM) return "range space must be ram, vram, pcg or memext";
+        out->phys = true;
+        out->space = (uint8_t)sp;
+        if (from < 0 || to < from || to > 0x7FFFF) return "physical range must be 0 <= from <= to <= 7FFFFh";
+    } else if (from < 0 || to < from || to > 0xFFFF) {
+        return "CPU range must be 0 <= from <= to <= FFFFh";
+    }
+    out->from = (uint32_t)from;
+    out->to = (uint32_t)to;
+    return NULL;
+}
+
+/**
+ * @brief `ramlog_start` handler - spustí záznam zápisů do paměti.
+ *
+ * Parametry (volitelné): `ranges` (pole `{from, to}` CPU adres nebo
+ * `{space, from, to}` buněk prostoru ram/vram/pcg/memext, nejvýš 16;
+ * chybí = celá paměť), `mode` ("ring" výchozí | "fill"), `capacity`
+ * (16..16777216 záznamů, výchozí 1048576). Předchozí záznam uvolní.
+ */
+static en_MCP_DISPATCH_RESULT _handle_ramlog_start(const st_JSONL_MESSAGE *req, char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _videorec_data_obj(req);
+    st_DBGAPI_RAMLOG_PARAM p;
+    memset(&p, 0, sizeof(p));
+    p.op = DBGAPI_RAMLOG_OP_START;
+    p.cfg.mode = RAMLOG_MODE_RING;
+    p.cfg.capacity = RAMLOG_DEFAULT_CAPACITY;
+    int hm = _videorec_member(obj, "mode", G_TYPE_STRING);
+    int hc = _videorec_member(obj, "capacity", G_TYPE_INT64);
+    if (hm < 0 || hc < 0) {
+        return _err_response(req_id, "Invalid parameters: mode must be a string, capacity an integer",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    if (hm) {
+        const char *m = json_object_get_string_member(obj, "mode");
+        if (g_strcmp0(m, "ring") == 0) p.cfg.mode = RAMLOG_MODE_RING;
+        else if (g_strcmp0(m, "fill") == 0) p.cfg.mode = RAMLOG_MODE_FILL;
+        else return _err_response(req_id, "Invalid parameters: mode must be ring or fill",
+                                  MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    if (hc) {
+        gint64 c = json_object_get_int_member(obj, "capacity");
+        if (c < RAMLOG_MIN_CAPACITY || c > RAMLOG_MAX_CAPACITY) {
+            return _err_response(req_id, "Invalid parameters: capacity must be 16..16777216",
+                                 MCP_DISPATCH_INVALID_PARAMS, out_response);
+        }
+        p.cfg.capacity = (uint32_t)c;
+    }
+    if (obj && json_object_has_member(obj, "ranges") && !json_node_is_null(json_object_get_member(obj, "ranges"))) {
+        JsonNode *rn = json_object_get_member(obj, "ranges");
+        if (json_node_get_node_type(rn) != JSON_NODE_ARRAY) {
+            return _err_response(req_id, "Invalid parameters: ranges must be an array",
+                                 MCP_DISPATCH_INVALID_PARAMS, out_response);
+        }
+        JsonArray *ra = json_node_get_array(rn);
+        guint n = json_array_get_length(ra);
+        if (n > RAMLOG_MAX_RANGES) {
+            return _err_response(req_id, "Invalid parameters: at most 16 ranges",
+                                 MCP_DISPATCH_INVALID_PARAMS, out_response);
+        }
+        for (guint i = 0; i < n; i++) {
+            const char *e = _ramlog_parse_range(json_array_get_element(ra, i), &p.cfg.ranges[i]);
+            if (e) {
+                return _trace_err_owned(req_id, g_strdup_printf("Invalid parameters: %s", e),
+                                        MCP_DISPATCH_INVALID_PARAMS, out_response);
+            }
+        }
+        p.cfg.n_ranges = n;
+    }
+    return _ramlog_status_response(req_id, &p, out_response);
+}
+
+/** @brief `ramlog_stop` handler - konec záznamu, data zůstanou čitelná. */
+static en_MCP_DISPATCH_RESULT _handle_ramlog_stop(const st_JSONL_MESSAGE *req, char **out_response) {
+    st_DBGAPI_RAMLOG_PARAM p;
+    memset(&p, 0, sizeof(p));
+    p.op = DBGAPI_RAMLOG_OP_STOP;
+    return _ramlog_status_response(jsonl_msg_get_req_id(req), &p, out_response);
+}
+
+/** @brief `ramlog_clear` handler - vyprázdní ring a mapu (nový segment). */
+static en_MCP_DISPATCH_RESULT _handle_ramlog_clear(const st_JSONL_MESSAGE *req, char **out_response) {
+    st_DBGAPI_RAMLOG_PARAM p;
+    memset(&p, 0, sizeof(p));
+    p.op = DBGAPI_RAMLOG_OP_CLEAR;
+    return _ramlog_status_response(jsonl_msg_get_req_id(req), &p, out_response);
+}
+
+/** @brief `ramlog_status` handler - stav záznamu. */
+static en_MCP_DISPATCH_RESULT _handle_ramlog_status(const st_JSONL_MESSAGE *req, char **out_response) {
+    st_DBGAPI_RAMLOG_PARAM p;
+    memset(&p, 0, sizeof(p));
+    p.op = DBGAPI_RAMLOG_OP_STATUS;
+    return _ramlog_status_response(jsonl_msg_get_req_id(req), &p, out_response);
+}
+
+/** @brief Záznam ramlogu jako JSON objekt. */
+static JsonObject *_ramlog_rec_json(const st_RAMLOG_REC *r, uint64_t seq, bool has_seq) {
+    JsonObject *o = json_object_new();
+    char b[8];
+    if (has_seq) json_object_set_int_member(o, "seq", (gint64)seq);
+    json_object_set_int_member(o, "t", (gint64)r->t);
+    json_object_set_int_member(o, "frame", (gint64)r->frame);
+    g_snprintf(b, sizeof(b), "%04X", r->insn_pc);
+    json_object_set_string_member(o, "pc", b);
+    if (r->flags & RAMLOG_FLAG_NO_CPU) {
+        json_object_set_null_member(o, "addr");
+    } else {
+        g_snprintf(b, sizeof(b), "%04X", r->cpu_addr);
+        json_object_set_string_member(o, "addr", b);
+    }
+    g_snprintf(b, sizeof(b), "%02X", r->old_value);
+    json_object_set_string_member(o, "old", b);
+    g_snprintf(b, sizeof(b), "%02X", r->new_value);
+    json_object_set_string_member(o, "new", b);
+    json_object_set_string_member(o, "src", ramlog_src_name(r->src));
+    /* T-stav uvnitř instrukce v okamžiku zápisu (t = začátek instrukce). */
+    if (r->src == RAMLOG_SRC_INSN) json_object_set_int_member(o, "tin", r->tin);
+    if (r->flags & RAMLOG_FLAG_SUMMARY) json_object_set_int_member(o, "count", r->count ? r->count : 65536);
+    if (r->flags & RAMLOG_FLAG_UNCHANGED) json_object_set_boolean_member(o, "unchanged", TRUE);
+    if (r->flags & RAMLOG_FLAG_SUPPRESSED) json_object_set_boolean_member(o, "suppressed", TRUE);
+    return o;
+}
+
+/**
+ * @brief Naparsuje cíl dotazu: `addr` (CPU) nebo `space` + `offset`.
+ * @return NULL OK, jinak statická zpráva.
+ */
+static const char *_ramlog_parse_cell(JsonObject *obj, st_DBGAPI_RAMLOG_PARAM *p) {
+    int ha = _videorec_member(obj, "addr", G_TYPE_INT64);
+    int hs = _videorec_member(obj, "space", G_TYPE_STRING);
+    int ho = _videorec_member(obj, "offset", G_TYPE_INT64);
+    if (ha < 0 || hs < 0 || ho < 0) return "addr and offset must be integers, space a string";
+    if (ha) {
+        gint64 a = json_object_get_int_member(obj, "addr");
+        if (a < 0 || a > 0xFFFF) return "addr must be 0..FFFFh";
+        p->by_cpu = true;
+        p->cpu_from = (uint16_t)a;
+        return NULL;
+    }
+    if (!hs || !ho) return "give addr (CPU address) or space + offset";
+    int sp = ramlog_space_from_name(json_object_get_string_member(obj, "space"));
+    gint64 off = json_object_get_int_member(obj, "offset");
+    if (sp < 0) return "space must be ram, vram, pcg, memext or rom";
+    if (off < 0 || off > 0x7FFFF) return "offset must be 0..7FFFFh";
+    p->space = (uint8_t)sp;
+    p->off_from = (uint32_t)off;
+    return NULL;
+}
+
+/**
+ * @brief `ramlog_who_wrote` handler - kdo zapsal buňku (mapa + historie z ringu).
+ *
+ * Parametry: `addr` (CPU adresa v aktuálním mapování; grafická VRAM MZ-800
+ * = 4 plány) nebo `space` + `offset`; `limit` (0..1000, výchozí 20 záznamů
+ * historie na buňku), `all` (i nezměněné a potlačené zápisy, výchozí false).
+ */
+static en_MCP_DISPATCH_RESULT _handle_ramlog_who_wrote(const st_JSONL_MESSAGE *req, char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _videorec_data_obj(req);
+    st_DBGAPI_RAMLOG_PARAM p;
+    memset(&p, 0, sizeof(p));
+    p.op = DBGAPI_RAMLOG_OP_WHO_WROTE;
+    const char *e = _ramlog_parse_cell(obj, &p);
+    int hl = _videorec_member(obj, "limit", G_TYPE_INT64);
+    int hall = _videorec_member(obj, "all", G_TYPE_BOOLEAN);
+    gint64 limit = hl > 0 ? json_object_get_int_member(obj, "limit") : 20;
+    if (!e && (hl < 0 || hall < 0)) e = "limit must be an integer, all a boolean";
+    if (!e && (limit < 0 || limit > RAMLOG_MCP_MAX_LIMIT)) e = "limit must be 0..1000";
+    if (e) {
+        return _trace_err_owned(req_id, g_strdup_printf("Invalid parameters: %s", e),
+                                MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    p.include_unchanged = hall > 0 && json_object_get_boolean_member(obj, "all");
+    p.limit = (size_t)limit;
+    if (p.limit) {
+        p.out_recs = g_new0(st_RAMLOG_REC, p.limit * RAMLOG_TARGETS_MAX);
+        p.out_seqs = g_new0(uint64_t, p.limit * RAMLOG_TARGETS_MAX);
+    }
+    if (!_ramlog_submit(&p) || p.out_error[0]) {
+        g_free(p.out_recs);
+        g_free(p.out_seqs);
+        return _err_response(req_id, p.out_error[0] ? p.out_error : "ramlog command failed",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    JsonObject *resp = json_object_new();
+    json_object_set_boolean_member(resp, "active", p.out_status.active);
+    json_object_set_int_member(resp, "segment", (gint64)p.out_status.segment);
+    json_object_set_boolean_member(resp, "mmio", p.out_mmio);
+    JsonArray *cells = json_array_new();
+    for (unsigned i = 0; i < p.out_n_cells; i++) {
+        const st_DBGAPI_RAMLOG_CELL *c = &p.out_cells[i];
+        JsonObject *co = json_object_new();
+        json_object_set_string_member(co, "space", ramlog_space_name(c->space));
+        json_object_set_int_member(co, "offset", (gint64)c->offset);
+        if (c->has_plane) json_object_set_int_member(co, "plane", c->plane);
+        if (c->has_last) {
+            JsonObject *lo = json_object_new();
+            char b[8];
+            g_snprintf(b, sizeof(b), "%04X", c->last.insn_pc);
+            json_object_set_int_member(lo, "seq", (gint64)(c->last.seq1 - 1u));
+            json_object_set_string_member(lo, "pc", b);
+            json_object_set_string_member(lo, "src", ramlog_src_name(c->last.src));
+            json_object_set_boolean_member(lo, "in_ring",
+                (uint64_t)(c->last.seq1 - 1u) >= p.out_status.first_seq
+                && (uint64_t)(c->last.seq1 - 1u) < p.out_status.next_seq);
+            json_object_set_object_member(co, "last", lo);
+        } else {
+            json_object_set_null_member(co, "last");
+        }
+        JsonArray *hist = json_array_new();
+        for (size_t k = 0; k < c->n_recs; k++) {
+            json_array_add_object_element(hist, _ramlog_rec_json(&p.out_recs[i * p.limit + k],
+                                                                 p.out_seqs[i * p.limit + k], true));
+        }
+        json_object_set_array_member(co, "history", hist);
+        json_array_add_object_element(cells, co);
+    }
+    json_object_set_array_member(resp, "cells", cells);
+    g_free(p.out_recs);
+    g_free(p.out_seqs);
+    return _ok_response(req_id, resp, out_response);
+}
+
+/**
+ * @brief `ramlog_writers` handler - kdo všechno zapisoval do rozsahu (souhrn podle instrukce).
+ *
+ * Parametry: `from` / `to` (CPU adresy zápisu v okamžiku zápisu) nebo
+ * `space` + `from` / `to` (buňky prostoru); `limit` (1..5000, výchozí 50),
+ * `all` (i nezměněné a potlačené zápisy).
+ */
+static en_MCP_DISPATCH_RESULT _handle_ramlog_writers(const st_JSONL_MESSAGE *req, char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _videorec_data_obj(req);
+    st_DBGAPI_RAMLOG_PARAM p;
+    memset(&p, 0, sizeof(p));
+    p.op = DBGAPI_RAMLOG_OP_WRITERS;
+    int hf = _videorec_member(obj, "from", G_TYPE_INT64);
+    int ht = _videorec_member(obj, "to", G_TYPE_INT64);
+    int hs = _videorec_member(obj, "space", G_TYPE_STRING);
+    int hl = _videorec_member(obj, "limit", G_TYPE_INT64);
+    int hall = _videorec_member(obj, "all", G_TYPE_BOOLEAN);
+    const char *e = NULL;
+    if (hf <= 0 || ht < 0 || hs < 0 || hl < 0 || hall < 0) e = "from (integer) is required; to, limit integers, space a string, all a boolean";
+    gint64 from = hf > 0 ? json_object_get_int_member(obj, "from") : 0;
+    gint64 to = ht > 0 ? json_object_get_int_member(obj, "to") : from;
+    gint64 limit = hl > 0 ? json_object_get_int_member(obj, "limit") : 50;
+    if (!e && (limit < 1 || limit > RAMLOG_MCP_MAX_WRITERS)) e = "limit must be 1..5000";
+    if (!e && hs) {
+        int sp = ramlog_space_from_name(json_object_get_string_member(obj, "space"));
+        if (sp < 0) e = "space must be ram, vram, pcg, memext or rom";
+        else if (from < 0 || to < from || to > 0x7FFFF) e = "physical range must be 0 <= from <= to <= 7FFFFh";
+        p.space = (uint8_t)(sp < 0 ? 0 : sp);
+        p.off_from = (uint32_t)from;
+        p.off_to = (uint32_t)to;
+    } else if (!e) {
+        if (from < 0 || to < from || to > 0xFFFF) e = "CPU range must be 0 <= from <= to <= FFFFh";
+        p.by_cpu = true;
+        p.cpu_from = (uint16_t)from;
+        p.cpu_to = (uint16_t)to;
+    }
+    if (e) {
+        return _trace_err_owned(req_id, g_strdup_printf("Invalid parameters: %s", e),
+                                MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    p.include_unchanged = hall > 0 && json_object_get_boolean_member(obj, "all");
+    p.limit = (size_t)limit;
+    p.out_writers = g_new0(st_RAMLOG_WRITER, p.limit);
+    if (!_ramlog_submit(&p) || p.out_error[0]) {
+        g_free(p.out_writers);
+        return _err_response(req_id, p.out_error[0] ? p.out_error : "ramlog command failed",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    JsonObject *resp = json_object_new();
+    json_object_set_boolean_member(resp, "active", p.out_status.active);
+    json_object_set_int_member(resp, "segment", (gint64)p.out_status.segment);
+    json_object_set_int_member(resp, "total", (gint64)p.out_total_writers);
+    json_object_set_boolean_member(resp, "truncated", p.out_total_writers > p.out_n_writers);
+    JsonArray *wa = json_array_new();
+    for (size_t i = 0; i < p.out_n_writers; i++) {
+        const st_RAMLOG_WRITER *w = &p.out_writers[i];
+        JsonObject *wo = json_object_new();
+        char b[8];
+        g_snprintf(b, sizeof(b), "%04X", w->insn_pc);
+        json_object_set_string_member(wo, "pc", b);
+        json_object_set_string_member(wo, "src", ramlog_src_name(w->src));
+        json_object_set_int_member(wo, "count", (gint64)w->count);
+        json_object_set_int_member(wo, "first_seq", (gint64)w->first_seq);
+        json_object_set_int_member(wo, "last_seq", (gint64)w->last_seq);
+        json_array_add_object_element(wa, wo);
+    }
+    json_object_set_array_member(resp, "writers", wa);
+    g_free(p.out_writers);
     return _ok_response(req_id, resp, out_response);
 }
 

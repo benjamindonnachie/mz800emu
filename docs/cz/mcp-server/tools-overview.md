@@ -69,6 +69,12 @@ dokumentu [Resources overview](resources-overview.md).
 | `emu_trace_save` | ne | Uloží/přesměruje segment trace kanálu (volitelný path) |
 | `emu_trace_status` | ne | Stav trace kanálů a ringu Event Vieweru pro čtení |
 | `emu_trace_read` | ne | Stránka záznamů trace / Event Vieweru (kurzor, filtr, rozpočet znaků) |
+| `emu_ramlog_start` | ne | Spustí záznam zápisů do paměti (rozsahy, ring / fill, kapacita) |
+| `emu_ramlog_stop` | ne | Zastaví záznam zápisů (záznamy zůstanou čitelné) |
+| `emu_ramlog_clear` | ne | Vyprázdní záznam zápisů |
+| `emu_ramlog_status` | ne | Stav záznamu zápisů |
+| `emu_ramlog_who_wrote` | ne | Poslední zapisovatel a historie zápisů buňky paměti |
+| `emu_ramlog_writers` | ne | Instrukce, které zapisovaly do rozsahu |
 | `emu_videorec_start` | ano (vytvoří / přepíše soubor) | Spustí bezeztrátové nahrávání videa (volitelná cesta, automatický stop po N snímcích) |
 | `emu_videorec_stop` | ne | Ukončí nahrávání videa, standardně počká na uložení souborů |
 | `emu_videorec_pause` | ne | Pauza nahrávání (emulace běží dál): pauza / pokračování / přepnutí |
@@ -942,7 +948,7 @@ nezaznamenáno), `live`, `truncated`, `first_seq`, `next_seq`, `lost`,
 ### `emu_trace_read`
 
 Stránka záznamů kanálu (`cputrack`, `iorqlog`, `intlog`, `hwlog`,
-`marklog`, `eventlog` a z paměti zachycení zvuku `audio_psg_writes`,
+`marklog`, `eventlog`, `ramlog` (záznam zápisů do paměti) a z paměti zachycení zvuku `audio_psg_writes`,
 `audio_levels`, `audio_frames`), i za běhu záznamu - čitelná jsou i data, která
 jsou zatím jen v RAM bufferu. Po `emu_trace_stop` zůstane poslední
 segment čitelný až do dalšího startu. Argumenty:
@@ -962,7 +968,9 @@ segment čitelný až do dalšího startu. Argumenty:
   `marker` (id značky marklog), `channels` (seznam jmen kanálů `ctc0`,
   `psg0_0` .. `psg1_3`; audio_levels, audio_psg_writes), `reg` (`tone_lo`,
   `tone`, `volume`, `noise`; audio_psg_writes), `t_from`/`t_to` (kanály se
-  sloupcem `t`).
+  sloupcem `t`); ramlog: `pc_from`/`pc_to` (zapisující instrukce),
+  `addr_from`/`addr_to` (CPU adresa), `space`, `src`, `all` (i zápisy,
+  které buňku nezměnily, a zápisy pod ROM - ve výchozím stavu skryté).
 - `max_chars` (int, výchozí 20000, 1000-45000) - rozpočet znaků celé
   odpovědi `rows`.
 - `max_scan` (int, výchozí 2000000) - nejvýš prohledaných záznamů na
@@ -981,6 +989,7 @@ Sloupce (vždy v tomto pořadí, `columns` v odpovědi):
 | `audio_psg_writes` | `seq`, `t`, `time_us`, `frame`, `psg`, `byte`, `ch`, `reg`, `value`, `hz`, `note` |
 | `audio_levels` | `seq`, `t`, `time_us`, `frame`, `channel`, `level` |
 | `audio_frames` | `seq`, `t`, `time_us`, `len_ticks`, `edges`, `on_pct`, `rms_level`, `max_level`, `ref_rms`, `ref_peak`, `sdl_rms`, `sdl_peak`, `sdl_blocks` |
+| `ramlog` | `seq`, `t`, `frame`, `pc`, `sym`, `addr`, `space`, `offset`, `plane`, `old`, `new`, `src`, `flags`, `count`, `tin` |
 
 `t` je v taktech GDG od startu emulace (cputrack: začátek instrukce,
 jen s `has_time`); `asm` u cputrack je disassembly z bajtů záznamu,
@@ -998,6 +1007,72 @@ ukazuje před `first_seq`), `scanned`, `matched`, `scan_exhausted`
 a `next_cursor`. Kurzor ze staršího segmentu (kanál se znovu spustil,
 ring Event Vieweru se vymazal) vrátí chybu začínající
 `segment_replaced:`.
+
+## Nástroje záznamu zápisů do paměti
+
+Záznam zápisů do paměti ([RAM Write Log](../debugger/ram-write-log.md)):
+kdo zapsal bajt, který kód zapisuje do oblasti. Každý záznam nese čas `t`
+(takty GDG na začátku zapisující instrukce, stejně jako `t` cputrack),
+`tin` (čítač T-stavů instrukce v okamžiku zápisu, jen `insn` - přibližná
+poloha), `frame`, adresu zapisující instrukce `pc`, CPU adresu
+`addr`, buňku (`space` + `offset`: `ram`, `vram`, `pcg`, `memext`, `rom`
+= zápis pod ROM, zahozený), `old` / `new` a zdroj `src` (`insn`,
+`int_ack` / `nmi_ack` = návratová adresa uložená při přijetí přerušení,
+`pc` = ta návratová adresa, `debugger`, `poke`, `freeze`, `cmt_hack`,
+`load` = jeden souhrnný záznam nahraného bloku). Reset a načtení snapshotu
+záznam vyprázdní. Postup je v MCP dokumentu `emulator://docs/ramlog`.
+
+### `emu_ramlog_start`
+
+Spustí záznam; běžící záznam se nahradí. Argumenty:
+
+- `ranges` (seznam, volitelný, nejvýš 16) - `{"from": 0x4000, "to": 0x40FF}`
+  = CPU adresy v okamžiku zápisu (`to` výchozí = `from`),
+  `{"space": "vram", "from": 0, "to": 0x1FFF}` = buňky prostoru (`ram`,
+  `vram`, `pcg`, `memext`). Prázdný = celá paměť (pomalejší).
+- `mode` (string, výchozí `ring`) - `ring` drží nejnovější záznamy,
+  `fill` prvních `capacity` záznamů (zbytek se počítá do `dropped`).
+- `capacity` (int, výchozí 1048576, 16-16777216) - položek po 32 B.
+
+Vrací stav (viz `emu_ramlog_status`).
+
+### `emu_ramlog_stop`, `emu_ramlog_clear`
+
+Zastaví záznam (záznamy zůstanou čitelné do dalšího startu) / vyprázdní
+ho (nový segment, běžící záznam pokračuje). Vrací stav.
+
+### `emu_ramlog_status`
+
+`{"active", "allocated", "segment", "mode", "capacity", "first_seq",
+"next_seq", "total", "dropped", "overwritten", "memory_bytes",
+"ranges"}`. `first_seq` > 0 = ring přepsal nejstarší záznamy.
+
+### `emu_ramlog_who_wrote`
+
+Poslední zapisovatel a historie zápisů buňky. Argumenty: `addr` (CPU
+adresa podle aktuálního mapování; grafická VRAM MZ-800 dá 4 plány) nebo
+`space` + `offset`; `limit` (0-1000, výchozí 20 záznamů na buňku);
+`include_unchanged` (v JSONL `all`, výchozí false - i zápisy, které buňku
+nezměnily).
+
+Vrací `{"active", "segment", "mmio", "cells": [{"space", "offset",
+"plane"?, "last": {"seq", "pc", "src", "in_ring"} | null, "history":
+[{"seq", "t", "frame", "pc", "addr", "old", "new", "src", "tin"?, "count"?,
+"unchanged"?, "suppressed"?}]}]}`, historie od nejnovějšího. `last`
+pochází z mapy posledních zapisovatelů a drží se, i když ring záznam už
+přepsal (`in_ring: false`). `mmio: true` = adresa je port mapovaný do
+paměti, žádná buňka.
+
+### `emu_ramlog_writers`
+
+Instrukce, které zapisovaly do rozsahu, seskupené podle zapisující
+instrukce a seřazené podle počtu zápisů. Argumenty: `from_addr`,
+`to_addr` (výchozí `from_addr`) - CPU adresy v okamžiku zápisu, nebo
+offsety v `space`; `limit` (1-5000, výchozí 50); `include_unchanged`.
+Vrací `{"active", "segment", "total", "truncated", "writers": [{"pc",
+"src", "count", "first_seq", "last_seq"}]}`.
+
+Samotné záznamy se čtou přes `emu_trace_read(channel="ramlog")`.
 
 ## Video recording tools
 

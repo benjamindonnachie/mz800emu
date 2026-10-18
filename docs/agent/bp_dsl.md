@@ -141,6 +141,7 @@ Notes:
 | `if(cond, a, b)` | `cond ? a : b` (only the selected branch evaluated) |
 | `bit(value, n)` | n-th bit of value (0/1); n masked to 0..31 |
 | `s8(x)`, `s16(x)`, `s32(x)` | sign-extend low byte / low word / no-op |
+| `lastwriter(addr)` | address of the instruction that last wrote the cell at CPU address `addr` (current mapping) according to the RAM write log; `-1` = not written since the log was started or emptied, no log, or a memory-mapped port. See `emulator://docs/ramlog` |
 
 ## Examples
 

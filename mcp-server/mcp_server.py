@@ -3353,7 +3353,8 @@ _TRACE_CHANNELS = ("cputrack", "iorqlog", "intlog", "hwlog", "marklog")
 # channels plus the Event Viewer ring (``eventlog``, controlled by
 # emu_eventlog_start/stop/clear, not by emu_trace_start).
 _TRACE_READ_CHANNELS = _TRACE_CHANNELS + ("eventlog", "audio_psg_writes",
-                                          "audio_levels", "audio_frames")
+                                          "audio_levels", "audio_frames",
+                                          "ramlog")
 
 
 def _trace_read_validate_channel(channel: str) -> "str | None":
@@ -3494,6 +3495,150 @@ async def emu_trace_save(channel: str, path: str = "") -> str:
 
 
 @mcp.tool()
+async def emu_ramlog_start(ranges: list[dict[str, Any]] | None = None,
+                           mode: str = "ring",
+                           capacity: int = 1048576) -> str:
+    """Start the RAM write log: record every write into the given memory ranges.
+
+    Each record: time (GDG ticks), the address of the writing instruction
+    (``pc``), the CPU address, the physical cell (``space`` + ``offset``:
+    ``ram``, ``vram``, ``pcg``, ``memext``; ``rom`` = write dropped under
+    ROM), old and new value and the source (``insn``, ``int_ack`` /
+    ``nmi_ack`` = return address pushed when an interrupt is accepted,
+    ``debugger``, ``poke``, ``freeze``, ``cmt_hack``, ``load`` = one summary
+    record of a loaded block). A banked address is a different cell: the
+    same CPU address 8000h can be RAM or VRAM. A write into the MZ-800
+    graphics VRAM gives one record per written plane.
+
+    Read the records with ``emu_trace_read(channel="ramlog")`` (writes that
+    did not change the cell are hidden unless ``filter={"all": true}``),
+    ask ``emu_ramlog_who_wrote`` (last writer from a per-cell map - works
+    even after the ring wrapped) or ``emu_ramlog_writers`` (all writing
+    instructions of a range). Starting again replaces the previous log;
+    reset and snapshot load clear it.
+
+    Args:
+        ranges: ``[{"from": 0x4000, "to": 0x40FF}]`` (CPU addresses) or
+            ``[{"space": "vram", "from": 0, "to": 0x1FFF}]`` (cells), at
+            most 16; empty = all memory (slower: no RAM fast path for
+            writes).
+        mode: ``"ring"`` (keep the newest records) or ``"fill"`` (keep the
+            first ``capacity`` records, count the rest as ``dropped``).
+        capacity: Records in the ring (16-16777216, 32 B each).
+
+    Returns:
+        Status (see ``emu_ramlog_status``) or ``{"error": ...}``.
+    """
+    data: dict[str, Any] = {"mode": mode, "capacity": capacity}
+    if ranges:
+        data["ranges"] = [dict(r) for r in ranges]
+    resp = await _send_request("ramlog_start", data)
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_ramlog_stop() -> str:
+    """Stop the RAM write log; the records stay readable until the next start.
+
+    Returns:
+        Status (see ``emu_ramlog_status``).
+    """
+    resp = await _send_request("ramlog_stop", {})
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_ramlog_clear() -> str:
+    """Empty the RAM write log (new segment); a running log continues.
+
+    Returns:
+        Status (see ``emu_ramlog_status``).
+    """
+    resp = await _send_request("ramlog_clear", {})
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_ramlog_status() -> str:
+    """State of the RAM write log.
+
+    Returns:
+        ``{"active", "allocated", "segment", "mode", "capacity",
+        "first_seq", "next_seq", "total", "dropped", "overwritten",
+        "memory_bytes", "ranges"}``. ``first_seq`` > 0 = the ring
+        overwrote its oldest records; ``dropped`` > 0 = the ``fill`` ring
+        is full.
+    """
+    resp = await _send_request("ramlog_status", {})
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_ramlog_who_wrote(addr: int = -1, space: str = "", offset: int = -1,
+                               limit: int = 20,
+                               include_unchanged: bool = False) -> str:
+    """Who wrote a memory cell: last writer and the write history.
+
+    Give ``addr`` (CPU address in the current banking; the MZ-800 graphics
+    VRAM gives its 4 planes) or ``space`` + ``offset`` (a physical cell, as
+    in the ``ramlog`` rows).
+
+    Args:
+        addr: CPU address 0-FFFFh.
+        space: ``ram``, ``vram``, ``pcg``, ``memext`` or ``rom``.
+        offset: Offset in the space.
+        limit: Max history records per cell (0-1000).
+        include_unchanged: Include writes that did not change the cell.
+
+    Returns:
+        ``{"active", "segment", "mmio", "cells": [{"space", "offset",
+        "plane"?, "last": {"seq", "pc", "src", "in_ring"} | null,
+        "history": [{"seq", "t", "frame", "pc", "addr", "old", "new",
+        "src", "tin"?, ...}]}]}`` (history newest first; ``t`` = start
+        of the writing instruction, ``tin`` = T-state inside it). ``last`` comes from a
+        per-cell map and is kept even when the ring overwrote the record
+        (``in_ring: false``).
+    """
+    data: dict[str, Any] = {"limit": limit, "all": include_unchanged}
+    if addr >= 0:
+        data["addr"] = addr
+    else:
+        data["space"] = space
+        data["offset"] = offset
+    resp = await _send_request("ramlog_who_wrote", data)
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_ramlog_writers(from_addr: int, to_addr: int = -1, space: str = "",
+                             limit: int = 50,
+                             include_unchanged: bool = False) -> str:
+    """Which instructions wrote into a range (grouped by writing instruction).
+
+    Without ``space`` the range is CPU addresses at the time of the write;
+    with ``space`` it is cell offsets in that space.
+
+    Args:
+        from_addr: First address / offset.
+        to_addr: Last address / offset (-1 = from_addr).
+        space: Empty, or ``ram``, ``vram``, ``pcg``, ``memext``, ``rom``.
+        limit: Max writers (1-5000), most writes first.
+        include_unchanged: Include writes that did not change the cell.
+
+    Returns:
+        ``{"active", "segment", "total", "truncated", "writers": [{"pc",
+        "src", "count", "first_seq", "last_seq"}]}``.
+    """
+    data: dict[str, Any] = {"from": from_addr,
+                            "to": from_addr if to_addr < 0 else to_addr,
+                            "limit": limit, "all": include_unchanged}
+    if space:
+        data["space"] = space
+    resp = await _send_request("ramlog_writers", data)
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
 async def emu_trace_status(channel: str = "") -> str:
     """State of trace-suite channels for paged reading (``emu_trace_read``).
 
@@ -3553,6 +3698,8 @@ async def emu_trace_read(channel: str, cursor: str = "", start: str = "oldest",
       audio_levels: seq, t, time_us, frame, channel, level
       audio_frames: seq, t, time_us, len_ticks, edges, on_pct, rms_level,
                 max_level, ref_rms, ref_peak, sdl_rms, sdl_peak, sdl_blocks
+      ramlog:   seq, t, frame, pc, sym, addr, space, offset, plane, old, new,
+                src, flags, count, tin
     ``t`` is in GDG ticks since emulation start (cputrack: start of the
     instruction, only with ``has_time``, i.e. no PC range record filter).
     cputrack ``asm`` is decoded from the recorded bytes (not current
@@ -3578,7 +3725,8 @@ async def emu_trace_read(channel: str, cursor: str = "", start: str = "oldest",
     Args:
         channel: ``cputrack``, ``iorqlog``, ``intlog``, ``hwlog``,
             ``marklog``, ``eventlog``, ``audio_psg_writes``,
-            ``audio_levels`` or ``audio_frames``.
+            ``audio_levels``, ``audio_frames`` or ``ramlog`` (RAM write
+            log, see ``emu_ramlog_start``).
         cursor: ``next_cursor`` of the previous page (takes precedence over
             ``start``).
         start: ``"oldest"``, ``"newest"`` (last ``limit`` records) or
@@ -3592,6 +3740,10 @@ async def emu_trace_read(channel: str, cursor: str = "", start: str = "oldest",
             (<= 0xFF matches the low byte), ``dir`` (``in``/``out``),
             ``type`` (``iorq``, ``mreq_mapped``, ``iorq_unconnected``)
             (iorqlog), ``chip``/``sub`` (hwlog), ``marker`` (marklog id),
+            ramlog: ``pc_from``/``pc_to`` (writing instruction),
+            ``addr_from``/``addr_to`` (CPU address), ``space``, ``src``,
+            ``all`` (also writes that did not change the cell or were
+            dropped under ROM - hidden by default),
             ``channels`` (list of channel names such as ``"ctc0"``,
             ``"psg0_1"``; audio_levels, audio_psg_writes), ``reg``
             (``tone_lo``, ``tone``, ``volume``, ``noise``; audio_psg_writes),

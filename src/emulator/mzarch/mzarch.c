@@ -52,6 +52,7 @@
 #include "debugger/stack_history.h"
 #include "debugger/dbgapi_emu.h"
 #include "debugger/trace/cputrack.h"
+#include "debugger/trace/ramlog.h"
 #include "debugger/profiler_pc.h"
 #include "debugger/trace/intlog.h"
 #include "debugger/trace/eventlog.h"
@@ -820,9 +821,20 @@ static inline void mzarch_main_process_interrupt(void)
          * Tato adresa odpovídá tomu, co z80_process_interrupt pushne na
          * CPU stack. */
         uint16_t pc_before_int = cpu->pc;
+        /* Záznam zápisů (ramlog): push návratové adresy při přijetí jde mimo
+         * instrukci - zdroj INT_ACK / NMI_ACK, insn_pc = návratová adresa
+         * (z HALT o 1 dál, viz z80.c handle_interrupts_internal). */
+        uint32_t ramlog_saved = 0;
+        if (g_ramlog_active)
+            ramlog_saved = ramlog_source_push(cpu->nmi_pending ? RAMLOG_SRC_NMI_ACK : RAMLOG_SRC_INT_ACK,
+                                              (uint16_t)(cpu->pc + (cpu->halted ? 1 : 0)));
 #endif
 
         int interrupt_tstates = z80_process_interrupt(cpu);
+#ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
+        if (g_ramlog_active)
+            ramlog_source_pop(ramlog_saved);
+#endif
 
         if (interrupt_tstates > 0)
         { /* interrupt byl prijat */
@@ -1230,6 +1242,9 @@ static void mzarch_main_reset(void)
      * divergence detekci. Aktivační flag (g_callstack_active) zachován
      * - subsystém zůstává zapnutý/vypnutý nezávisle na resetu. */
     callstack_reset ( );
+    /* Záznam zápisů: záznamy se týkají stavu před resetem - vyprázdnit
+     * (běžící záznam pokračuje v novém segmentu). */
+    ramlog_clear ( );
 #endif
 #if HAVE_PIOZ80
     pioz80_reset();

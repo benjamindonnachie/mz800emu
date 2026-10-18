@@ -10,7 +10,6 @@
 - dynamická IORQ sběrnice, plug-and-play
 - možnost připojovat externí moduly/knihovny na IORQ
 - Hledání referencí (kde všude se čte/zapisuje právě tohle)
-- Reverse trace (kdo zapsal hodnotu na adrese X?)
 - Back step
 - Cheat search
 - vytvoření kompletního overscreen menu

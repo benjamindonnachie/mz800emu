@@ -69,6 +69,12 @@ documented separately in [Resources overview](resources-overview.md).
 | `emu_trace_save` | no | Save/redirect a trace channel segment (optional path) |
 | `emu_trace_status` | no | State of trace channels and the Event Viewer ring for reading |
 | `emu_trace_read` | no | Page of trace / Event Viewer records (cursor, filter, character budget) |
+| `emu_ramlog_start` | no | Start the RAM write log (ranges, ring / fill, capacity) |
+| `emu_ramlog_stop` | no | Stop the RAM write log (records stay readable) |
+| `emu_ramlog_clear` | no | Empty the RAM write log |
+| `emu_ramlog_status` | no | State of the RAM write log |
+| `emu_ramlog_who_wrote` | no | Last writer and write history of a memory cell |
+| `emu_ramlog_writers` | no | Instructions that wrote into a range |
 | `emu_videorec_start` | yes (creates / overwrites a file) | Start lossless video recording (optional path, auto-stop after N frames) |
 | `emu_videorec_stop` | no | Stop video recording, by default wait until the files are saved |
 | `emu_videorec_pause` | no | Recording pause (emulation keeps running): pause / resume / toggle |
@@ -963,7 +969,7 @@ nothing recorded yet), `live`, `truncated`, `first_seq`, `next_seq`,
 ### `emu_trace_read`
 
 One page of records of a channel (`cputrack`, `iorqlog`, `intlog`,
-`hwlog`, `marklog`, `eventlog`, and from the audio capture memory
+`hwlog`, `marklog`, `eventlog`, `ramlog` (RAM write log), and from the audio capture memory
 `audio_psg_writes`, `audio_levels`, `audio_frames`), also while recording runs - the data
 still in the RAM buffer is readable too. After `emu_trace_stop` the
 last segment stays readable until the next start. Arguments:
@@ -983,7 +989,9 @@ last segment stays readable until the next start. Arguments:
   `marker` (marklog id), `channels` (list of channel names `ctc0`,
   `psg0_0` .. `psg1_3`; audio_levels, audio_psg_writes), `reg` (`tone_lo`,
   `tone`, `volume`, `noise`; audio_psg_writes), `t_from`/`t_to` (channels
-  with `t`).
+  with `t`); ramlog: `pc_from`/`pc_to` (writing instruction),
+  `addr_from`/`addr_to` (CPU address), `space`, `src`, `all` (also writes
+  that did not change the cell and writes under ROM - hidden by default).
 - `max_chars` (int, default 20000, 1000-45000) - character budget of
   the whole `rows` response.
 - `max_scan` (int, default 2000000) - max records examined per call.
@@ -1001,6 +1009,7 @@ Columns (always in this order, `columns` in the response):
 | `audio_psg_writes` | `seq`, `t`, `time_us`, `frame`, `psg`, `byte`, `ch`, `reg`, `value`, `hz`, `note` |
 | `audio_levels` | `seq`, `t`, `time_us`, `frame`, `channel`, `level` |
 | `audio_frames` | `seq`, `t`, `time_us`, `len_ticks`, `edges`, `on_pct`, `rms_level`, `max_level`, `ref_rms`, `ref_peak`, `sdl_rms`, `sdl_peak`, `sdl_blocks` |
+| `ramlog` | `seq`, `t`, `frame`, `pc`, `sym`, `addr`, `space`, `offset`, `plane`, `old`, `new`, `src`, `flags`, `count`, `tin` |
 
 `t` is in GDG ticks since emulation start (cputrack: start of the
 instruction, only with `has_time`); cputrack `asm` is decoded from the
@@ -1019,6 +1028,73 @@ cursor), `page_full`, `end_of_data` (the page reached `next_seq`),
 `count`, `data_b64`) and `next_cursor`. A cursor from an older segment
 (the channel was restarted, the Event Viewer ring was cleared) returns
 an error starting with `segment_replaced:`.
+
+## RAM write log tools
+
+Record of the writes into memory ([RAM Write Log](../debugger/ram-write-log.md)):
+who wrote a byte, which code writes into an area. Every record carries the
+time `t` (GDG ticks at the start of the writing instruction, the same as
+`t` of cputrack), `tin` (T-state counter of the instruction at the moment
+of the write, `insn` only - an approximate position), `frame`, the address of the writing instruction
+`pc`, the CPU address `addr`, the cell (`space` + `offset`: `ram`,
+`vram`, `pcg`, `memext`, `rom` = write under ROM, dropped), `old` / `new`
+and the source `src` (`insn`, `int_ack` / `nmi_ack` = return address
+pushed when an interrupt is accepted, `pc` = that return address,
+`debugger`, `poke`, `freeze`, `cmt_hack`, `load` = one summary record of
+a loaded block). Reset and snapshot load empty the log. The recipe is in
+the MCP document `emulator://docs/ramlog`.
+
+### `emu_ramlog_start`
+
+Starts the log; a running log is replaced. Arguments:
+
+- `ranges` (list, optional, at most 16) - `{"from": 0x4000, "to": 0x40FF}`
+  = CPU addresses at the moment of the write (`to` defaults to `from`),
+  `{"space": "vram", "from": 0, "to": 0x1FFF}` = cells of a space (`ram`,
+  `vram`, `pcg`, `memext`). Empty = all memory (slower).
+- `mode` (string, default `ring`) - `ring` keeps the newest records,
+  `fill` the first `capacity` records (the rest is counted in `dropped`).
+- `capacity` (int, default 1048576, 16-16777216) - records, 32 B each.
+
+Returns the status (see `emu_ramlog_status`).
+
+### `emu_ramlog_stop`, `emu_ramlog_clear`
+
+Stop the log (the records stay readable until the next start) / empty it
+(new segment, a running log continues). Return the status.
+
+### `emu_ramlog_status`
+
+`{"active", "allocated", "segment", "mode", "capacity", "first_seq",
+"next_seq", "total", "dropped", "overwritten", "memory_bytes",
+"ranges"}`. `first_seq` > 0 = the ring overwrote its oldest records.
+
+### `emu_ramlog_who_wrote`
+
+Last writer and write history of a cell. Arguments: `addr` (CPU address
+with the current mapping; the MZ-800 graphic VRAM gives its 4 planes) or
+`space` + `offset`; `limit` (0-1000, default 20 records per cell);
+`include_unchanged` (JSONL `all`, default false - also writes that did not
+change the cell).
+
+Returns `{"active", "segment", "mmio", "cells": [{"space", "offset",
+"plane"?, "last": {"seq", "pc", "src", "in_ring"} | null, "history":
+[{"seq", "t", "frame", "pc", "addr", "old", "new", "src", "tin"?, "count"?,
+"unchanged"?, "suppressed"?}]}]}`, history newest first. `last` comes
+from a map of last writers and is kept even after the ring overwrote the
+record (`in_ring: false`). `mmio: true` = the address is a memory-mapped
+port, no cell.
+
+### `emu_ramlog_writers`
+
+Instructions that wrote into a range, grouped by writing instruction and
+sorted by the number of writes. Arguments: `from_addr`, `to_addr`
+(default `from_addr`) - CPU addresses at the moment of the write, or
+offsets in `space`; `limit` (1-5000, default 50); `include_unchanged`.
+Returns `{"active", "segment", "total", "truncated", "writers": [{"pc",
+"src", "count", "first_seq", "last_seq"}]}`.
+
+The records themselves are read with `emu_trace_read(channel="ramlog")`.
 
 ## Video recording tools
 

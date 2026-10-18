@@ -10,7 +10,6 @@
 - dynamic IORQ bus, plug-and-play
 - ability to attach external modules/libraries to IORQ
 - Reference search (where exactly is this read/written)
-- Reverse trace (who wrote the value at address X?)
 - Back step
 - Cheat search
 - complete overscreen menu

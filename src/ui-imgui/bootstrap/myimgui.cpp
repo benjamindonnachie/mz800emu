@@ -419,6 +419,9 @@ gboolean myimgui_init_cb(SdlAppWindow *win, gpointer user_data)
      * menu Debugger -> Stack History nebo Alt+Shift+H. Persistence přes
      * [STACK_PANEL] show_history_window. */
     gui->showStackHistoryWindow = false;
+    /* RAM Write Log - default closed; menu Debugger -> RAM Write Log nebo
+     * "Who wrote this byte?" v Memory Browseru. Viditelnost se neukládá. */
+    gui->showRamlogWindow = false;
     /* Callstack (mutant callstack Fáze 2C): samostatné plovoucí okno se
      * shadow stackem volání. Default closed, user otevírá přes menu
      * Debugger -> Callstack. */

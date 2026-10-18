@@ -35,6 +35,9 @@
  *   trace_stop  <chan>       - zastavit trace kanál
  *   trace_save  <chan>, "fmt" [args] - uložit/přesměrovat segment kanálu
  *   snapshot "fmt" [args]    - uložit .mzs snapshot (vyžaduje paused emu)
+ *   ramlog_start [from, to]  - spustit záznam zápisů do paměti (bez argumentů
+ *                              celá paměť; výrazy se vyhodnotí při hitu)
+ *   ramlog_stop / ramlog_clear - zastavit / vyprázdnit záznam zápisů
  *
  * Forward příkazy (cdl_* / trace_* / snapshot) automatizují metodiku "jeden
  * chytrý BP místo desítek ručních MCP volání" (vize 0017) - při hitu BP

@@ -60,6 +60,7 @@
 #include "debugger/trace/cputrack.h"
 #include "debugger/trace/iorqlog.h"
 #include "debugger/trace/intlog.h"
+#include "debugger/trace/ramlog_hook.h"
 #include "debugger/trace/hwlog.h"
 #include "debugger/trace/marklog.h"
 #include "debugger/bptmap.h"
@@ -248,6 +249,7 @@ void mzarch_platform_fn_debugger_state_changed(bool active)
     intlog_recompute_active(active);
     hwlog_recompute_active(active);
     marklog_recompute_active(active);
+    ramlog_recompute_active(active);
 
     bool need_debug = TEST_DEBUGGER_NEED_DEBUG_CALLBACKS;
 
@@ -257,6 +259,15 @@ void mzarch_platform_fn_debugger_state_changed(bool active)
         z80_set_mwrite(g_mzarch_main.cpu, memory_write_with_logging_cb, NULL);
         z80_set_pread(g_mzarch_main.cpu, port_read_with_logging_cb, NULL);
         z80_set_pwrite(g_mzarch_main.cpu, port_write_with_logging_cb, NULL);
+    }
+    else if (g_ramlog_active)
+    {
+        /* Záznam zápisů bez jiné diagnostiky (ramlog, háček A): jen write
+         * callback se záznamem, čtení a porty čisté (bez RAM fast-path). */
+        z80_set_mread(g_mzarch_main.cpu, memory_read_cb, NULL);
+        z80_set_mwrite(g_mzarch_main.cpu, ramlog_hook_cpu_write_cb, NULL);
+        z80_set_pread(g_mzarch_main.cpu, port_read_cb, NULL);
+        z80_set_pwrite(g_mzarch_main.cpu, port_write_cb, NULL);
     }
     else
     {

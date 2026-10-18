@@ -260,6 +260,25 @@ int dbgapi_regions_read(int region_id, uint32_t offset, uint8_t *out, uint32_t l
  */
 int dbgapi_regions_write(int region_id, uint32_t offset, const uint8_t *data, uint32_t len);
 
+/**
+ * @brief Buňka záznamu zápisů (ramlog) pro bajt regionu.
+ *
+ * Stejný převod, jakým dbgapi_regions_write() zaznamená zápis. RAM regionu
+ * REGION_KIND_RAM se určí podle aktuálního mapování MemExt.
+ *
+ * @param kind       en_REGION_KIND.
+ * @param sub_id     sub_id regionu.
+ * @param offset     Offset v regionu.
+ * @param out_space  Výstup: en_RAMLOG_SPACE.
+ * @param out_offset Výstup: offset v prostoru.
+ * @return false = region neexistuje, offset je mimo region, nebo region
+ *         záznam zápisů nepokrývá (ROM, RAMdisk, Logical - ten se ptá
+ *         podle CPU adresy).
+ * @pre Volá se v emu vlákně (čte mapování paměti).
+ */
+bool dbgapi_regions_ramlog_cell(int kind, int sub_id, uint32_t offset,
+                                uint8_t *out_space, uint32_t *out_offset);
+
 #ifdef __cplusplus
 }
 #endif

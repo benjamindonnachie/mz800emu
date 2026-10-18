@@ -18,6 +18,7 @@
 
 #include "freeze.h"
 #include "emulator/debugger/dbgapi_regions.h"
+#include "emulator/debugger/trace/ramlog.h"
 
 
 /**
@@ -171,8 +172,11 @@ void freeze_apply_all ( void )
         if ( !desc.connected || !desc.writable ) continue;
 
         /* Apply - 1-byte write přes dbgapi (no side-effect na chip state). */
+        /* Záznam zápisů: zdroj FREEZE (bez instrukce). */
+        uint32_t rl_saved = ramlog_source_push ( RAMLOG_SRC_FREEZE, 0 );
         dbgapi_regions_write ( desc.id, s_entries[i].offset,
                                &s_entries[i].value, 1 );
+        ramlog_source_pop ( rl_saved );
     }
 }
 

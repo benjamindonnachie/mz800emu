@@ -33,6 +33,7 @@ paragraph is the description.
 | `emulator://docs/videorec_workflow` | `videorec_workflow.md` |
 | `emulator://docs/trace_read` | `trace_read.md` |
 | `emulator://docs/audio_capture_read` | `audio_capture_read.md` |
+| `emulator://docs/ramlog` | `ramlog.md` |
 
 This table is informative only - the actual resource list is built by
 scanning this directory, so it always matches the files present.

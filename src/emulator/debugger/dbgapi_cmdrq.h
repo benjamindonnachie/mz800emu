@@ -37,6 +37,7 @@
 #include "debugger/profiler_pc.h"
 #include "audio_capture.h"
 #include "debugger/trace/tlog_common.h"
+#include "debugger/trace/ramlog.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -720,6 +721,9 @@ typedef enum en_DBGAPI_CMD
      * Přidáno na KONEC enumu kvůli stabilitě číselných hodnot. */
     DBGAPI_CMD_TRACE_SNAPSHOT,       /* Snímek segmentu trace kanálu - data_ptr: st_DBGAPI_TRACE_SNAPSHOT_PARAM* */
     DBGAPI_CMD_TRACE_RESOLVE,        /* Symboly adres a jména značek pro řádky trace - data_ptr: st_DBGAPI_TRACE_RESOLVE_PARAM* */
+
+    /* ramlog (M2 debug-gaps) - záznam zápisů do paměti */
+    DBGAPI_CMD_RAMLOG,               /* Start/stop/clear/stav a dotazy kdo zapsal - data_ptr: st_DBGAPI_RAMLOG_PARAM* */
 
 } en_DBGAPI_CMD;
 
@@ -2706,6 +2710,9 @@ typedef enum en_DBGAPI_TRACE_CHANNEL
      *  příkazy TRACE_START/STOP/RESET/SAVE ho odmítnou (Event Viewer má
      *  vlastní eventlog_start/stop/clear). */
     DBGAPI_TRACE_CHANNEL_EVENTLOG,
+    /** Ring záznamu zápisů do paměti (ramlog) - jen čtení (DBGAPI_CMD_TRACE_SNAPSHOT);
+     *  ovládá ho DBGAPI_CMD_RAMLOG. */
+    DBGAPI_TRACE_CHANNEL_RAMLOG,
 } en_DBGAPI_TRACE_CHANNEL;
 
 
@@ -2814,6 +2821,69 @@ typedef struct st_DBGAPI_TRACE_RESOLVE_PARAM
     size_t                n_events;
     char                (*out_event_texts)[ DBGAPI_EVENT_TEXT_MAX ];
 } st_DBGAPI_TRACE_RESOLVE_PARAM;
+
+
+/** @brief Operace příkazu DBGAPI_CMD_RAMLOG. */
+typedef enum en_DBGAPI_RAMLOG_OP
+{
+    DBGAPI_RAMLOG_OP_START = 0,  /**< ramlog_hook_start(cfg): nový záznam (předchozí data uvolní). */
+    DBGAPI_RAMLOG_OP_STOP,       /**< ramlog_hook_stop(): konec záznamu, data zůstanou. */
+    DBGAPI_RAMLOG_OP_CLEAR,      /**< ramlog_clear(): vyprázdnit, nový segment. */
+    DBGAPI_RAMLOG_OP_STATUS,     /**< Jen stav. */
+    DBGAPI_RAMLOG_OP_WHO_WROTE,  /**< Poslední zapisovatel a historie buněk (CPU adresa nebo buňka). */
+    DBGAPI_RAMLOG_OP_WRITERS,    /**< Souhrn zapisovatelů rozsahu (CPU adresy záznamů nebo buňky prostoru). */
+    DBGAPI_RAMLOG_OP_RECENT,     /**< Nejnovější záznamy (okno RAM Write Log). */
+} en_DBGAPI_RAMLOG_OP;
+
+/** @brief Jedna buňka odpovědi DBGAPI_RAMLOG_OP_WHO_WROTE. */
+typedef struct st_DBGAPI_RAMLOG_CELL
+{
+    uint8_t space;            /**< en_RAMLOG_SPACE. */
+    uint32_t offset;          /**< Offset v prostoru. */
+    bool has_plane;           /**< Plán grafické VRAM MZ-800. */
+    uint8_t plane;            /**< Plán 0-3. */
+    bool has_last;            /**< Mapa zná posledního zapisovatele. */
+    st_RAMLOG_MAPENT last;    /**< Poslední zapisovatel z mapy. */
+    size_t n_recs;            /**< Počet záznamů historie (v out_recs od indexu cell * limit). */
+} st_DBGAPI_RAMLOG_CELL;
+
+/**
+ * @brief Parametr pro DBGAPI_CMD_RAMLOG.
+ *
+ * Výstupní pole out_recs / out_seqs (RAMLOG_TARGETS_MAX * limit položek)
+ * a out_writers (limit položek) alokuje volající, jen pro operaci, která je
+ * plní. Handler vždy vyplní out_status a out_error.
+ *
+ * @invariant rq->success == false <=> out_error != "".
+ */
+typedef struct st_DBGAPI_RAMLOG_PARAM
+{
+    en_DBGAPI_RAMLOG_OP op;       /**< IN: operace. */
+    st_RAMLOG_CONFIG cfg;         /**< IN (START): parametry záznamu. */
+    bool by_cpu;                  /**< IN (WHO_WROTE / WRITERS): true = CPU adresa, false = buňka prostoru. */
+    bool by_region;               /**< IN (WHO_WROTE, jen když !by_cpu): buňka podle regionu Memory Browseru. */
+    int region_kind;              /**< IN (by_region): en_REGION_KIND (dbgapi_regions.h). */
+    int region_sub;               /**< IN (by_region): sub_id regionu. */
+    uint32_t region_off;          /**< IN (by_region): offset v regionu. */
+    uint16_t cpu_from;            /**< IN: CPU adresa (WHO_WROTE) / začátek rozsahu (WRITERS). */
+    uint16_t cpu_to;              /**< IN (WRITERS): konec CPU rozsahu. */
+    uint8_t space;                /**< IN: prostor (by_cpu == false). */
+    uint32_t off_from;            /**< IN: offset buňky / začátek rozsahu. */
+    uint32_t off_to;              /**< IN (WRITERS): konec rozsahu. */
+    size_t limit;                 /**< IN: nejvýš záznamů na buňku / zapisovatelů. */
+    bool include_unchanged;       /**< IN: i záznamy nezměněné / potlačené. */
+    st_RAMLOG_REC *out_recs;      /**< OUT (WHO_WROTE): historie buněk, od nejnovějšího; (RECENT): nejnovější záznamy. */
+    uint64_t *out_seqs;           /**< OUT (WHO_WROTE / RECENT): seq záznamů out_recs. */
+    size_t out_n_recs;            /**< OUT (RECENT): zapsaných záznamů. */
+    st_RAMLOG_WRITER *out_writers; /**< OUT (WRITERS): zapisovatelé. */
+    unsigned out_n_cells;         /**< OUT (WHO_WROTE): počet buněk. */
+    st_DBGAPI_RAMLOG_CELL out_cells[ 4 ]; /**< OUT (WHO_WROTE): buňky (= RAMLOG_TARGETS_MAX). */
+    bool out_mmio;                /**< OUT (WHO_WROTE): CPU adresa je mapovaný port. */
+    size_t out_n_writers;         /**< OUT (WRITERS): zapsaných. */
+    size_t out_total_writers;     /**< OUT (WRITERS): všech odlišných. */
+    st_RAMLOG_STATUS out_status;  /**< OUT: stav po operaci. */
+    char out_error[ 128 ];        /**< OUT: anglický text chyby, "" = OK. */
+} st_DBGAPI_RAMLOG_PARAM;
 
 
 /**

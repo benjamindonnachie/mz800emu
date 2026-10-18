@@ -55,6 +55,8 @@ on `$hits >= N`, or use Stop mode without a Custom script.
 | `trace_stop <chan>` | Stop a trace channel | `trace_stop cputrack` |
 | `trace_save <chan>, "fmt"[, expr...]` | Save / redirect channel segment | `trace_save cputrack, "seg-%d.bin", $id` |
 | `snapshot "fmt"[, expr...]` | Save `.mzs` snapshot (works from a continuing BP too) | `snapshot "snap-%X.mzs", PC` |
+| `ramlog_start [<from>, <to>]` | Start the RAM write log: all memory, or one range of CPU addresses (expressions evaluated at hit) | `ramlog_start HL, HL + 15` |
+| `ramlog_stop` / `ramlog_clear` | Stop / empty the RAM write log | `ramlog_stop` |
 
 ## `log` format specifiers
 
@@ -290,6 +292,19 @@ the headless frame counter the way a transient `paused` toggle did
 (0018/0019). This realises the "one BP"
 vision (0018): trace segment + `.mzs` snapshot from a single continuing
 BP, no client round-trip.
+
+### RAM write log
+
+| Command | Effect |
+|---------|--------|
+| `ramlog_start` | Same as `emu_ramlog_start` without `ranges` (all memory, ring, default capacity); replaces a running log |
+| `ramlog_start <from>, <to>` | One range of CPU addresses; both expressions evaluated when the BP fires, order of the two values does not matter |
+| `ramlog_stop` | Same as `emu_ramlog_stop` (records stay readable) |
+| `ramlog_clear` | Same as `emu_ramlog_clear` |
+
+Use `lastwriter(addr)` in conditions (`emulator://docs/bp_dsl`), e.g.
+`if lastwriter(0x4000) == 0x3009 then ramlog_stop`. Recipe:
+`emulator://docs/ramlog`.
 
 ### Filename templates and `$vars`
 

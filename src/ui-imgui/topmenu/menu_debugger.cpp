@@ -373,6 +373,14 @@ void imgui_menu_debugger(en_DBG_MENU_CALLER caller)
          * vlastnim regionem/encodingem/cursorem; sdileji pouze freeze
          * subsystem. Toggle pres g_gui->showMemoryBrowserWindowExtra[N-2].
          */
+        /*
+         * RAM Write Log - záznam zápisů do paměti (kdo zapsal bajt,
+         * nejnovější zápisy). Toggle přes g_gui->showRamlogWindow.
+         */
+        if (ImGui::MenuItem(_L("RAM Write Log"), NULL, g_gui->showRamlogWindow))
+        {
+            g_gui->showRamlogWindow = !g_gui->showRamlogWindow;
+        };
         if (ImGui::BeginMenu(_L("Other memory browsers")))
         {
             if (ImGui::MenuItem(_L("Memory Browser #2"), NULL,
