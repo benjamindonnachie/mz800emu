@@ -161,6 +161,9 @@ extern void snap_ramdisk_register(void);
 
 #if CFG_HWEXT_HAVE_IDE8
 extern void snap_ide8_register(void);
+#if MZARCH == 700
+extern void snap_gide_register(void);
+#endif
 #endif
 
 #if 1 /* MEMEXT je vždy k dispozici */
