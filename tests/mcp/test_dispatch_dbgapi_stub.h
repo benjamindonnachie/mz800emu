@@ -74,6 +74,10 @@ typedef struct st_DISPATCH_STUB_STATE {
     int                  tr_bump_on_call;           /**< > 0: od tohoto snímku (1 = první) je segment o 1 vyšší. */
     st_DBGAPI_TRACE_SNAPSHOT_PARAM tr_last;         /**< Kopie vstupu posledního TRACE_SNAPSHOT (out neplatné). */
     int                  tr_resolve_calls;          /**< Počet DBGAPI_CMD_TRACE_RESOLVE. */
+    unsigned             aud_segment;               /**< audio_capture_stream_copy: segment (0 = žádné zachycení). */
+    unsigned             aud_records;               /**< audio_capture_stream_copy: next_seq každého proudu. */
+    uint64_t             aud_origin;                /**< audio_capture_stream_copy: origin_ticks. */
+    int                  aud_copy_calls;            /**< Počet audio_capture_stream_copy. */
     void                *last_result;  /**< result_ptr poslední call. */
     int                  call_count;   /**< Počet volání mocku. */
     bool                 fail_next;    /**< Pokud true, příští call vrátí false. */

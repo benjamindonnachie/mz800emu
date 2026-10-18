@@ -38,6 +38,8 @@
 #include "emulator/mcp/cooperation.h"
 #include "emulator/debugger/dbgapi_cmdrq.h"
 #include "emulator/snapshot/snapshot.h"
+#include "emulator/hw-generic/gdg/gdgclk.h"
+#include "emulator/audio.h"
 /* Pozn.: NEvkládáme dbgapi_ui.h zde - ten taháno main.h ->
  * mzarch_config.h a v testovacím režimu by způsobil redefinition
  * warning na MZ800EMU_CFG_MCP_SERVER_ENABLED. Stub poskytuje signaturu
@@ -102,8 +104,11 @@
  *
  * mcp-trace-read doplnil trace_status a trace_read (stránkované čtení
  * Trace Suite, za trace_save) = 181 + 2 = 183.
+ *
+ * mcp-trace-read (část B) doplnil audio_capture_summary a audio_capture_pcm
+ * (paměť zachycení zvuku, za audio_capture_status) = 183 + 2 = 185.
  */
-#define MCP_EXPECTED_CMD_COUNT 183
+#define MCP_EXPECTED_CMD_COUNT 185
 
 
 /* ====================================================================== */
@@ -6936,7 +6941,7 @@ static JsonObject *_tr_data(const char *resp, JsonParser **parser) {
     return json_object_get_object_member(obj, "data");
 }
 
-/** @brief trace_status bez kanálu vypíše všech 6 kanálů, nezaznamenaný = segment 0. */
+/** @brief trace_status bez kanálu vypíše všech 9 kanálů, nezaznamenaný = segment 0. */
 void test_trace_status_all_channels(void) {
     dispatch_stub_reset();
     char *resp = NULL;
@@ -6944,13 +6949,15 @@ void test_trace_status_all_channels(void) {
     JsonParser *parser = NULL;
     JsonObject *data = _tr_data(resp, &parser);
     JsonArray *ch = json_object_get_array_member(data, "channels");
-    TEST_ASSERT_EQUAL_UINT(6, json_array_get_length(ch));
+    TEST_ASSERT_EQUAL_UINT(9, json_array_get_length(ch));
     JsonObject *c0 = json_array_get_object_element(ch, 0);
     TEST_ASSERT_EQUAL_STRING("cputrack", json_object_get_string_member(c0, "channel"));
     TEST_ASSERT_EQUAL_INT64(0, json_object_get_int_member(c0, "segment"));
     TEST_ASSERT_EQUAL_INT64(2, json_object_get_int_member(c0, "format_version"));
     TEST_ASSERT_EQUAL_STRING("marklog", json_object_get_string_member(json_array_get_object_element(ch, 4), "channel"));
     TEST_ASSERT_EQUAL_STRING("eventlog", json_object_get_string_member(json_array_get_object_element(ch, 5), "channel"));
+    TEST_ASSERT_EQUAL_STRING("audio_frames", json_object_get_string_member(json_array_get_object_element(ch, 8), "channel"));
+    TEST_ASSERT_EQUAL_INT64(0, json_object_get_int_member(json_array_get_object_element(ch, 8), "segment"));
     g_object_unref(parser);
     free(resp);
 
@@ -7100,6 +7107,99 @@ void test_trace_read_eventlog(void) {
     free(resp);
     TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS,
         _ss_request("trace_start", "{\"channel\":\"eventlog\"}", NULL));
+}
+
+/** @brief Řádek `i` stránky jako pole. */
+static JsonArray *_tr_row(JsonObject *data, guint i) {
+    return json_array_get_array_element(json_object_get_array_member(data, "rows"), i);
+}
+
+/** @brief trace_read audio_*: řádky z paměti zachycení zvuku, filtry channels a reg, Hz a nota. */
+void test_trace_read_audio_channels(void) {
+    dispatch_stub_reset();
+    g_stub_state.aud_segment = 3;
+    g_stub_state.aud_records = 10;
+    g_stub_state.aud_origin = 1000;
+    char *resp = NULL;
+    JsonParser *parser = NULL;
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("trace_read", "{\"channel\":\"audio_levels\",\"limit\":20}", &resp));
+    JsonObject *data = _tr_data(resp, &parser);
+    TEST_ASSERT_EQUAL_INT64(3, json_object_get_int_member(data, "segment"));
+    TEST_ASSERT_EQUAL_UINT(10, json_array_get_length(json_object_get_array_member(data, "rows")));
+    TEST_ASSERT_EQUAL_UINT(6, json_array_get_length(json_object_get_array_member(data, "columns")));
+    JsonArray *r1 = _tr_row(data, 1);
+    TEST_ASSERT_EQUAL_INT64(1010, json_array_get_int_element(r1, 1));             /* t absolutně */
+    TEST_ASSERT_DOUBLE_WITHIN(0.001, 10.0 * 1e6 / GDGCLK_BASE, json_array_get_double_element(r1, 2));
+    TEST_ASSERT_EQUAL_STRING("psg0_0", json_array_get_string_element(r1, 4));
+    TEST_ASSERT_EQUAL_INT64(1, json_array_get_int_element(r1, 5));
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(data, "end_of_data"));
+    TEST_ASSERT_EQUAL_INT(0, g_stub_state.tr_snap_calls);                         /* bez dbgapi */
+    g_object_unref(parser);
+    free(resp);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("trace_read",
+        "{\"channel\":\"audio_levels\",\"filter\":{\"channels\":[\"psg0_0\",\"psg1_3\"]}}", &resp));
+    data = _tr_data(resp, &parser);
+    TEST_ASSERT_EQUAL_UINT(2, json_array_get_length(json_object_get_array_member(data, "rows")));   /* src 1 a 8 */
+    TEST_ASSERT_EQUAL_INT64(8, json_array_get_int_element(_tr_row(data, 1), 0));
+    g_object_unref(parser);
+    free(resp);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("trace_read",
+        "{\"channel\":\"audio_psg_writes\",\"filter\":{\"reg\":\"tone\"}}", &resp));
+    data = _tr_data(resp, &parser);
+    TEST_ASSERT_EQUAL_UINT(5, json_array_get_length(json_object_get_array_member(data, "rows")));
+    JsonArray *w = _tr_row(data, 0);
+    TEST_ASSERT_EQUAL_STRING("tone", json_array_get_string_element(w, 7));
+    TEST_ASSERT_EQUAL_INT64(254, json_array_get_int_element(w, 8));
+    double hz = (double) GDGCLK_BASE / (32.0 * 254.0 * GDGCLK2CPU_DIVIDER);
+    TEST_ASSERT_DOUBLE_WITHIN(0.01, hz, json_array_get_double_element(w, 9));
+    TEST_ASSERT_NOT_NULL(json_array_get_string_element(w, 10));
+    g_object_unref(parser);
+    free(resp);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("trace_read",
+        "{\"channel\":\"audio_psg_writes\",\"filter\":{\"reg\":\"volume\"},\"limit\":1}", &resp));
+    data = _tr_data(resp, &parser);
+    w = _tr_row(data, 0);
+    TEST_ASSERT_TRUE(JSON_NODE_HOLDS_NULL(json_array_get_element(w, 9)));        /* hlasitost: bez Hz */
+    g_object_unref(parser);
+    free(resp);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("trace_read",
+        "{\"channel\":\"audio_frames\",\"from\":\"seq:2\",\"limit\":1}", &resp));
+    data = _tr_data(resp, &parser);
+    JsonArray *f = _tr_row(data, 0);
+    TEST_ASSERT_EQUAL_INT64(2, json_array_get_int_element(f, 0));
+    TEST_ASSERT_EQUAL_INT64(1000, json_array_get_int_element(f, 3));
+    JsonArray *edges = json_array_get_array_element(f, 4);
+    TEST_ASSERT_EQUAL_UINT(AUDIO_SRC_CHANNELS_COUNT, json_array_get_length(edges));
+    TEST_ASSERT_EQUAL_INT64(2, json_array_get_int_element(edges, 0));
+    TEST_ASSERT_DOUBLE_WITHIN(0.01, 50.0, json_array_get_double_element(json_array_get_array_element(f, 5), 0));
+    TEST_ASSERT_DOUBLE_WITHIN(0.01, 10.61, json_array_get_double_element(json_array_get_array_element(f, 6), 0));
+    TEST_ASSERT_EQUAL_INT64(200, json_array_get_int_element(json_array_get_array_element(f, 8), 1));
+    TEST_ASSERT_TRUE(JSON_NODE_HOLDS_NULL(json_array_get_element(f, 10)));        /* bez SDL cesty */
+    g_object_unref(parser);
+    free(resp);
+
+    /* Bez zachycení: prázdná stránka; filtry jen pro své kanály. */
+    g_stub_state.aud_segment = 0;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("trace_read", "{\"channel\":\"audio_frames\"}", &resp));
+    data = _tr_data(resp, &parser);
+    TEST_ASSERT_EQUAL_INT64(0, json_object_get_int_member(data, "segment"));
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(data, "end_of_data"));
+    g_object_unref(parser);
+    free(resp);
+    const char *bad[] = {
+        "{\"channel\":\"iorqlog\",\"filter\":{\"channels\":[\"ctc0\"]}}",
+        "{\"channel\":\"audio_levels\",\"filter\":{\"channels\":[\"psg9\"]}}",
+        "{\"channel\":\"audio_levels\",\"filter\":{\"reg\":\"tone\"}}",
+        "{\"channel\":\"audio_psg_writes\",\"filter\":{\"reg\":\"pitch\"}}",
+    };
+    for (size_t i = 0; i < G_N_ELEMENTS(bad); i++) {
+        TEST_ASSERT_EQUAL_INT_MESSAGE(MCP_DISPATCH_INVALID_PARAMS, _ss_request("trace_read", bad[i], NULL), bad[i]);
+    }
 }
 
 /** @brief trace_read: validace parametrů. */
@@ -7362,7 +7462,145 @@ void test_audio_capture_start_params(void) {
     TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("audio_capture_status", "{}", &resp));
     TEST_ASSERT_EQUAL_INT(DBGAPI_AUDIO_CAPTURE_OP_STATUS, p->op);
     TEST_ASSERT_NOT_NULL(strstr(resp, "\"frames\":7"));
+    TEST_ASSERT_NOT_NULL(strstr(resp, "\"memory\":null"));
+    TEST_ASSERT_NOT_NULL(strstr(resp, "\"segment\":"));
     free(resp);
+}
+
+
+/** @brief audio_capture_start: paměť přes MCP výchozí zapnutá, pcm, délky ringů. */
+void test_audio_capture_start_memory_params(void) {
+    dispatch_stub_reset();
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("audio_capture_start", "{}", NULL));
+    const st_DBGAPI_AUDIO_CAPTURE_PARAM *p = &g_stub_state.ac_last;
+    TEST_ASSERT_TRUE(p->params.memory);
+    TEST_ASSERT_TRUE(p->params.pcm_reference);
+    TEST_ASSERT_FALSE(p->params.pcm_sdl);
+    TEST_ASSERT_EQUAL_UINT32(AUDIO_CAPTURE_MEMORY_MINUTES_DEFAULT * 60u * VIDEO_SCREENS_PER_SEC, p->params.ring_frames);
+    TEST_ASSERT_EQUAL_UINT32(AUDIO_CAPTURE_PCM_SECONDS_DEFAULT * AUDIO_CAPTURE_WAV_RATE, p->params.ring_pcm);
+
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("audio_capture_start",
+        "{\"pcm\":[\"sdl\"],\"memory_minutes\":2,\"pcm_seconds\":5}", NULL));
+    TEST_ASSERT_FALSE(p->params.pcm_reference);
+    TEST_ASSERT_TRUE(p->params.pcm_sdl);
+    TEST_ASSERT_EQUAL_UINT32(2u * 60u * VIDEO_SCREENS_PER_SEC, p->params.ring_frames);
+    TEST_ASSERT_EQUAL_UINT32(5u * AUDIO_CAPTURE_WAV_RATE, p->params.ring_pcm);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("audio_capture_start", "{\"memory\":false}", NULL));
+    TEST_ASSERT_FALSE(p->params.memory);
+
+    int calls = g_stub_state.ac_calls;
+    const char *bad[] = { "{\"memory\":1}", "{\"pcm\":\"sdl\"}", "{\"pcm\":[\"wav\"]}",
+                          "{\"memory_minutes\":0}", "{\"pcm_seconds\":4000}" };
+    for (size_t i = 0; i < G_N_ELEMENTS(bad); i++) {
+        TEST_ASSERT_EQUAL_INT_MESSAGE(MCP_DISPATCH_INVALID_PARAMS, _ss_request("audio_capture_start", bad[i], NULL), bad[i]);
+    }
+    TEST_ASSERT_EQUAL_INT(calls, g_stub_state.ac_calls);
+}
+
+
+/** @brief audio_capture_summary: úseky, kanály, noty PSG, CTC0, reference vs SDL. */
+void test_audio_capture_summary(void) {
+    dispatch_stub_reset();
+    char *resp = NULL;
+    /* bez paměti zachycení */
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_EMU_ERROR, _ss_request("audio_capture_summary", "{}", &resp));
+    TEST_ASSERT_NOT_NULL(strstr(resp, "memory=true"));
+    free(resp);
+
+    g_stub_state.aud_segment = 2;
+    g_stub_state.aud_records = 10;
+    g_stub_state.aud_origin = 1000;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("audio_capture_summary", "{}", &resp));
+    JsonParser *parser = NULL;
+    JsonObject *data = _tr_data(resp, &parser);
+    JsonArray *fr = json_object_get_array_member(data, "frames");
+    TEST_ASSERT_EQUAL_INT64(0, json_array_get_int_element(fr, 0));
+    TEST_ASSERT_EQUAL_INT64(9, json_array_get_int_element(fr, 1));
+    /* ref RMS 100/200 >= 64 => všechny snímky se zvukem */
+    JsonArray *snd = json_object_get_array_member(data, "sound_spans");
+    TEST_ASSERT_EQUAL_UINT(1, json_array_get_length(snd));
+    TEST_ASSERT_EQUAL_UINT(0, json_array_get_length(json_object_get_array_member(data, "silent_spans")));
+    JsonObject *c0 = json_object_get_object_member(json_object_get_object_member(data, "channels"), "ctc0");
+    TEST_ASSERT_EQUAL_INT64(45, json_object_get_int_member(c0, "edges"));          /* 0 + 1 + ... + 9 */
+    TEST_ASSERT_EQUAL_INT64(9, json_object_get_int_member(c0, "active_frames"));
+    /* nota: hlasitost ve snímku 0 (dělič 0 = nehraje), tón 254 od snímku 1 do konce */
+    JsonArray *notes = json_object_get_array_member(data, "psg_notes");
+    TEST_ASSERT_EQUAL_UINT(1, json_array_get_length(notes));
+    JsonObject *n = json_array_get_object_element(notes, 0);
+    TEST_ASSERT_EQUAL_STRING("psg0_0", json_object_get_string_member(n, "ch"));
+    TEST_ASSERT_EQUAL_INT64(254, json_object_get_int_member(n, "divider"));
+    TEST_ASSERT_EQUAL_INT64(1, json_object_get_int_member(n, "from_frame"));
+    TEST_ASSERT_EQUAL_INT64(9, json_object_get_int_member(n, "to_frame"));
+    TEST_ASSERT_EQUAL_INT64(13, json_object_get_int_member(n, "max_level"));
+    TEST_ASSERT_FALSE(json_object_get_boolean_member(data, "psg_state_incomplete"));
+    JsonObject *ctc = json_object_get_object_member(data, "ctc0");
+    TEST_ASSERT_TRUE(json_object_has_member(ctc, "likely"));
+    TEST_ASSERT_EQUAL_INT64(2, json_object_get_int_member(ctc, "edges"));          /* levels src 0: i = 0 a 9 */
+    JsonObject *rv = json_object_get_object_member(data, "ref_vs_sdl");
+    TEST_ASSERT_NOT_NULL(rv);
+    TEST_ASSERT_EQUAL_INT64(0, json_object_get_int_member(rv, "lag_samples"));
+    TEST_ASSERT_EQUAL_DOUBLE(0.0, json_object_get_double_member(rv, "diff_rms"));
+    g_object_unref(parser);
+    free(resp);
+
+    /* rozsah snímků */
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("audio_capture_summary", "{\"frame_from\":3,\"frame_to\":4}", &resp));
+    data = _tr_data(resp, &parser);
+    fr = json_object_get_array_member(data, "frames");
+    TEST_ASSERT_EQUAL_INT64(3, json_array_get_int_element(fr, 0));
+    TEST_ASSERT_EQUAL_INT64(4, json_array_get_int_element(fr, 1));
+    g_object_unref(parser);
+    free(resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("audio_capture_summary", "{\"frame_from\":50}", NULL));
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, _ss_request("audio_capture_summary", "{\"silence_rms\":-1}", NULL));
+    TEST_ASSERT_EQUAL_INT(0, g_stub_state.ac_calls);                                /* bez dbgapi */
+}
+
+
+/** @brief audio_capture_pcm: přesná kopie 44100 stereo, převzorkovaný WAV, chyby. */
+void test_audio_capture_pcm(void) {
+    dispatch_stub_reset();
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_EMU_ERROR, _ss_request("audio_capture_pcm", "{}", NULL));
+    g_stub_state.aud_segment = 2;
+    g_stub_state.aud_records = 10;
+    char *resp = NULL;
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("audio_capture_pcm",
+        "{\"sample_from\":2,\"samples\":5,\"rate\":44100,\"stereo\":true,\"encoding\":\"pcm_b64\"}", &resp));
+    JsonParser *parser = NULL;
+    JsonObject *data = _tr_data(resp, &parser);
+    TEST_ASSERT_EQUAL_INT64(2, json_object_get_int_member(data, "from_sample"));
+    TEST_ASSERT_EQUAL_INT64(5, json_object_get_int_member(data, "samples"));
+    TEST_ASSERT_EQUAL_INT64(7, json_object_get_int_member(data, "next_sample"));
+    TEST_ASSERT_FALSE(json_object_get_boolean_member(data, "end_of_data"));
+    gsize len = 0;
+    guchar *raw = g_base64_decode(json_object_get_string_member(data, "data_b64"), &len);
+    TEST_ASSERT_EQUAL_UINT(5 * 4, len);
+    const int16_t *pcm = (const int16_t *) raw;
+    TEST_ASSERT_EQUAL_INT16(2, pcm[0]);
+    TEST_ASSERT_EQUAL_INT16(-2, pcm[1]);
+    TEST_ASSERT_EQUAL_INT16(6, pcm[8]);
+    g_free(raw);
+    g_object_unref(parser);
+    free(resp);
+
+    /* výchozí: WAV mono 11025 Hz od snímku 0, zbytek proudu */
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, _ss_request("audio_capture_pcm", "{\"source\":\"sdl\"}", &resp));
+    data = _tr_data(resp, &parser);
+    TEST_ASSERT_EQUAL_STRING("sdl", json_object_get_string_member(data, "source"));
+    TEST_ASSERT_EQUAL_INT64(1, json_object_get_int_member(data, "channels"));
+    TEST_ASSERT_TRUE(json_object_get_boolean_member(data, "end_of_data"));
+    raw = g_base64_decode(json_object_get_string_member(data, "data_b64"), &len);
+    TEST_ASSERT_EQUAL_MEMORY("RIFF", raw, 4);
+    TEST_ASSERT_EQUAL_UINT(44 + 2 * json_object_get_int_member(data, "frames_out"), len);
+    g_free(raw);
+    g_object_unref(parser);
+    free(resp);
+
+    const char *bad[] = { "{\"source\":\"mix\"}", "{\"rate\":500}", "{\"encoding\":\"mp3\"}",
+                          "{\"max_bytes\":10}", "{\"frames\":0}", "{\"stereo\":1}" };
+    for (size_t i = 0; i < G_N_ELEMENTS(bad); i++) {
+        TEST_ASSERT_EQUAL_INT_MESSAGE(MCP_DISPATCH_INVALID_PARAMS, _ss_request("audio_capture_pcm", bad[i], NULL), bad[i]);
+    }
 }
 
 
@@ -7688,9 +7926,13 @@ int main(void) {
     RUN_TEST(test_trace_read_rows_cursor_and_segment);
     RUN_TEST(test_trace_read_cputrack_symbols_columns_raw);
     RUN_TEST(test_trace_read_invalid_params);
+    RUN_TEST(test_trace_read_audio_channels);
     RUN_TEST(test_trace_read_eventlog);
     RUN_TEST(test_audio_capture_start_params);
     RUN_TEST(test_audio_capture_errors);
+    RUN_TEST(test_audio_capture_start_memory_params);
+    RUN_TEST(test_audio_capture_summary);
+    RUN_TEST(test_audio_capture_pcm);
     RUN_TEST(test_get_video_text_dump_available);
     RUN_TEST(test_get_video_text_dump_unavailable);
 

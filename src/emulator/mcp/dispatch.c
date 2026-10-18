@@ -60,6 +60,9 @@
 #include "../debugger/dbgapi_cmdrq.h"
 /* mcp-trace-read: čtenář proudu záznamů (kurzor, stránka) */
 #include "../debugger/trace/trace_reader.h"
+#include "../audio_capture.h"
+#include "../audio_analysis.h"
+#include <math.h>
 /* CMTSPEED_CUSTOM pro cmt_tape_block_speed s vlastními pulzy */
 #include "libs/cmtspeed/cmtspeed.h"
 /* history_get potřebuje st_DEBUGGER_HISTORY_ROW + g_debugger_history +
@@ -519,6 +522,10 @@ static en_MCP_DISPATCH_RESULT _handle_audio_capture_stop(const st_JSONL_MESSAGE 
                                                          char **out_response);
 static en_MCP_DISPATCH_RESULT _handle_audio_capture_status(const st_JSONL_MESSAGE *req,
                                                            char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_audio_capture_summary(const st_JSONL_MESSAGE *req,
+                                                            char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_audio_capture_pcm(const st_JSONL_MESSAGE *req,
+                                                        char **out_response);
 
 /* V1.A.7 - Profiler Tools fwd decls */
 static en_MCP_DISPATCH_RESULT _handle_profiler_start(const st_JSONL_MESSAGE *req,
@@ -1155,6 +1162,8 @@ static const st_MCP_CMD_MAP_ENTRY g_cmd_map[] = {
     { "audio_capture_start",      DBGAPI_CMD_AUDIO_CAPTURE,           _handle_audio_capture_start      },
     { "audio_capture_stop",       DBGAPI_CMD_AUDIO_CAPTURE,           _handle_audio_capture_stop       },
     { "audio_capture_status",     DBGAPI_CMD_AUDIO_CAPTURE,           _handle_audio_capture_status     },
+    { "audio_capture_summary",    DBGAPI_CMD_NONE,                    _handle_audio_capture_summary    },
+    { "audio_capture_pcm",        DBGAPI_CMD_NONE,                    _handle_audio_capture_pcm        },
     /* Bitmapa vykonaných adres profileru podle PC (pokrytí kódu). Přidáno
      * na KONEC tabulky kvůli stabilitě pozičního indexu v hello
      * supported_commands. */
@@ -7155,7 +7164,8 @@ static en_MCP_DISPATCH_RESULT _handle_trace_save(const st_JSONL_MESSAGE *req,
 
 /** @brief Čitelné kanály v pořadí výpisu trace_status (= en_DBGAPI_TRACE_CHANNEL = en_TRACE_KIND). */
 static const char *const s_trace_read_channels[] = {
-    "cputrack", "iorqlog", "intlog", "hwlog", "marklog", "eventlog"
+    "cputrack", "iorqlog", "intlog", "hwlog", "marklog", "eventlog",
+    "audio_psg_writes", "audio_levels", "audio_frames"
 };
 
 G_STATIC_ASSERT(G_N_ELEMENTS(s_trace_read_channels) == TRACE_KIND_COUNT);
@@ -7164,26 +7174,33 @@ G_STATIC_ASSERT(DBGAPI_EVENT_TEXT_MAX == TRACE_RESOLVE_TEXT_SIZE);
 G_STATIC_ASSERT(DBGAPI_MARKER_NAME_MAX == TRACE_RESOLVE_NAME_SIZE);
 
 /**
- * @brief Kanál pro čtení (trace_status / trace_read): Trace Suite + eventlog.
+ * @brief Kanál pro čtení (trace_status / trace_read): Trace Suite, eventlog
+ *        a proudy paměti zachycení zvuku (audio_*).
  *
  * @param s    Jméno kanálu.
  * @param out  Výstup (jen při TRUE).
  * @return TRUE = čitelný kanál.
  */
-static gboolean _trace_read_parse_channel(const char *s, en_DBGAPI_TRACE_CHANNEL *out) {
+static gboolean _trace_read_parse_channel(const char *s, en_TRACE_KIND *out) {
     for (int i = 0; i < (int)G_N_ELEMENTS(s_trace_read_channels); i++) {
         if (g_strcmp0(s, s_trace_read_channels[i]) == 0) {
-            *out = (en_DBGAPI_TRACE_CHANNEL)i;
+            *out = (en_TRACE_KIND)i;
             return TRUE;
         }
     }
     return FALSE;
 }
 
+/** @brief Kanál je proud paměti zachycení zvuku (ne dbgapi)? */
+static bool _trace_kind_is_audio(en_TRACE_KIND k) {
+    return k == TRACE_KIND_AUDIO_PSG_WRITES || k == TRACE_KIND_AUDIO_LEVELS
+           || k == TRACE_KIND_AUDIO_FRAMES;
+}
+
 /** @brief Verze formátu záznamu kanálu (cputrack v2, ostatní v1). */
-static unsigned _trace_format_version(en_DBGAPI_TRACE_CHANNEL ch) {
+static unsigned _trace_format_version(en_TRACE_KIND k) {
     /* cputrack v2 (bajt 11, záznam přijetí přerušení), ostatní v1 */
-    return (ch == DBGAPI_TRACE_CHANNEL_CPUTRACK) ? 2u : 1u;
+    return (k == TRACE_KIND_CPUTRACK) ? 2u : 1u;
 }
 
 /**
@@ -7202,18 +7219,64 @@ static bool _trace_snapshot(st_DBGAPI_TRACE_SNAPSHOT_PARAM *p) {
     return true;
 }
 
+/**
+ * @brief Pořídit snímek kanálu: Trace Suite a eventlog přes dbgapi, audio_*
+ *        přímo z paměti zachycení (audio_capture_stream_copy() pod zámkem
+ *        modulu, bez čekání na emu vlákno).
+ *
+ * U audio_* má snímek tvar ringu: bez chunků, ram_first_seq = first_seq,
+ * kopie v ram_copy (vlastnictví přejde na snímek).
+ *
+ * @param kind      Kanál.
+ * @param p         Parametr (from_seq, count, max_copy_bytes, want_time vyplní
+ *                  volající); výstup p->out uvolní tlog_read_snapshot_clear().
+ * @param origin    Výstup (smí být NULL): u audio_* absolutní čas začátku
+ *                  zachycení [takty GDG], jinak 0.
+ * @return true OK.
+ */
+static bool _trace_snapshot_kind(en_TRACE_KIND kind, st_DBGAPI_TRACE_SNAPSHOT_PARAM *p,
+                                 uint64_t *origin) {
+    if (origin) *origin = 0;
+    if (!_trace_kind_is_audio(kind)) {
+        p->channel = (en_DBGAPI_TRACE_CHANNEL)kind;
+        return _trace_snapshot(p);
+    }
+    memset(&p->out, 0, sizeof(p->out));
+    en_AUDIO_CAPTURE_STREAM st = (kind == TRACE_KIND_AUDIO_PSG_WRITES) ? AUDIO_CAPTURE_STREAM_PSG_WRITES
+                               : (kind == TRACE_KIND_AUDIO_LEVELS) ? AUDIO_CAPTURE_STREAM_LEVELS
+                               : AUDIO_CAPTURE_STREAM_FRAMES;
+    st_AUDIO_CAPTURE_STREAM_COPY c;
+    bool ok = audio_capture_stream_copy(st, p->from_seq, p->count, p->max_copy_bytes, &c);
+    st_TLOG_READ_SNAPSHOT *s = &p->out;
+    s->segment = c.segment;
+    s->live = c.live ? 1 : 0;
+    s->record_size = c.present ? c.record_size : 0;
+    s->first_seq = c.first_seq;
+    s->next_seq = c.next_seq;
+    s->ram_first_seq = c.first_seq;
+    s->ram_copy = c.data;
+    s->ram_copy_seq = c.data_seq;
+    s->ram_copy_count = c.data_count;
+    c.data = NULL;
+    p->out_ok = ok;
+    p->out_pc_range_full = true;
+    if (origin) *origin = c.origin_ticks;
+    if (!ok) tlog_read_snapshot_clear(&p->out);
+    return ok;
+}
+
 /** @brief Má kanál podle snímku časový sloupec? */
-static bool _trace_has_time(en_DBGAPI_TRACE_CHANNEL ch,
+static bool _trace_has_time(en_TRACE_KIND k,
                             const st_DBGAPI_TRACE_SNAPSHOT_PARAM *p) {
-    if (ch != DBGAPI_TRACE_CHANNEL_CPUTRACK) return true;
+    if (k != TRACE_KIND_CPUTRACK) return true;
     return p->out_pc_range_full;
 }
 
 /** @brief Vyplnit stav kanálu do objektu (společné pro status i read). */
-static void _trace_fill_state(JsonObject *o, en_DBGAPI_TRACE_CHANNEL ch,
+static void _trace_fill_state(JsonObject *o, en_TRACE_KIND k,
                               const st_DBGAPI_TRACE_SNAPSHOT_PARAM *p) {
     const st_TLOG_READ_SNAPSHOT *s = &p->out;
-    json_object_set_string_member(o, "channel", s_trace_read_channels[ch]);
+    json_object_set_string_member(o, "channel", s_trace_read_channels[k]);
     json_object_set_int_member(o, "segment", (gint64)s->segment);
     json_object_set_boolean_member(o, "live", s->live ? TRUE : FALSE);
     json_object_set_boolean_member(o, "truncated", s->truncated ? TRUE : FALSE);
@@ -7240,7 +7303,7 @@ static en_MCP_DISPATCH_RESULT _handle_trace_status(const st_JSONL_MESSAGE *req,
     int only = -1;
     if (data_obj && json_object_has_member(data_obj, "channel")
         && !json_node_is_null(json_object_get_member(data_obj, "channel"))) {
-        en_DBGAPI_TRACE_CHANNEL ch;
+        en_TRACE_KIND ch;
         if (!_obj_is_string(data_obj, "channel")
             || !_trace_read_parse_channel(json_object_get_string_member(data_obj, "channel"), &ch)) {
             return _err_response(req_id, "Invalid parameters: unknown channel",
@@ -7253,28 +7316,28 @@ static en_MCP_DISPATCH_RESULT _handle_trace_status(const st_JSONL_MESSAGE *req,
         if (only >= 0 && i != only) continue;
         st_DBGAPI_TRACE_SNAPSHOT_PARAM p;
         memset(&p, 0, sizeof(p));
-        p.channel = (en_DBGAPI_TRACE_CHANNEL)i;
-        if (!_trace_snapshot(&p)) {
+        en_TRACE_KIND kind = (en_TRACE_KIND)i;
+        if (!_trace_snapshot_kind(kind, &p, NULL)) {
             json_array_unref(arr);
             return _err_response(req_id, "trace_status failed",
                                  MCP_DISPATCH_EMU_ERROR, out_response);
         }
         JsonObject *o = json_object_new();
-        _trace_fill_state(o, p.channel, &p);
+        _trace_fill_state(o, kind, &p);
         uint64_t bytes = 0;
         guint chunks = p.out.chunks ? p.out.chunks->len : 0;
         for (guint k = 0; k < chunks; k++) {
             bytes += g_array_index(p.out.chunks, st_TLOG_CHUNK_META, k).bytes;
         }
         json_object_set_int_member(o, "record_size", (gint64)p.out.record_size);
-        json_object_set_int_member(o, "format_version", (gint64)_trace_format_version(p.channel));
+        json_object_set_int_member(o, "format_version", (gint64)_trace_format_version(kind));
         json_object_set_int_member(o, "chunks", (gint64)chunks);
         json_object_set_int_member(o, "bytes_on_disk", (gint64)bytes);
         if (p.out.dir) json_object_set_string_member(o, "dir", p.out.dir);
         else json_object_set_null_member(o, "dir");
         if (p.out.name) json_object_set_string_member(o, "name", p.out.name);
         else json_object_set_null_member(o, "name");
-        json_object_set_boolean_member(o, "has_time", _trace_has_time(p.channel, &p) ? TRUE : FALSE);
+        json_object_set_boolean_member(o, "has_time", _trace_has_time(kind, &p) ? TRUE : FALSE);
         json_array_add_object_element(arr, o);
         tlog_read_snapshot_clear(&p.out);
     }
@@ -7353,6 +7416,31 @@ static const char *_trace_parse_filter(JsonObject *f, en_TRACE_KIND kind, st_TRA
         if (kind != TRACE_KIND_MARKLOG) return "filter marker is only for marklog";
         out->marker = (int)_obj_int_or(f, "marker", -1);
     }
+    if (json_object_has_member(f, "channels")) {
+        if (kind != TRACE_KIND_AUDIO_LEVELS && kind != TRACE_KIND_AUDIO_PSG_WRITES) {
+            return "filter channels is only for audio_levels and audio_psg_writes";
+        }
+        JsonNode *cn = json_object_get_member(f, "channels");
+        if (json_node_get_node_type(cn) != JSON_NODE_ARRAY) return "filter channels must be an array of channel names (ctc0, psg0_0 .. psg1_3)";
+        JsonArray *ca = json_node_get_array(cn);
+        for (guint i = 0; i < json_array_get_length(ca); i++) {
+            JsonNode *e = json_array_get_element(ca, i);
+            const char *nm = (JSON_NODE_HOLDS_VALUE(e) && json_node_get_value_type(e) == G_TYPE_STRING)
+                             ? json_node_get_string(e) : "";
+            unsigned k = 0;
+            while (k < 9 && g_strcmp0(nm, trace_audio_channel_name(k)) != 0) k++;
+            if (k == 9) return "filter channels must be an array of channel names (ctc0, psg0_0 .. psg1_3)";
+            out->channels |= 1u << k;
+        }
+    }
+    if (json_object_has_member(f, "reg")) {
+        static const char *const regs[4] = { "tone_lo", "tone", "volume", "noise" };
+        if (kind != TRACE_KIND_AUDIO_PSG_WRITES || !_obj_is_string(f, "reg")) return "filter reg must be tone_lo, tone, volume or noise (audio_psg_writes)";
+        const char *r = json_object_get_string_member(f, "reg");
+        out->reg = -1;
+        for (int i = 0; i < 4; i++) if (g_strcmp0(r, regs[i]) == 0) out->reg = i;
+        if (out->reg < 0) return "filter reg must be tone_lo, tone, volume or noise (audio_psg_writes)";
+    }
     if (json_object_has_member(f, "t_from") || json_object_has_member(f, "t_to")) {
         out->has_t = true;
         out->t_from = (uint64_t)_obj_int_or(f, "t_from", 0);
@@ -7383,7 +7471,7 @@ static en_MCP_DISPATCH_RESULT _trace_err_owned(int64_t req_id, char *msg,
 static en_MCP_DISPATCH_RESULT _handle_trace_read(const st_JSONL_MESSAGE *req,
                                                  char **out_response) {
     int64_t req_id = jsonl_msg_get_req_id(req);
-    en_DBGAPI_TRACE_CHANNEL ch;
+    en_TRACE_KIND ch;
     JsonNode *dn = (JsonNode *)jsonl_msg_get_data_node(req);
     if (!dn || json_node_get_node_type(dn) != JSON_NODE_OBJECT
         || !_obj_is_string(json_node_get_object(dn), "channel")
@@ -7393,7 +7481,7 @@ static en_MCP_DISPATCH_RESULT _handle_trace_read(const st_JSONL_MESSAGE *req,
     }
     JsonObject *d = json_node_get_object(dn);
     const char *chname = s_trace_read_channels[ch];
-    en_TRACE_KIND kind = (en_TRACE_KIND)ch;   /* stejné pořadí jako en_DBGAPI_TRACE_CHANNEL */
+    en_TRACE_KIND kind = ch;
 
     st_TRACE_PAGE_REQ pr;
     memset(&pr, 0, sizeof(pr));
@@ -7502,10 +7590,10 @@ static en_MCP_DISPATCH_RESULT _handle_trace_read(const st_JSONL_MESSAGE *req,
 
     st_DBGAPI_TRACE_SNAPSHOT_PARAM p;
     memset(&p, 0, sizeof(p));
-    p.channel = ch;
+    uint64_t audio_origin = 0;
     if (newest) {
         /* Napřed metadata, pak posledních `limit` záznamů. */
-        if (!_trace_snapshot(&p)) {
+        if (!_trace_snapshot_kind(kind, &p, NULL)) {
             return _err_response(req_id, "trace_read failed", MCP_DISPATCH_EMU_ERROR, out_response);
         }
         uint64_t n = p.out.next_seq;
@@ -7516,8 +7604,8 @@ static en_MCP_DISPATCH_RESULT _handle_trace_read(const st_JSONL_MESSAGE *req,
     p.from_seq = start;
     p.count = pr.raw ? pr.limit : pr.max_scan;
     p.max_copy_bytes = TRACE_READ_MAX_RAM_COPY;
-    p.want_time = (ch == DBGAPI_TRACE_CHANNEL_CPUTRACK);
-    if (!_trace_snapshot(&p)) {
+    p.want_time = (kind == TRACE_KIND_CPUTRACK);
+    if (!_trace_snapshot_kind(kind, &p, &audio_origin)) {
         return _err_response(req_id, "trace_read failed", MCP_DISPATCH_EMU_ERROR, out_response);
     }
 
@@ -7560,9 +7648,15 @@ static en_MCP_DISPATCH_RESULT _handle_trace_read(const st_JSONL_MESSAGE *req,
         }
     } else {
         pr.from_seq = start;
-        pr.cputrack_time = (ch == DBGAPI_TRACE_CHANNEL_CPUTRACK) && _trace_has_time(ch, &p);
+        pr.cputrack_time = (kind == TRACE_KIND_CPUTRACK) && _trace_has_time(kind, &p);
         pr.ram_prefix_t = p.out_ram_prefix_t;
         pr.cpu_divider = p.out_cpu_divider;
+        if (_trace_kind_is_audio(kind)) {
+            pr.cpu_divider = GDGCLK2CPU_DIVIDER;
+            pr.audio_origin = audio_origin;
+            pr.gdg_hz = GDGCLK_BASE;
+            pr.audio_channels = AUDIO_SRC_CHANNELS_COUNT;
+        }
         if (trace_reader_page(&pr, &p.out, _trace_resolve_cb, NULL, resp, &next) != 0) {
             json_object_unref(resp);
             tlog_read_snapshot_clear(&p.out);
@@ -7576,8 +7670,7 @@ static en_MCP_DISPATCH_RESULT _handle_trace_read(const st_JSONL_MESSAGE *req,
          * mohl chunky přepsat. */
         st_DBGAPI_TRACE_SNAPSHOT_PARAM chk;
         memset(&chk, 0, sizeof(chk));
-        chk.channel = ch;
-        if (!_trace_snapshot(&chk)) {
+        if (!_trace_snapshot_kind(kind, &chk, NULL)) {
             json_object_unref(resp);
             tlog_read_snapshot_clear(&p.out);
             return _err_response(req_id, "trace_read failed", MCP_DISPATCH_EMU_ERROR, out_response);
@@ -14913,6 +15006,11 @@ static en_MCP_DISPATCH_RESULT _handle_profiler_pc_bitmap(const st_JSONL_MESSAGE 
  *  audio-capture: zachycení zvuku do složky (events, PSG zápisy, 2x WAV)
  * ============================================================================ */
 
+/** @brief Jména proudů paměti zachycení ve stavu (pořadí en_AUDIO_CAPTURE_STREAM). */
+static const char *const s_ac_stream_names[AUDIO_CAPTURE_STREAM_COUNT] = {
+    "psg_writes", "levels", "frames", "pcm_reference", "pcm_sdl"
+};
+
 /**
  * @brief Stav zachycení zvuku jako JSON objekt.
  * @param st Stav.
@@ -14931,6 +15029,35 @@ static JsonObject *_audio_capture_status_json(const st_AUDIO_CAPTURE_STATUS *st)
     json_object_set_string_member(o, "dir",         st->dir);
     json_object_set_string_member(o, "stop_reason", st->stop_reason);
     json_object_set_string_member(o, "last_error",  st->last_error);
+    /* Paměť zachycení (mcp-trace-read): segment, začátek, kanály, ringy. */
+    json_object_set_int_member(o, "segment", (gint64) st->segment);
+    if (st->began) json_object_set_int_member(o, "origin_ticks", (gint64) st->origin_ticks);
+    else json_object_set_null_member(o, "origin_ticks");
+    JsonArray *chs = json_array_new();
+    for (unsigned i = 0; i < st->channels && i < AUDIO_CAPTURE_MAX_CHANNELS; i++) {
+        json_array_add_string_element(chs, trace_audio_channel_name(i));
+    }
+    json_object_set_array_member(o, "channels", chs);
+    json_object_set_boolean_member(o, "stereo", st->stereo);
+    if (st->memory) {
+        JsonObject *m = json_object_new();
+        json_object_set_int_member(m, "bytes", (gint64) st->memory_bytes);
+        JsonObject *streams = json_object_new();
+        for (unsigned i = 0; i < AUDIO_CAPTURE_STREAM_COUNT; i++) {
+            const st_AUDIO_CAPTURE_STREAM_INFO *si = &st->streams[i];
+            if (!si->present) continue;
+            JsonObject *x = json_object_new();
+            json_object_set_int_member(x, "record_size", (gint64) si->record_size);
+            json_object_set_int_member(x, "capacity", (gint64) si->capacity);
+            json_object_set_int_member(x, "first_seq", (gint64) si->first_seq);
+            json_object_set_int_member(x, "next_seq", (gint64) si->next_seq);
+            json_object_set_object_member(streams, s_ac_stream_names[i], x);
+        }
+        json_object_set_object_member(m, "streams", streams);
+        json_object_set_object_member(o, "memory", m);
+    } else {
+        json_object_set_null_member(o, "memory");
+    }
     return o;
 }
 
@@ -14962,7 +15089,12 @@ static bool _audio_capture_submit(st_DBGAPI_AUDIO_CAPTURE_PARAM *p, const char *
  *     audio_capture_resolve_output_dir()),
  *   - `frames` (int >= 0) - po tolika zvukových snímcích stop (0 = do stop),
  *   - `events`, `psg_writes`, `reference_wav`, `sdl_wav` (bool, výchozí
- *     true) - které soubory zapisovat.
+ *     true) - které soubory zapisovat,
+ *   - `memory` (bool, výchozí true) - držet paměť zachycení (čtení přes
+ *     trace_read audio_*, audio_capture_summary, audio_capture_pcm),
+ *   - `pcm` (pole "reference" / "sdl", výchozí ["reference"]) - PCM ringy,
+ *   - `memory_minutes` (1..120, výchozí 10) - délka ringu souhrnů snímků,
+ *   - `pcm_seconds` (1..3600, výchozí 60) - délka PCM ringů.
  *
  * Response: stav zachycení (pending = true; začne na konci nejbližšího
  * zvukového snímku). Neplatné parametry => INVALID_PARAMS, běžící
@@ -14987,12 +15119,43 @@ static en_MCP_DISPATCH_RESULT _handle_audio_capture_start(const st_JSONL_MESSAGE
         if (h < 0) bad = true;
         else if (h) *flag_ptr[i] = json_object_get_boolean_member(obj, flags[i]);
     }
+    /* Paměť zachycení: přes MCP výchozí zapnutá (GUI a CLI ji nezapínají). */
+    p.params.memory = true;
+    p.params.pcm_reference = true;
+    int has_mem = _videorec_member(obj, "memory", G_TYPE_BOOLEAN);
+    int has_min = _videorec_member(obj, "memory_minutes", G_TYPE_INT64);
+    int has_pcs = _videorec_member(obj, "pcm_seconds", G_TYPE_INT64);
+    if (has_mem < 0 || has_min < 0 || has_pcs < 0) bad = true;
+    if (has_mem > 0) p.params.memory = json_object_get_boolean_member(obj, "memory");
+    gint64 minutes = has_min > 0 ? json_object_get_int_member(obj, "memory_minutes") : AUDIO_CAPTURE_MEMORY_MINUTES_DEFAULT;
+    gint64 pcm_s = has_pcs > 0 ? json_object_get_int_member(obj, "pcm_seconds") : AUDIO_CAPTURE_PCM_SECONDS_DEFAULT;
+    if (minutes < 1 || minutes > 120 || pcm_s < 1 || pcm_s > 3600) bad = true;
+    if (!bad && obj && json_object_has_member(obj, "pcm") && !json_node_is_null(json_object_get_member(obj, "pcm"))) {
+        JsonNode *pn = json_object_get_member(obj, "pcm");
+        if (json_node_get_node_type(pn) != JSON_NODE_ARRAY) {
+            bad = true;
+        } else {
+            p.params.pcm_reference = false;
+            JsonArray *pa = json_node_get_array(pn);
+            for (guint i = 0; i < json_array_get_length(pa) && !bad; i++) {
+                JsonNode *e = json_array_get_element(pa, i);
+                const char *v = (JSON_NODE_HOLDS_VALUE(e) && json_node_get_value_type(e) == G_TYPE_STRING)
+                                ? json_node_get_string(e) : "";
+                if (g_strcmp0(v, "reference") == 0) p.params.pcm_reference = true;
+                else if (g_strcmp0(v, "sdl") == 0) p.params.pcm_sdl = true;
+                else bad = true;
+            }
+        }
+    }
     if (bad) {
         return _err_response(req_id,
                              "Invalid parameters: dir must be a string, frames an integer, "
-                             "events, psg_writes, reference_wav and sdl_wav booleans",
+                             "events, psg_writes, reference_wav, sdl_wav and memory booleans, "
+                             "pcm a list of \"reference\" / \"sdl\", memory_minutes 1..120, pcm_seconds 1..3600",
                              MCP_DISPATCH_INVALID_PARAMS, out_response);
     }
+    p.params.ring_frames = (uint32_t) (minutes * 60 * VIDEO_SCREENS_PER_SEC);
+    p.params.ring_pcm = (uint32_t) (pcm_s * AUDIO_CAPTURE_WAV_RATE);
     gint64 frames = has_frames ? json_object_get_int_member(obj, "frames") : 0;
     if (frames < 0) {
         return _err_response(req_id, "Invalid parameters: frames must be >= 0",
@@ -15046,6 +15209,609 @@ static en_MCP_DISPATCH_RESULT _handle_audio_capture_status(const st_JSONL_MESSAG
                              MCP_DISPATCH_EMU_ERROR, out_response);
     }
     return _ok_response(req_id, _audio_capture_status_json(&p.out_status), out_response);
+}
+
+
+/* ---------------- Paměť zachycení zvuku: souhrn a PCM (mcp-trace-read) ---------------- */
+
+/** @brief Kus kopie proudu paměti zachycení na jedno držení zámku modulu [B]. */
+#define AC_READ_CHUNK_BYTES (1u << 20)
+/** @brief Nejvýš porovnávaných vzorků reference a SDL v souhrnu (2 s). */
+#define AC_COMPARE_WINDOW (2u * AUDIO_CAPTURE_WAV_RATE)
+/** @brief Výchozí strop dat PCM výřezu [B] (base64 se vejde pod 50 000 znaků). */
+#define AC_PCM_DEFAULT_MAX_BYTES 32768u
+/** @brief Nejvyšší povolený strop dat PCM výřezu [B]. */
+#define AC_PCM_MAX_MAX_BYTES (4u << 20)
+
+/** @brief Číslo zaokrouhlené na `dec` desetinných míst (pro JSON). */
+static double _ac_round(double v, int dec) {
+    double m = pow(10.0, dec);
+    return floor(v * m + 0.5) / m;
+}
+
+/**
+ * @brief Zkopíruje rozsah proudu [from, to) po kusech (zámek modulu jen na kus).
+ *
+ * @param st        Proud.
+ * @param from      První požadovaný záznam.
+ * @param to        Za posledním požadovaným záznamem.
+ * @param out_rs    Výstup: velikost záznamu (0 = proud se nedrží).
+ * @param out_seq   Výstup: seq prvního zkopírovaného záznamu (>= from; vyšší =
+ *                  starší záznamy ring už přepsal).
+ * @param out_count Výstup: počet souvisle zkopírovaných záznamů.
+ * @param out_seg   Výstup: segment (zachycení) první kopie.
+ * @return Záznamy (g_free volající), NULL = nic; při změně segmentu nebo
+ *         díře uprostřed (ring přepisoval během kopie) skončí dřív.
+ */
+static uint8_t *_ac_copy_range(en_AUDIO_CAPTURE_STREAM st, uint64_t from, uint64_t to,
+                               size_t *out_rs, uint64_t *out_seq, uint64_t *out_count,
+                               unsigned *out_seg) {
+    *out_rs = 0;
+    *out_seq = from;
+    *out_count = 0;
+    *out_seg = 0;
+    GByteArray *buf = NULL;
+    uint64_t seq = from;
+    bool first = true;
+    while (seq < to) {
+        st_AUDIO_CAPTURE_STREAM_COPY c;
+        if (!audio_capture_stream_copy(st, seq, to - seq, AC_READ_CHUNK_BYTES, &c)) {
+            audio_capture_stream_copy_clear(&c);
+            break;
+        }
+        if (first) {
+            *out_seg = c.segment;
+            *out_rs = c.present ? c.record_size : 0;
+            *out_seq = c.data_count ? c.data_seq : seq;
+            first = false;
+        } else if (c.segment != *out_seg || (c.data_count && c.data_seq != seq)) {
+            audio_capture_stream_copy_clear(&c);
+            break;
+        }
+        if (c.data_count == 0) {
+            audio_capture_stream_copy_clear(&c);
+            break;
+        }
+        if (!buf) buf = g_byte_array_new();
+        g_byte_array_append(buf, c.data, (guint) (c.data_count * c.record_size));
+        *out_count += c.data_count;
+        seq = c.data_seq + c.data_count;
+        audio_capture_stream_copy_clear(&c);
+    }
+    if (!buf) return NULL;
+    return g_byte_array_free(buf, FALSE);
+}
+
+/** @brief Pořadí double pro qsort. */
+static int _ac_cmp_double(const void *a, const void *b) {
+    double x = *(const double *) a, y = *(const double *) b;
+    return (x > y) - (x < y);
+}
+
+/** @brief Nota se jménem kanálu pro souhrn. */
+typedef struct st_AC_NOTE_OUT {
+    st_AUDIO_NOTE n;   /**< Nota z detektoru. */
+    unsigned src;      /**< Kanál audio logu (1..8). */
+} st_AC_NOTE_OUT;
+
+/** @brief Pořadí not podle začátku, pak kanálu. */
+static int _ac_cmp_note(const void *a, const void *b) {
+    const st_AC_NOTE_OUT *x = (const st_AC_NOTE_OUT *) a, *y = (const st_AC_NOTE_OUT *) b;
+    if (x->n.from_frame != y->n.from_frame) return (x->n.from_frame > y->n.from_frame) ? 1 : -1;
+    return (int) x->src - (int) y->src;
+}
+
+/** @brief Seznam úseků snímků jako JSON pole [[from, to], ...]. */
+static JsonArray *_ac_spans_json(const uint8_t *flags, size_t n, uint64_t base, bool value,
+                                 size_t max, size_t *total) {
+    st_AUDIO_SPAN *sp = g_new0(st_AUDIO_SPAN, max ? max : 1);
+    size_t k = audio_spans(flags, n, base, value, sp, max, total);
+    JsonArray *a = json_array_new();
+    for (size_t i = 0; i < k; i++) {
+        JsonArray *s = json_array_new();
+        json_array_add_int_element(s, (gint64) sp[i].from);
+        json_array_add_int_element(s, (gint64) sp[i].to);
+        json_array_add_array_element(a, s);
+    }
+    g_free(sp);
+    return a;
+}
+
+/** @brief Index vzorku PCM (44100 Hz) pro absolutní čas [takty GDG]. */
+static uint64_t _ac_sample_at(uint64_t t, uint64_t origin) {
+    if (t <= origin) return 0;
+    return (t - origin) * AUDIO_CAPTURE_WAV_RATE / GDGCLK_BASE;
+}
+
+/**
+ * @brief Detektor not PSG nad zápisy do PSG v rozsahu snímků.
+ *
+ * Stav kanálů začíná stavem PSG na začátku zachycení a přehrává všechny
+ * zápisy držené v ringu (i před `first`), aby byl stav na začátku rozsahu
+ * správný. Když ring nejstarší zápisy přepsal, stav na začátku není znám
+ * (*incomplete = true).
+ */
+static GArray *_ac_psg_notes(uint64_t first, uint64_t last, bool stereo, bool *incomplete) {
+    GArray *notes = g_array_new(FALSE, FALSE, sizeof(st_AC_NOTE_OUT));
+    *incomplete = false;
+#if HAVE_PSG
+    st_AUDIO_CAPTURE_PSG_INITIAL ini;
+    audio_capture_get_psg_initial(&ini);
+    st_AUDIO_NOTE_TRACK tr[2][4];
+    unsigned chips = stereo ? 2u : 1u;
+    for (unsigned c = 0; c < 2; c++) {
+        for (unsigned k = 0; k < 4; k++) {
+            if (ini.valid) audio_note_track_init(&tr[c][k], ini.divider[c][k], ini.attn[c][k], ini.noise[c][k], 0);
+            else audio_note_track_init(&tr[c][k], 0, AUDIO_PSG_ATTN_OFF, k == 3, 0);
+        }
+    }
+    if (!ini.valid) *incomplete = true;
+    size_t rs = 0;
+    uint64_t seq0 = 0, n = 0;
+    unsigned seg = 0;
+    uint8_t *data = _ac_copy_range(AUDIO_CAPTURE_STREAM_PSG_WRITES, 0, UINT64_MAX, &rs, &seq0, &n, &seg);
+    if (seq0 > 0) *incomplete = true;
+    st_AUDIO_NOTE done;
+    for (uint64_t i = 0; i < n && rs == sizeof(st_AUDIO_CAPTURE_PSG_REC); i++) {
+        const st_AUDIO_CAPTURE_PSG_REC *w = (const st_AUDIO_CAPTURE_PSG_REC *) (data + i * rs);
+        if (w->frame > last) break;
+        for (unsigned c = 0; c < chips; c++) {
+            if (!(w->psg & (1u << c))) continue;
+            st_AUDIO_NOTE_TRACK *t = &tr[c][w->channel & 3u];
+            unsigned div = t->divider, attn = t->attn;
+            if (w->reg == AUDIO_CAPTURE_PSG_REG_TONE) div = w->value;
+            else if (w->reg == AUDIO_CAPTURE_PSG_REG_VOLUME) attn = w->value;
+            else continue;
+            if (audio_note_track_update(t, div, attn, t->noise, w->frame, &done) && done.to_frame >= first) {
+                st_AC_NOTE_OUT o = { done, 1u + 4u * c + (w->channel & 3u) };
+                g_array_append_val(notes, o);
+            }
+        }
+    }
+    for (unsigned c = 0; c < chips; c++) {
+        for (unsigned k = 0; k < 4; k++) {
+            if (audio_note_track_finish(&tr[c][k], last, &done) && done.to_frame >= first) {
+                st_AC_NOTE_OUT o = { done, 1u + 4u * c + k };
+                g_array_append_val(notes, o);
+            }
+        }
+    }
+    g_free(data);
+    g_array_sort(notes, _ac_cmp_note);
+#else
+    (void) first; (void) last; (void) stereo;
+#endif
+    return notes;
+}
+
+/**
+ * @brief `audio_capture_summary` handler - souhrn paměti zachycení zvuku.
+ *
+ * Parametry (volitelné): `frame_from` (výchozí 0), `frame_to` (-1 = poslední),
+ * `silence_rms` (0..32767, výchozí 64), `max_notes` (1..2000, výchozí 200),
+ * `lag_frames` (-1 = najít, jinak pevný posun SDL cesty), `max_lag_frames`
+ * (1..60, výchozí 8). Běží v dispatch vlákně, data kopíruje z paměti
+ * zachycení po kusech (audio_capture_stream_copy()), emu vlákno nečeká.
+ *
+ * Response: frames, fps, platforma, kanály, sound_spans / silent_spans,
+ * channels (po kanálech), psg_notes, ctc0 (histogram intervalů a odhad),
+ * ref_vs_sdl. Bez paměti zachycení nebo bez snímků => EMU_ERROR.
+ */
+static en_MCP_DISPATCH_RESULT _handle_audio_capture_summary(const st_JSONL_MESSAGE *req,
+                                                            char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _videorec_data_obj(req);
+    const char *names[] = { "frame_from", "frame_to", "silence_rms", "max_notes", "lag_frames", "max_lag_frames" };
+    gint64 val[] = { 0, -1, 64, 200, -1, 8 };
+    for (int i = 0; i < 6; i++) {
+        int h = _videorec_member(obj, names[i], G_TYPE_INT64);
+        if (h < 0) {
+            return _err_response(req_id, "Invalid parameters: frame_from, frame_to, silence_rms, max_notes, "
+                                 "lag_frames and max_lag_frames must be integers",
+                                 MCP_DISPATCH_INVALID_PARAMS, out_response);
+        }
+        if (h) val[i] = json_object_get_int_member(obj, names[i]);
+    }
+    gint64 frame_from = val[0], frame_to = val[1], silence = val[2], max_notes = val[3];
+    gint64 lag_frames = val[4], max_lag_frames = val[5];
+    if (frame_from < 0 || frame_to < -1 || silence < 0 || silence > 32767 || max_notes < 1 || max_notes > 2000
+        || lag_frames < -1 || lag_frames > 60 || max_lag_frames < 1 || max_lag_frames > 60) {
+        return _err_response(req_id, "Invalid parameters: frame_from >= 0, frame_to >= -1, silence_rms 0..32767, "
+                             "max_notes 1..2000, lag_frames -1..60, max_lag_frames 1..60",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+
+    st_AUDIO_CAPTURE_STATUS st;
+    audio_capture_get_status(&st);
+    if (!st.memory) {
+        return _err_response(req_id, "No audio capture memory: start the capture with memory=true",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    const st_AUDIO_CAPTURE_STREAM_INFO *fi = &st.streams[AUDIO_CAPTURE_STREAM_FRAMES];
+    if (fi->next_seq == 0) {
+        return _err_response(req_id, "No captured audio frames yet (run the emulation)",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    uint64_t first = ((uint64_t) frame_from > fi->first_seq) ? (uint64_t) frame_from : fi->first_seq;
+    uint64_t last = (frame_to < 0 || (uint64_t) frame_to >= fi->next_seq) ? fi->next_seq - 1 : (uint64_t) frame_to;
+    if (first > last) {
+        char *msg = g_strdup_printf("Invalid parameters: frame range outside the captured frames [%llu, %llu]",
+                                    (unsigned long long) fi->first_seq, (unsigned long long) (fi->next_seq - 1));
+        return _trace_err_owned(req_id, msg, MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+
+    size_t rs = 0;
+    uint64_t fseq = 0, nfr = 0;
+    unsigned seg = 0;
+    uint8_t *fdata = _ac_copy_range(AUDIO_CAPTURE_STREAM_FRAMES, first, last + 1, &rs, &fseq, &nfr, &seg);
+    if (!fdata || rs != sizeof(st_AUDIO_CAPTURE_FRAME_REC) || nfr == 0) {
+        g_free(fdata);
+        return _err_response(req_id, "Audio capture frames unavailable (overwritten or a new capture started)",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    first = fseq;
+    last = fseq + nfr - 1;
+    const st_AUDIO_CAPTURE_FRAME_REC *fr = (const st_AUDIO_CAPTURE_FRAME_REC *) fdata;
+    unsigned nch = st.channels;
+    if (nch > AUDIO_CAPTURE_MAX_CHANNELS) nch = AUDIO_CAPTURE_MAX_CHANNELS;
+
+    JsonObject *resp = json_object_new();
+    json_object_set_string_member(resp, "platform", MZARCH_NAME);
+    json_object_set_int_member(resp, "fps", (gint64) VIDEO_SCREENS_PER_SEC);
+    json_object_set_int_member(resp, "gdg_clk_hz", (gint64) GDGCLK_BASE);
+    json_object_set_int_member(resp, "segment", (gint64) seg);
+    json_object_set_boolean_member(resp, "live", st.pending || st.active);
+    json_object_set_boolean_member(resp, "stereo", st.stereo);
+    JsonArray *fa = json_array_new();
+    json_array_add_int_element(fa, (gint64) first);
+    json_array_add_int_element(fa, (gint64) last);
+    json_object_set_array_member(resp, "frames", fa);
+    JsonArray *av = json_array_new();
+    json_array_add_int_element(av, (gint64) fi->first_seq);
+    json_array_add_int_element(av, (gint64) (fi->next_seq - 1));
+    json_object_set_array_member(resp, "frames_available", av);
+
+    /* Ticho a zvuk po snímcích. */
+    uint8_t *sound = g_new0(uint8_t, nfr);
+    uint64_t ticks_total = 0;
+    for (uint64_t i = 0; i < nfr; i++) {
+        const st_AUDIO_CAPTURE_FRAME_REC *f = &fr[i];
+        ticks_total += f->len_ticks;
+        if (f->flags & AUDIO_CAPTURE_FRAME_FLAG_REF) {
+            unsigned m = (f->ref_rms[0] > f->ref_rms[1]) ? f->ref_rms[0] : f->ref_rms[1];
+            sound[i] = (m >= (unsigned) silence);
+        } else {
+            uint64_t e = 0;
+            for (unsigned c = 0; c < nch; c++) e += f->ch[c].edges;
+            sound[i] = (e > 0);
+        }
+    }
+    size_t total = 0;
+    json_object_set_array_member(resp, "sound_spans", _ac_spans_json(sound, nfr, first, true, 50, &total));
+    json_object_set_int_member(resp, "sound_spans_total", (gint64) total);
+    json_object_set_array_member(resp, "silent_spans", _ac_spans_json(sound, nfr, first, false, 50, &total));
+    json_object_set_int_member(resp, "silent_spans_total", (gint64) total);
+    json_object_set_string_member(resp, "silence_rule",
+        (fr[0].flags & AUDIO_CAPTURE_FRAME_FLAG_REF) ? "reference RMS below silence_rms" : "no level change in any channel");
+    g_free(sound);
+
+    /* Kanály. */
+    JsonObject *chs = json_object_new();
+    double *hz = g_new0(double, nfr);
+    for (unsigned c = 0; c < nch; c++) {
+        uint64_t edges = 0, active = 0, on = 0;
+        unsigned maxl = 0;
+        size_t nh = 0;
+        for (uint64_t i = 0; i < nfr; i++) {
+            const st_AUDIO_CAPTURE_FRAME_CH *x = &fr[i].ch[c];
+            edges += x->edges;
+            on += x->on_ticks;
+            if (x->max_level > maxl) maxl = x->max_level;
+            if (x->edges) {
+                active++;
+                if (fr[i].len_ticks) hz[nh++] = (double) x->edges / 2.0 / ((double) fr[i].len_ticks / (double) GDGCLK_BASE);
+            }
+        }
+        JsonObject *o = json_object_new();
+        json_object_set_int_member(o, "active_frames", (gint64) active);
+        json_object_set_int_member(o, "edges", (gint64) edges);
+        json_object_set_int_member(o, "max_level", (gint64) maxl);
+        json_object_set_double_member(o, "on_pct", ticks_total ? _ac_round(100.0 * (double) on / (double) ticks_total, 1) : 0.0);
+        if (nh) {
+            qsort(hz, nh, sizeof(double), _ac_cmp_double);
+            json_object_set_double_member(o, "est_hz_median", _ac_round(hz[nh / 2], 1));
+        } else {
+            json_object_set_null_member(o, "est_hz_median");
+        }
+        json_object_set_object_member(chs, trace_audio_channel_name(c), o);
+    }
+    g_free(hz);
+    json_object_set_object_member(resp, "channels", chs);
+    json_object_set_string_member(resp, "est_hz_rule", "level changes / 2 per second, median over active frames");
+
+    /* Noty PSG. */
+    bool incomplete = false;
+    GArray *notes = _ac_psg_notes(first, last, st.stereo, &incomplete);
+    JsonArray *na = json_array_new();
+    for (guint i = 0; i < notes->len && i < (guint) max_notes; i++) {
+        const st_AC_NOTE_OUT *o = &g_array_index(notes, st_AC_NOTE_OUT, i);
+        JsonObject *n = json_object_new();
+        json_object_set_string_member(n, "ch", trace_audio_channel_name(o->src));
+        if (o->n.noise) {
+            json_object_set_string_member(n, "note", "noise");
+        } else {
+            double f = audio_psg_tone_hz(o->n.divider, GDGCLK_BASE, GDGCLK2CPU_DIVIDER);
+            int pitch = 0, cents = 0;
+            char nm[8];
+            audio_hz_to_midi(f, &pitch, &cents);
+            audio_midi_note_name(pitch, nm, sizeof(nm));
+            json_object_set_string_member(n, "note", nm);
+            json_object_set_int_member(n, "cents", cents);
+            json_object_set_double_member(n, "hz", _ac_round(f, 2));
+            json_object_set_int_member(n, "divider", (gint64) o->n.divider);
+        }
+        json_object_set_int_member(n, "from_frame", (gint64) o->n.from_frame);
+        json_object_set_int_member(n, "to_frame", (gint64) o->n.to_frame);
+        json_object_set_int_member(n, "max_level", (gint64) o->n.max_level);
+        json_array_add_object_element(na, n);
+    }
+    json_object_set_array_member(resp, "psg_notes", na);
+    json_object_set_int_member(resp, "psg_notes_total", (gint64) notes->len);
+    json_object_set_boolean_member(resp, "psg_notes_truncated", notes->len > (guint) max_notes);
+    json_object_set_boolean_member(resp, "psg_state_incomplete", incomplete);
+    g_array_free(notes, TRUE);
+
+    /* CTC0 (reproduktor): histogram intervalů mezi hranami. */
+    {
+        uint32_t hist[AUDIO_HIST_BUCKETS];
+        memset(hist, 0, sizeof(hist));
+        size_t lrs = 0;
+        uint64_t lseq = 0, ln = 0;
+        unsigned lseg = 0;
+        uint8_t *ld = _ac_copy_range(AUDIO_CAPTURE_STREAM_LEVELS, 0, UINT64_MAX, &lrs, &lseq, &ln, &lseg);
+        uint64_t edges = 0;
+        bool have_prev = false;
+        uint64_t prev_t = 0;
+        for (uint64_t i = 0; i < ln && lrs == sizeof(st_AUDIO_CAPTURE_LEVEL_REC); i++) {
+            const st_AUDIO_CAPTURE_LEVEL_REC *l = (const st_AUDIO_CAPTURE_LEVEL_REC *) (ld + i * lrs);
+            if (l->src != 0 || l->frame < first) continue;
+            if (l->frame > last) break;
+            edges++;
+            if (have_prev && l->t > prev_t) audio_hist_add(hist, (double) (l->t - prev_t) * 1e6 / (double) GDGCLK_BASE);
+            prev_t = l->t;
+            have_prev = true;
+        }
+        g_free(ld);
+        double share = 0.0;
+        double secs = (double) ticks_total / (double) GDGCLK_BASE;
+        JsonObject *c0 = json_object_new();
+        json_object_set_int_member(c0, "edges", (gint64) edges);
+        JsonArray *ha = json_array_new();
+        for (unsigned b = 0; b < AUDIO_HIST_BUCKETS; b++) {
+            if (!hist[b]) continue;
+            JsonArray *e = json_array_new();
+            json_array_add_int_element(e, (gint64) audio_hist_bucket_us(b));
+            json_array_add_int_element(e, (gint64) hist[b]);
+            json_array_add_array_element(ha, e);
+        }
+        json_object_set_array_member(c0, "edge_interval_hist_us", ha);
+        json_object_set_string_member(c0, "likely", audio_ctc0_guess(hist, edges, secs, &share));
+        json_object_set_double_member(c0, "dominant_share", _ac_round(share, 3));
+        json_object_set_string_member(c0, "likely_rule",
+            "heuristic estimate: tone = two adjacent buckets hold >= 80 % of the intervals, "
+            "pcm = otherwise with >= 2000 edges/s, else irregular");
+        json_object_set_boolean_member(c0, "levels_complete", lseq == 0);
+        json_object_set_object_member(resp, "ctc0", c0);
+    }
+
+    /* Reference vs SDL cesta (potřebuje oba PCM ringy). */
+    const st_AUDIO_CAPTURE_STREAM_INFO *pr = &st.streams[AUDIO_CAPTURE_STREAM_PCM_REFERENCE];
+    const st_AUDIO_CAPTURE_STREAM_INFO *ps = &st.streams[AUDIO_CAPTURE_STREAM_PCM_SDL];
+    if (pr->present && ps->present) {
+        uint64_t spf = AUDIO_CAPTURE_WAV_RATE / VIDEO_SCREENS_PER_SEC;
+        uint64_t s0 = _ac_sample_at(fr[0].t, st.origin_ticks);
+        uint64_t s1 = _ac_sample_at(fr[nfr - 1].t + fr[nfr - 1].len_ticks, st.origin_ticks);
+        if (s1 > s0 + AC_COMPARE_WINDOW) s1 = s0 + AC_COMPARE_WINDOW;
+        uint64_t max_lag = (lag_frames >= 0 ? (uint64_t) lag_frames : (uint64_t) max_lag_frames) * spf;
+        size_t r1 = 0, r2 = 0;
+        uint64_t q1 = 0, n1 = 0, q2 = 0, n2 = 0;
+        unsigned g1 = 0, g2 = 0;
+        uint8_t *ref = _ac_copy_range(AUDIO_CAPTURE_STREAM_PCM_REFERENCE, s0, s1, &r1, &q1, &n1, &g1);
+        uint8_t *sdl = _ac_copy_range(AUDIO_CAPTURE_STREAM_PCM_SDL, q1, q1 + n1 + max_lag, &r2, &q2, &n2, &g2);
+        JsonObject *rv = json_object_new();
+        st_AUDIO_COMPARE cmp;
+        bool ok = ref && sdl && n1 > 0 && q2 == q1;
+        if (ok && lag_frames >= 0) {
+            audio_diff((const int16_t *) ref, n1, (const int16_t *) sdl, n2, (int) max_lag, 0, n1, &cmp);
+            ok = cmp.compared > 0;
+        } else if (ok) {
+            ok = audio_compare((const int16_t *) ref, n1, (const int16_t *) sdl, n2, (int) max_lag, 0, &cmp);
+        }
+        if (ok) {
+            json_object_set_int_member(rv, "lag_samples", cmp.lag);
+            json_object_set_double_member(rv, "lag_frames", _ac_round((double) cmp.lag / (double) spf, 2));
+            json_object_set_boolean_member(rv, "lag_searched", lag_frames < 0);
+            /* Bez nástupu nebo změny hlasitosti v okně (jen ustálený tón) posun
+             * z dat určit nejde; lag_samples pak může být o periody tónu vedle. */
+            json_object_set_boolean_member(rv, "lag_ambiguous", lag_frames < 0 && cmp.lag_ambiguous);
+            json_object_set_int_member(rv, "compared_samples", (gint64) cmp.compared);
+            json_object_set_int_member(rv, "from_sample", (gint64) q1);
+            json_object_set_double_member(rv, "diff_rms", _ac_round(cmp.diff_rms, 5));
+            json_object_set_double_member(rv, "diff_max", _ac_round(cmp.diff_max, 5));
+            json_object_set_double_member(rv, "reference_rms", _ac_round(cmp.a_rms, 5));
+            /* Nejhorší snímky porovnaného úseku. */
+            JsonArray *worst = json_array_new();
+            double best[5] = { -1, -1, -1, -1, -1 };
+            uint64_t bf[5] = { 0 };
+            for (uint64_t i = 0; i < nfr; i++) {
+                uint64_t a = _ac_sample_at(fr[i].t, st.origin_ticks);
+                if (a < q1) continue;
+                if (a >= q1 + cmp.compared) break;
+                st_AUDIO_COMPARE d;
+                audio_diff((const int16_t *) ref, n1, (const int16_t *) sdl, n2, cmp.lag, (size_t) (a - q1), spf, &d);
+                for (int k = 0; k < 5; k++) {
+                    if (d.compared && d.diff_rms > best[k]) {
+                        for (int m = 4; m > k; m--) { best[m] = best[m - 1]; bf[m] = bf[m - 1]; }
+                        best[k] = d.diff_rms;
+                        bf[k] = first + i;
+                        break;
+                    }
+                }
+            }
+            for (int k = 0; k < 5 && best[k] >= 0; k++) {
+                JsonArray *w = json_array_new();
+                json_array_add_int_element(w, (gint64) bf[k]);
+                json_array_add_double_element(w, _ac_round(best[k], 5));
+                json_array_add_array_element(worst, w);
+            }
+            json_object_set_array_member(rv, "worst_frames", worst);
+        } else {
+            json_object_set_string_member(rv, "error", "reference and output path samples do not overlap in this range");
+        }
+        json_object_set_int_member(rv, "sdl_missing_blocks",
+                                   (gint64) ((st.frames > st.sdl_blocks) ? st.frames - st.sdl_blocks : 0));
+        json_object_set_object_member(resp, "ref_vs_sdl", rv);
+        g_free(ref);
+        g_free(sdl);
+    } else {
+        json_object_set_null_member(resp, "ref_vs_sdl");
+        json_object_set_string_member(resp, "ref_vs_sdl_note",
+                                      "needs pcm=[\"reference\", \"sdl\"] at emu_audio_capture_start");
+    }
+    g_free(fdata);
+    return _ok_response(req_id, resp, out_response);
+}
+
+/**
+ * @brief `audio_capture_pcm` handler - výřez PCM z paměti zachycení.
+ *
+ * Parametry: `source` ("reference" výchozí | "sdl"), začátek `sample_from`
+ * (>= 0, vzorky 44100 Hz od začátku zachycení), jinak `frame_from`
+ * (výchozí 0); délka `samples` (> 0), jinak `frames` (výchozí 25); `rate`
+ * (1000..44100, výchozí 11025), `stereo` (výchozí false), `encoding`
+ * ("wav_b64" výchozí | "pcm_b64"), `max_bytes` (1024..4 MiB, výchozí
+ * 32768 = strop dat před base64).
+ *
+ * Převzorkování je průměrování (analytický náhled); `rate` 44100 se
+ * `stereo` vrací bajtově totéž co reference.wav / sdl.wav. Response:
+ * source, segment, live, rate, channels, from_sample, samples, frames_out,
+ * next_sample, end_of_data, truncated, available [first, next), gap,
+ * encoding, data_b64.
+ */
+static en_MCP_DISPATCH_RESULT _handle_audio_capture_pcm(const st_JSONL_MESSAGE *req,
+                                                        char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _videorec_data_obj(req);
+    int hs = _videorec_member(obj, "source", G_TYPE_STRING);
+    int he = _videorec_member(obj, "encoding", G_TYPE_STRING);
+    int hst = _videorec_member(obj, "stereo", G_TYPE_BOOLEAN);
+    const char *inames[] = { "sample_from", "frame_from", "samples", "frames", "rate", "max_bytes" };
+    gint64 iv[] = { -1, 0, 0, 25, 11025, AC_PCM_DEFAULT_MAX_BYTES };
+    bool bad = (hs < 0 || he < 0 || hst < 0);
+    for (int i = 0; i < 6 && !bad; i++) {
+        int h = _videorec_member(obj, inames[i], G_TYPE_INT64);
+        if (h < 0) bad = true;
+        else if (h) iv[i] = json_object_get_int_member(obj, inames[i]);
+    }
+    const char *source = hs ? json_object_get_string_member(obj, "source") : "reference";
+    const char *enc = he ? json_object_get_string_member(obj, "encoding") : "wav_b64";
+    bool stereo = hst ? json_object_get_boolean_member(obj, "stereo") : false;
+    bool sdl = (g_strcmp0(source, "sdl") == 0);
+    bool wav = (g_strcmp0(enc, "wav_b64") == 0);
+    if (bad || (!sdl && g_strcmp0(source, "reference") != 0) || (!wav && g_strcmp0(enc, "pcm_b64") != 0)
+        || iv[1] < 0 || iv[2] < 0 || iv[3] < 1 || iv[4] < 1000 || iv[4] > (gint64) AUDIO_CAPTURE_WAV_RATE
+        || iv[5] < 1024 || iv[5] > (gint64) AC_PCM_MAX_MAX_BYTES) {
+        return _err_response(req_id, "Invalid parameters: source reference|sdl, encoding wav_b64|pcm_b64, "
+                             "stereo boolean, sample_from/frame_from >= 0, samples >= 0, frames >= 1, "
+                             "rate 1000..44100, max_bytes 1024..4194304",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    unsigned rate = (unsigned) iv[4];
+    size_t max_bytes = (size_t) iv[5];
+    en_AUDIO_CAPTURE_STREAM stream = sdl ? AUDIO_CAPTURE_STREAM_PCM_SDL : AUDIO_CAPTURE_STREAM_PCM_REFERENCE;
+
+    st_AUDIO_CAPTURE_STATUS st;
+    audio_capture_get_status(&st);
+    const st_AUDIO_CAPTURE_STREAM_INFO *si = &st.streams[stream];
+    if (!st.memory || !si->present) {
+        return _err_response(req_id, sdl ? "No output path PCM in the audio capture memory: start with pcm=[\"sdl\"]"
+                                         : "No reference PCM in the audio capture memory: start with pcm=[\"reference\"]",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+
+    /* Začátek a délka ve vzorcích 44100 Hz. */
+    uint64_t spf_num = AUDIO_CAPTURE_WAV_RATE, spf_den = VIDEO_SCREENS_PER_SEC;
+    uint64_t from = 0, want = 0;
+    if (iv[0] >= 0) {
+        from = (uint64_t) iv[0];
+    } else {
+        /* Začátek snímku z jeho souhrnu (přesný čas), jinak podle fps. */
+        st_AUDIO_CAPTURE_STREAM_COPY c;
+        audio_capture_stream_copy(AUDIO_CAPTURE_STREAM_FRAMES, (uint64_t) iv[1], 1, sizeof(st_AUDIO_CAPTURE_FRAME_REC), &c);
+        if (c.data_count == 1 && c.data_seq == (uint64_t) iv[1]) {
+            from = _ac_sample_at(((const st_AUDIO_CAPTURE_FRAME_REC *) c.data)->t, st.origin_ticks);
+        } else {
+            from = (uint64_t) iv[1] * spf_num / spf_den;
+        }
+        audio_capture_stream_copy_clear(&c);
+    }
+    want = (iv[2] > 0) ? (uint64_t) iv[2] : (uint64_t) iv[3] * spf_num / spf_den;
+
+    unsigned ch = stereo ? 2u : 1u;
+    size_t hdr = wav ? 44u : 0u;
+    size_t out_max = (max_bytes > hdr) ? (max_bytes - hdr) / (2u * ch) : 0;
+    uint64_t in_max = (uint64_t) out_max * AUDIO_CAPTURE_WAV_RATE / rate;
+    bool truncated = false;
+    if (want > in_max) {
+        want = in_max;
+        truncated = true;
+    }
+
+    JsonObject *resp = json_object_new();
+    st_AUDIO_CAPTURE_STREAM_COPY c;
+    bool okc = audio_capture_stream_copy(stream, from, want, (size_t) (want * 4u), &c);
+    if (!okc) {
+        audio_capture_stream_copy_clear(&c);
+        json_object_unref(resp);
+        return _err_response(req_id, "Not enough memory for the PCM copy", MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    if (from < c.first_seq) {
+        JsonObject *gap = json_object_new();
+        json_object_set_int_member(gap, "from_sample", (gint64) from);
+        json_object_set_int_member(gap, "to_sample", (gint64) c.first_seq);
+        json_object_set_object_member(resp, "gap", gap);
+    } else {
+        json_object_set_null_member(resp, "gap");
+    }
+    uint64_t got = c.data_count;
+    uint64_t start = c.data_count ? c.data_seq : ((from > c.next_seq) ? c.next_seq : from);
+    size_t nout = audio_resample_frames((size_t) got, AUDIO_CAPTURE_WAV_RATE, rate);
+    uint8_t *buf = (uint8_t *) g_malloc(hdr + nout * 2u * ch + 2u);
+    if (got) audio_resample_s16((const int16_t *) c.data, (size_t) got, AUDIO_CAPTURE_WAV_RATE, rate, stereo,
+                                (int16_t *) (buf + hdr));
+    if (wav) audio_wav_header(buf, rate, ch, nout);
+    char *b64 = g_base64_encode(buf, hdr + nout * 2u * ch);
+    json_object_set_string_member(resp, "source", sdl ? "sdl" : "reference");
+    json_object_set_int_member(resp, "segment", (gint64) c.segment);
+    json_object_set_boolean_member(resp, "live", c.live);
+    json_object_set_int_member(resp, "rate", rate);
+    json_object_set_int_member(resp, "channels", ch);
+    json_object_set_int_member(resp, "from_sample", (gint64) start);
+    json_object_set_int_member(resp, "samples", (gint64) got);
+    json_object_set_int_member(resp, "frames_out", (gint64) nout);
+    json_object_set_int_member(resp, "next_sample", (gint64) (start + got));
+    json_object_set_boolean_member(resp, "end_of_data", start + got >= c.next_seq);
+    json_object_set_boolean_member(resp, "truncated", truncated);
+    JsonArray *av = json_array_new();
+    json_array_add_int_element(av, (gint64) c.first_seq);
+    json_array_add_int_element(av, (gint64) c.next_seq);
+    json_object_set_array_member(resp, "available", av);
+    json_object_set_string_member(resp, "encoding", wav ? "wav_b64" : "pcm_b64");
+    json_object_set_string_member(resp, "data_b64", b64);
+    g_free(b64);
+    g_free(buf);
+    audio_capture_stream_copy_clear(&c);
+    return _ok_response(req_id, resp, out_response);
 }
 
 

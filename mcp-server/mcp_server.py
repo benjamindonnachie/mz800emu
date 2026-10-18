@@ -3352,7 +3352,8 @@ _TRACE_CHANNELS = ("cputrack", "iorqlog", "intlog", "hwlog", "marklog")
 # Channels readable with emu_trace_status / emu_trace_read: the trace-suite
 # channels plus the Event Viewer ring (``eventlog``, controlled by
 # emu_eventlog_start/stop/clear, not by emu_trace_start).
-_TRACE_READ_CHANNELS = _TRACE_CHANNELS + ("eventlog",)
+_TRACE_READ_CHANNELS = _TRACE_CHANNELS + ("eventlog", "audio_psg_writes",
+                                          "audio_levels", "audio_frames")
 
 
 def _trace_read_validate_channel(channel: str) -> "str | None":
@@ -3498,7 +3499,9 @@ async def emu_trace_status(channel: str = "") -> str:
 
     Args:
         channel: One of ``cputrack``, ``iorqlog``, ``intlog``, ``hwlog``,
-            ``marklog``, ``eventlog`` (Event Viewer ring); empty = all.
+            ``marklog``, ``eventlog`` (Event Viewer ring),
+            ``audio_psg_writes``, ``audio_levels``, ``audio_frames``
+            (audio capture memory); empty = all.
 
     Returns:
         JSON ``{"channels": [{channel, segment, live, truncated,
@@ -3527,7 +3530,8 @@ async def emu_trace_read(channel: str, cursor: str = "", start: str = "oldest",
                          filter: dict[str, Any] | None = None,
                          max_chars: int = 20000,
                          max_scan: int = 2000000) -> str:
-    """Read one page of trace-suite or Event Viewer records, also while running.
+    """Read one page of trace-suite, Event Viewer or audio capture records,
+    also while running.
 
     Records are numbered by ``seq`` within a ``segment`` (one recording).
     Page through with ``next_cursor``; ``end_of_data: true`` means the page
@@ -3544,6 +3548,11 @@ async def emu_trace_read(channel: str, cursor: str = "", start: str = "oldest",
       hwlog:    seq, t, frame, pos, chip, sub, payload
       marklog:  seq, t, frame, pos, id, name
       eventlog: seq, t, frame, pos, cat, sub, pc, text
+      audio_psg_writes: seq, t, time_us, frame, psg, byte, ch, reg, value,
+                hz, note
+      audio_levels: seq, t, time_us, frame, channel, level
+      audio_frames: seq, t, time_us, len_ticks, edges, on_pct, rms_level,
+                max_level, ref_rms, ref_peak, sdl_rms, sdl_peak, sdl_blocks
     ``t`` is in GDG ticks since emulation start (cputrack: start of the
     instruction, only with ``has_time``, i.e. no PC range record filter).
     cputrack ``asm`` is decoded from the recorded bytes (not current
@@ -3552,9 +3561,24 @@ async def emu_trace_read(channel: str, cursor: str = "", start: str = "oldest",
     below ``first_seq`` is no error, the page starts at ``first_seq`` and
     ``gap`` names the lost range.
 
+    The ``audio_*`` channels read the memory of the audio capture
+    (``emu_audio_capture_start`` with ``memory=True``, the default): the
+    same data as psg_writes.csv and events.csv plus one summary row per
+    audio frame (``seq`` = frame). ``time_us`` counts from the capture
+    start; ``hz``/``note`` are given for a new tone divider (``reg``
+    ``tone``), computed with the emulator's PSG formula. ``audio_frames``
+    lists per-channel arrays in the order of ``emu_audio_capture_status``
+    ``channels``: ``edges`` (level changes), ``on_pct`` (time with level >
+    0), ``rms_level`` (0-15), ``max_level``; ``ref_*`` / ``sdl_*`` are
+    ``[L, R]`` int16 RMS / peak of the reference render and the output
+    path (null when not captured). These rings drop their oldest records
+    when full (``gap``); the next capture start replaces them
+    (``segment_replaced``).
+
     Args:
         channel: ``cputrack``, ``iorqlog``, ``intlog``, ``hwlog``,
-            ``marklog`` or ``eventlog``.
+            ``marklog``, ``eventlog``, ``audio_psg_writes``,
+            ``audio_levels`` or ``audio_frames``.
         cursor: ``next_cursor`` of the previous page (takes precedence over
             ``start``).
         start: ``"oldest"``, ``"newest"`` (last ``limit`` records) or
@@ -3568,6 +3592,9 @@ async def emu_trace_read(channel: str, cursor: str = "", start: str = "oldest",
             (<= 0xFF matches the low byte), ``dir`` (``in``/``out``),
             ``type`` (``iorq``, ``mreq_mapped``, ``iorq_unconnected``)
             (iorqlog), ``chip``/``sub`` (hwlog), ``marker`` (marklog id),
+            ``channels`` (list of channel names such as ``"ctc0"``,
+            ``"psg0_1"``; audio_levels, audio_psg_writes), ``reg``
+            (``tone_lo``, ``tone``, ``volume``, ``noise``; audio_psg_writes),
             ``t_from``/``t_to`` (channels with ``t``).
         max_chars: Character budget of a ``rows`` page (1000-45000); the
             whole response stays within it.
@@ -7613,7 +7640,10 @@ async def emu_profiler_pc_bitmap() -> str:
 async def emu_audio_capture_start(dir: str = "", frames: int = 0,
                                   events: bool = True, psg_writes: bool = True,
                                   reference_wav: bool = True,
-                                  sdl_wav: bool = True) -> str:
+                                  sdl_wav: bool = True, memory: bool = True,
+                                  pcm: list[str] | None = None,
+                                  memory_minutes: int = 10,
+                                  pcm_seconds: int = 60) -> str:
     """Start capturing what the sound hardware does - for finding sound bugs.
 
     Files written into ``dir`` in emulated time:
@@ -7639,6 +7669,16 @@ async def emu_audio_capture_start(dir: str = "", frames: int = 0,
     * ``capture.json`` - platform, clock, channel names, counts, stop
       reason (written at the end).
 
+    With ``memory`` (default) the capture also keeps rings in memory that
+    can be read while it runs and after it ends, until the next start -
+    no file access needed (also for a remote client): ``emu_trace_read``
+    channels ``audio_psg_writes``, ``audio_levels`` (the CSV rows) and
+    ``audio_frames`` (one summary per audio frame),
+    ``emu_audio_capture_summary`` (what happened: silence, notes, speaker
+    tone or PCM, reference vs output path) and ``emu_audio_capture_pcm``
+    (a short PCM window). A capture to memory only (all four files off)
+    creates no folder.
+
     ``ticks`` are GDG clock ticks since the start (``gdg_clk_hz`` in
     capture.json), ``frame`` is the audio frame (one video frame) since
     the start. The capture begins at the end of the next audio frame; with
@@ -7654,16 +7694,28 @@ async def emu_audio_capture_start(dir: str = "", frames: int = 0,
         frames: stop automatically after this many audio frames (0 = until
             ``emu_audio_capture_stop``, at most one hour).
         events, psg_writes, reference_wav, sdl_wav: which files to write.
+        memory: keep the capture memory (rings of PSG writes, level
+            changes and frame summaries; levels 1M records = 16 MiB,
+            PSG writes 256k = 6 MiB).
+        pcm: PCM rings in memory: ``["reference"]`` (default), ``["sdl"]``,
+            both (needed for ``ref_vs_sdl`` in the summary) or ``[]``;
+            10.6 MB per minute and source.
+        memory_minutes: length of the frame summary ring (1-120).
+        pcm_seconds: length of the PCM rings (1-3600); older audio is
+            dropped.
 
     Returns:
         Capture status (see ``emu_audio_capture_status``) with
         ``pending: true``, or an error (already running, nothing selected,
-        folder cannot be created).
+        folder cannot be created, not enough memory).
     """
     data: dict[str, Any] = {"frames": frames, "events": events,
                             "psg_writes": psg_writes,
                             "reference_wav": reference_wav,
-                            "sdl_wav": sdl_wav}
+                            "sdl_wav": sdl_wav, "memory": memory,
+                            "pcm": ["reference"] if pcm is None else list(pcm),
+                            "memory_minutes": memory_minutes,
+                            "pcm_seconds": pcm_seconds}
     if dir:
         data["dir"] = dir
     resp = await _send_request("audio_capture_start", data)
@@ -7695,9 +7747,111 @@ async def emu_audio_capture_status() -> str:
         "dir": str, "stop_reason": str ("Stopped", "Frame count reached",
         "Safety limit reached", "Emulation timeline restarted (reset or
         snapshot load)", "Error", "Emulator exit" or "" while running),
-        "last_error": str}``.
+        "last_error": str, "segment": int (capture number since the
+        emulator start; a new start replaces the memory), "origin_ticks":
+        int | null (absolute GDG ticks of time 0), "channels": [names in
+        the order of the audio_frames arrays], "stereo": bool, "memory":
+        null | {"bytes": int, "streams": {"psg_writes" | "levels" |
+        "frames" | "pcm_reference" | "pcm_sdl": {"record_size",
+        "capacity", "first_seq", "next_seq"}}}}``. ``first_seq`` > 0 means
+        the ring dropped its oldest records; PCM ``seq`` = sample index
+        (44100 Hz) since the start.
     """
     resp = await _send_request("audio_capture_status", {})
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_audio_capture_summary(frame_from: int = 0, frame_to: int = -1,
+                                    silence_rms: int = 64,
+                                    max_notes: int = 200,
+                                    lag_frames: int = -1,
+                                    max_lag_frames: int = 8) -> str:
+    """Summary of the audio capture memory - what the sound did, as text.
+
+    Needs a capture started with ``memory=True`` (the default of
+    ``emu_audio_capture_start``); works while it runs and after it ends.
+
+    Returns ``frames`` [from, to] (audio frames since the capture start),
+    ``frames_available``, ``fps``, ``platform``, ``stereo``;
+    ``sound_spans`` / ``silent_spans`` ([[from, to], ...], at most 50
+    each, ``*_total`` = all; silent = reference RMS below
+    ``silence_rms``, ``silence_rule``); ``channels`` (per channel:
+    ``active_frames``, ``edges``, ``max_level``, ``on_pct``,
+    ``est_hz_median`` = level changes / 2 per second); ``psg_notes``
+    (``ch``, ``note`` such as ``"A4"`` or ``"noise"``, ``cents``, ``hz``,
+    ``divider``, ``from_frame``, ``to_frame``, ``max_level``; replayed
+    from the PSG writes with the emulator's PSG formula;
+    ``psg_state_incomplete`` = the oldest writes were dropped, notes at the
+    start may be wrong); ``ctc0`` (speaker: ``edges``,
+    ``edge_interval_hist_us`` [[bucket_from_us, count]], ``likely``
+    ``tone`` / ``pcm`` / ``irregular`` / ``silent`` - a heuristic
+    estimate, see ``likely_rule``); ``ref_vs_sdl`` (needs
+    ``pcm=["reference", "sdl"]``: ``lag_samples``, ``lag_frames``,
+    ``diff_rms`` / ``diff_max`` (-1..1 units, mono), ``reference_rms``,
+    ``worst_frames`` [[frame, diff_rms]], ``sdl_missing_blocks``; at most
+    2 s are compared).
+
+    Args:
+        frame_from: First frame (default 0 = oldest kept).
+        frame_to: Last frame (-1 = newest).
+        silence_rms: Silence threshold, int16 RMS of the reference (0-32767).
+        max_notes: Max notes listed (1-2000).
+        lag_frames: Output path delay in frames; -1 = search it.
+        max_lag_frames: Largest delay searched (1-60).
+    """
+    data = {"frame_from": frame_from, "frame_to": frame_to,
+            "silence_rms": silence_rms, "max_notes": max_notes,
+            "lag_frames": lag_frames, "max_lag_frames": max_lag_frames}
+    resp = await _send_request("audio_capture_summary", data)
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_audio_capture_pcm(source: str = "reference", frame_from: int = 0,
+                                frames: int = 25, sample_from: int = -1,
+                                samples: int = 0, rate: int = 11025,
+                                stereo: bool = False,
+                                encoding: str = "wav_b64",
+                                max_bytes: int = 32768) -> str:
+    """A short PCM window from the audio capture memory (WAV or raw, base64).
+
+    Needs ``pcm`` with the source at ``emu_audio_capture_start``
+    (``reference`` is kept by default). The default window (25 frames,
+    11025 Hz mono, 32 KiB) stays below 50 000 characters. Resampling is
+    averaging (an analysis preview); ``rate=44100, stereo=True`` returns
+    exactly the samples of reference.wav / sdl.wav. Page through longer
+    audio with ``sample_from=next_sample``.
+
+    Args:
+        source: ``"reference"`` (render in emulated time) or ``"sdl"``
+            (output path).
+        frame_from: Start at this audio frame (used when ``sample_from``
+            < 0).
+        frames: Length in frames (used when ``samples`` is 0).
+        sample_from: Start sample (44100 Hz) since the capture start.
+        samples: Length in 44100 Hz samples.
+        rate: Output rate 1000-44100 Hz.
+        stereo: Two channels (default mono = average of L and R).
+        encoding: ``"wav_b64"`` (WAV file) or ``"pcm_b64"`` (raw int16
+            little endian).
+        max_bytes: Data limit before base64 (1024-4194304); a longer window
+            is cut (``truncated: true``).
+
+    Returns:
+        ``{"source", "segment", "live", "rate", "channels", "from_sample",
+        "samples", "frames_out", "next_sample", "end_of_data",
+        "truncated", "available": [first, next], "gap", "encoding",
+        "data_b64"}`` or ``{"error": ...}``.
+    """
+    data: dict[str, Any] = {"source": source, "frame_from": frame_from,
+                            "frames": frames, "rate": rate, "stereo": stereo,
+                            "encoding": encoding, "max_bytes": max_bytes}
+    if sample_from >= 0:
+        data["sample_from"] = sample_from
+    if samples > 0:
+        data["samples"] = samples
+    resp = await _send_request("audio_capture_pcm", data)
     return json.dumps(_data_or_error(resp))
 
 

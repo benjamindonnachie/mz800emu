@@ -44,6 +44,9 @@ typedef enum en_TRACE_KIND
     TRACE_KIND_HWLOG,        /**< 24B HW událost čipu. */
     TRACE_KIND_MARKLOG,      /**< 24B značka z akce BP. */
     TRACE_KIND_EVENTLOG,     /**< 32B událost ringu Event Vieweru (st_EVENTLOG_EVENT). */
+    TRACE_KIND_AUDIO_PSG_WRITES, /**< 24B zápis do PSG z paměti zachycení zvuku (st_AUDIO_CAPTURE_PSG_REC). */
+    TRACE_KIND_AUDIO_LEVELS,     /**< 16B změna úrovně kanálu (st_AUDIO_CAPTURE_LEVEL_REC). */
+    TRACE_KIND_AUDIO_FRAMES,     /**< 192B souhrn zvukového snímku (st_AUDIO_CAPTURE_FRAME_REC). */
     TRACE_KIND_COUNT         /**< Počet druhů (není platná hodnota). */
 } en_TRACE_KIND;
 
@@ -119,6 +122,8 @@ typedef struct st_TRACE_FILTER
     int      chip;       /**< hwlog: -1 = nefiltrovat, jinak chip_id. */
     int      sub;        /**< hwlog: -1 = nefiltrovat, jinak sub_event_type. */
     int      marker;     /**< marklog: -1 = nefiltrovat, jinak marker_id. */
+    uint32_t channels;   /**< audio_levels / audio_psg_writes: bity zvukových kanálů (0 = ctc0, 1..4 psg0, 5..8 psg1), 0 = nefiltrovat. */
+    int      reg;        /**< audio_psg_writes: -1 = nefiltrovat, jinak en_AUDIO_CAPTURE_PSG_REG. */
     bool     has_t;      /**< t v [t_from, t_to] (jen řádky s časem). */
     uint64_t t_from;
     uint64_t t_to;
@@ -126,6 +131,14 @@ typedef struct st_TRACE_FILTER
 
 /** @brief Inicializovat filtr na "bez podmínek". */
 void trace_filter_init ( st_TRACE_FILTER *f );
+
+/**
+ * @brief Jméno zvukového kanálu podle indexu audio logu.
+ *
+ * @param src Index 0 = ctc0, 1..4 = psg0_0..3, 5..8 = psg1_0..3.
+ * @return Statický řetězec ("?" mimo rozsah).
+ */
+const char *trace_audio_channel_name ( unsigned src );
 
 /** @brief Velikost jména (symbol, značka) v st_TRACE_RESOLVE_REQ. */
 #define TRACE_RESOLVE_NAME_SIZE 64u
@@ -203,7 +216,10 @@ typedef struct st_TRACE_PAGE_REQ
     /* Čas cputrack */
     bool            cputrack_time; /**< Kanál má časový sloupec (cputrack v2 bez filtru PC). */
     uint64_t        ram_prefix_t;  /**< T-stavy RAM chunku před snap->ram_copy_seq (z emu vlákna). */
-    unsigned        cpu_divider;   /**< Takty GDG na T-stav (pro t v taktech GDG). */
+    unsigned        cpu_divider;   /**< Takty GDG na T-stav (pro t v taktech GDG; u audio_psg_writes pro Hz). */
+    uint64_t        audio_origin;  /**< audio_*: absolutní čas začátku zachycení [takty GDG] (pro time_us). */
+    uint64_t        gdg_hz;        /**< audio_*: takt GDG [Hz] (time_us, Hz tónu PSG). */
+    unsigned        audio_channels; /**< audio_frames: počet zvukových kanálů platformy (1..9). */
 } st_TRACE_PAGE_REQ;
 
 /**

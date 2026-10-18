@@ -61,11 +61,13 @@ mz_add_test(mcp_dispatch
         ${CMAKE_SOURCE_DIR}/src/emulator/mcp/trap_manager.c
         ${CMAKE_SOURCE_DIR}/src/emulator/screenshot/screenshot.c
         ${CMAKE_SOURCE_DIR}/src/emulator/debugger/trace/trace_reader.c
+        ${CMAKE_SOURCE_DIR}/src/emulator/audio_analysis.c
     LABELS   "standalone;mcp"
 )
 
-# trace_reader (trace_read) dekóduje cputrack disassemblerem.
-target_link_libraries(test_mcp_dispatch PRIVATE mzlib_dasm_z80)
+# trace_reader (trace_read) dekóduje cputrack disassemblerem; audio_analysis
+# (Hz a noty audio_psg_writes) potřebuje libm.
+target_link_libraries(test_mcp_dispatch PRIVATE mzlib_dasm_z80 m)
 
 target_compile_definitions(test_mcp_dispatch PRIVATE
     MZ800EMU_MCP_TEST_BUILD
@@ -488,6 +490,23 @@ if(Python3_FOUND)
         SKIP_RETURN_CODE 77
     )
     message(STATUS "  tests/mcp: registered mcp_trace_read "
+                   "(Python ${Python3_VERSION})")
+
+    # Paměť zachycení zvuku přes MCP: trace_read audio_* = CSV, PCM výřez
+    # 44100 Hz stereo = WAV bajt po bajtu, souhrn (nota PSG, posun SDL cesty
+    # o snímek), zachycení jen do paměti a segment_replaced. Pipe, MZ-800.
+    add_test(
+        NAME    mcp_audio_read
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_audio_read.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_audio_read PROPERTIES
+        LABELS  "e2e;mcp;pipe;audio"
+        TIMEOUT 300
+        SKIP_RETURN_CODE 77
+    )
+    message(STATUS "  tests/mcp: registered mcp_audio_read "
                    "(Python ${Python3_VERSION})")
 
     # Snapshot uloží a obnoví skrytý stav Z80 (WZ, čekající INT/NMI,

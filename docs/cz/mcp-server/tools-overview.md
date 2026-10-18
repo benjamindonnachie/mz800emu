@@ -90,9 +90,11 @@ dokumentu [Resources overview](resources-overview.md).
 | `emu_profiler_pc_get` | ne | Nejvytíženější adresy instrukcí s nejbližším symbolem (řazení, limit, rozsah adres) |
 | `emu_profiler_pc_export` | ne | Všechny vykonané adresy do CSV souboru |
 | `emu_profiler_pc_bitmap` | ne | Vykonané adresy jako bitmapa 8 KiB v base64 (pokrytí kódu) |
-| `emu_audio_capture_start` | ano (vytváří soubory) | Zachycení zvuku do složky: změny úrovní kanálů, zápisy do PSG, reference.wav a sdl.wav (frames, výběr souborů) |
+| `emu_audio_capture_start` | ano (vytváří soubory) | Zachycení zvuku do složky a/nebo do paměti: změny úrovní kanálů, zápisy do PSG, reference.wav a sdl.wav (frames, výběr souborů, memory, pcm) |
 | `emu_audio_capture_stop` | ne | Ukončí zachycení zvuku a dopíše soubory |
-| `emu_audio_capture_status` | ne | Stav zachycení zvuku (snímky, události, zápisy PSG, vzorky, bloky SDL, složka, důvod konce) |
+| `emu_audio_capture_status` | ne | Stav zachycení zvuku (snímky, události, zápisy PSG, vzorky, bloky SDL, složka, důvod konce, paměť) |
+| `emu_audio_capture_summary` | ne | Souhrn paměti zachycení: úseky ticha a zvuku, kanály, noty PSG, tón nebo PCM reproduktoru, reference proti zvukovému výstupu |
+| `emu_audio_capture_pcm` | ne | Okno PCM z paměti zachycení (WAV nebo surové v base64, převzorkovaný náhled nebo přesně 44100 Hz) |
 | `emu_media_load_mzf` | ne | CMT-hack instant load MZF (header + body) do RAM na LOAD_ADDR (path nebo bytes_b64) |
 | `emu_media_run_mzf` | **ANO** | Reset + spuštění MZF ve stavu jako po `--run-mzf` (výchozí); `bootstrap=false` = load + ROM disconnect + JP STRT bez resetu |
 | `emu_media_load_binary` | **ANO** | Raw bajty z file do Z80 paměti, **destruktivní** |
@@ -940,7 +942,8 @@ nezaznamenáno), `live`, `truncated`, `first_seq`, `next_seq`, `lost`,
 ### `emu_trace_read`
 
 Stránka záznamů kanálu (`cputrack`, `iorqlog`, `intlog`, `hwlog`,
-`marklog`, `eventlog`), i za běhu záznamu - čitelná jsou i data, která
+`marklog`, `eventlog` a z paměti zachycení zvuku `audio_psg_writes`,
+`audio_levels`, `audio_frames`), i za běhu záznamu - čitelná jsou i data, která
 jsou zatím jen v RAM bufferu. Po `emu_trace_stop` zůstane poslední
 segment čitelný až do dalšího startu. Argumenty:
 
@@ -956,7 +959,10 @@ segment čitelný až do dalšího startu. Argumenty:
 - `filter` (objekt) - `pc_from`/`pc_to` (cputrack), `port` (<= 0xFF
   porovná dolní bajt), `dir` (`in`/`out`), `type` (`iorq`,
   `mreq_mapped`, `iorq_unconnected`) (iorqlog), `chip`/`sub` (hwlog),
-  `marker` (id značky marklog), `t_from`/`t_to` (kanály se sloupcem `t`).
+  `marker` (id značky marklog), `channels` (seznam jmen kanálů `ctc0`,
+  `psg0_0` .. `psg1_3`; audio_levels, audio_psg_writes), `reg` (`tone_lo`,
+  `tone`, `volume`, `noise`; audio_psg_writes), `t_from`/`t_to` (kanály se
+  sloupcem `t`).
 - `max_chars` (int, výchozí 20000, 1000-45000) - rozpočet znaků celé
   odpovědi `rows`.
 - `max_scan` (int, výchozí 2000000) - nejvýš prohledaných záznamů na
@@ -972,10 +978,16 @@ Sloupce (vždy v tomto pořadí, `columns` v odpovědi):
 | `hwlog` | `seq`, `t`, `frame`, `pos`, `chip`, `sub`, `payload` |
 | `marklog` | `seq`, `t`, `frame`, `pos`, `id`, `name` |
 | `eventlog` | `seq`, `t`, `frame`, `pos`, `cat`, `sub`, `pc`, `text` |
+| `audio_psg_writes` | `seq`, `t`, `time_us`, `frame`, `psg`, `byte`, `ch`, `reg`, `value`, `hz`, `note` |
+| `audio_levels` | `seq`, `t`, `time_us`, `frame`, `channel`, `level` |
+| `audio_frames` | `seq`, `t`, `time_us`, `len_ticks`, `edges`, `on_pct`, `rms_level`, `max_level`, `ref_rms`, `ref_peak`, `sdl_rms`, `sdl_peak`, `sdl_blocks` |
 
 `t` je v taktech GDG od startu emulace (cputrack: začátek instrukce,
 jen s `has_time`); `asm` u cputrack je disassembly z bajtů záznamu,
-záznam přijetí přerušení ukazuje `INT ACK`.
+záznam přijetí přerušení ukazuje `INT ACK`. `audio_*`: `t` absolutně,
+`time_us` od začátku zachycení; `hz` / `note` jen u nového děliče tónu;
+pole `audio_frames` jsou v pořadí `channels` z `emu_audio_capture_status`,
+`ref_*` / `sdl_*` jsou [L, R] int16 (bez zachycení null).
 
 Odpověď nese `segment`, `first_seq`, `next_seq`, `live`, `truncated`,
 `lost`, `gap` (ring Event Vieweru: `{from_seq, to_seq}`, když kurzor
@@ -1368,8 +1380,14 @@ složka `<platforma>_audio_<datum>_<čas>` ve výstupní složce zachycení,
 výchozí `audio_captures` vedle emulátoru),
 `frames` (stop po tolika zvukových snímcích, 0 = do stop), `events`,
 `psg_writes`, `reference_wav`, `sdl_wav` (bool, výchozí true - které
-soubory zapisovat). Vrací stav s `pending: true`, nebo chybu (už běží,
-nic nevybráno, složku nejde vytvořit).
+soubory zapisovat), `memory` (bool, výchozí true - držet paměť zachycení
+pro `emu_trace_read` `audio_*`, `emu_audio_capture_summary`
+a `emu_audio_capture_pcm`), `pcm` (seznam `"reference"` / `"sdl"`, výchozí
+`["reference"]` - PCM ringy; pro `ref_vs_sdl` v souhrnu jsou potřeba oba),
+`memory_minutes` (1-120, výchozí 10 - ring souhrnů snímků), `pcm_seconds`
+(1-3600, výchozí 60 - PCM ringy). Zachycení jen do paměti (všechny čtyři
+soubory false) nezakládá složku. Vrací stav s `pending: true`, nebo chybu
+(už běží, nic nevybráno, složku nejde vytvořit, nedostatek paměti).
 
 ### `emu_audio_capture_stop`
 
@@ -1383,6 +1401,54 @@ capture is running", když žádné neběží.
 "last_error"}`. `stop_reason`: `Stopped`, `Frame count reached`,
 `Safety limit reached`, `Emulation timeline restarted (reset or snapshot
 load)`, `Error`, `Emulator exit`, za běhu prázdný.
+
+Dále `segment` (pořadí zachycení od spuštění emulátoru; nový start
+nahradí paměť), `origin_ticks` (absolutní takty GDG času 0, před začátkem
+`null`), `channels` (jména kanálů v pořadí polí `audio_frames`), `stereo`
+a `memory` (`null`, nebo `{"bytes", "streams": {"psg_writes" | "levels" |
+"frames" | "pcm_reference" | "pcm_sdl": {"record_size", "capacity",
+"first_seq", "next_seq"}}}`; `first_seq` > 0 = ring zahodil nejstarší
+záznamy, PCM `seq` = vzorek 44100 Hz od začátku).
+
+### `emu_audio_capture_summary`
+
+Souhrn paměti zachycení, několik kB textu. Argumenty (volitelné):
+`frame_from` (výchozí 0), `frame_to` (-1 = nejnovější), `silence_rms`
+(práh ticha jako RMS reference int16, výchozí 64), `max_notes` (výchozí
+200), `lag_frames` (-1 = najít zpoždění zvukového výstupu)
+a `max_lag_frames` (výchozí 8). Vrací:
+
+- `frames` [od, do], `frames_available`, `fps`, `platform`, `stereo`;
+- `sound_spans` / `silent_spans` ([[od, do]], nejvýš po 50, `*_total` =
+  všechny) - ticho = RMS reference pod `silence_rms`;
+- `channels` - po kanálech `active_frames`, `edges`, `max_level`,
+  `on_pct`, `est_hz_median` (změny úrovně / 2 za sekundu);
+- `psg_notes` - `ch`, `note` (`"A4"`, nebo `"noise"`), `cents`, `hz`,
+  `divider`, `from_frame`, `to_frame`, `max_level`, přehrané ze zápisů do
+  PSG a stavu PSG na začátku zachycení; `psg_state_incomplete` = nejstarší
+  zápisy se zahodily;
+- `ctc0` - reproduktor: `edges`, `edge_interval_hist_us` [[koš_od_us,
+  počet]], `likely` (`tone`, `pcm`, `irregular`, `silent`) - odhad
+  heuristikou, pravidlo je v `likely_rule`;
+- `ref_vs_sdl` (potřebuje `pcm` s `reference` i `sdl`) - `lag_samples`,
+  `lag_frames`, `lag_ambiguous` (v porovnaném úseku jen ustálený tón,
+  zpoždění nejde určit), `diff_rms`, `diff_max` (-1..1, mono),
+  `reference_rms`, `worst_frames` [[snímek, diff_rms]], `sdl_missing_blocks`;
+  porovnají se nejvýš 2 s.
+
+### `emu_audio_capture_pcm`
+
+Okno PCM z paměti zachycení. Argumenty (volitelné): `source` (`reference`
+nebo `sdl`), `frame_from` / `frames` (výchozí 0 / 25) nebo `sample_from`
+/ `samples` (vzorky 44100 Hz od začátku), `rate` (1000-44100, výchozí
+11025), `stereo` (výchozí false = mono průměr), `encoding` (`wav_b64` nebo
+`pcm_b64` = surové int16 little endian), `max_bytes` (strop dat před
+base64, výchozí 32768, nejvýš 4 MiB). Převzorkování průměruje (analytický
+náhled); `rate` 44100 se `stereo` vrací vzorky reference.wav / sdl.wav
+bajt po bajtu. Vrací `source`, `segment`, `live`, `rate`, `channels`,
+`from_sample`, `samples`, `frames_out`, `next_sample` (odsud pokračovat),
+`end_of_data`, `truncated`, `available` [první, příští], `gap`,
+`encoding`, `data_b64`.
 
 ## Media tools
 

@@ -205,7 +205,9 @@ both the chunks on disk and the data that is still only in the RAM
 buffer (a short run can be read right away, it does not have to be
 written to disk first). After `emu_trace_stop` the last segment stays
 readable until the next start of the channel. The Event Viewer ring can
-be read the same way (channel `eventlog`).
+be read the same way (channel `eventlog`), as well as the memory of the
+audio capture (channels `audio_psg_writes`, `audio_levels`,
+`audio_frames`, see [Audio capture](../audio-capture.md)).
 
 - Records have a sequence number `seq` within a segment (one recording
   from start to stop). Page through with the cursor `next_cursor`;

@@ -196,7 +196,9 @@ parsování souborů a i za běhu záznamu: čte jak chunky na disku, tak
 data, která jsou zatím jen v RAM bufferu (krátký běh se tak dá číst
 hned, nemusí se nejdřív zapsat na disk). Po `emu_trace_stop` zůstane
 poslední segment čitelný až do dalšího startu kanálu. Stejně jde číst
-i ring Event Vieweru (kanál `eventlog`).
+i ring Event Vieweru (kanál `eventlog`) a paměť zachycení zvuku (kanály
+`audio_psg_writes`, `audio_levels`, `audio_frames`, viz [Zachycení
+zvuku](../audio-capture.md)).
 
 - Záznamy mají pořadové číslo `seq` v rámci segmentu (jeden záznam od
   startu do stopu). Stránkuje se kurzorem `next_cursor`; `end_of_data`

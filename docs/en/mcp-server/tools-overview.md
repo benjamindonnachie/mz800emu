@@ -90,9 +90,11 @@ documented separately in [Resources overview](resources-overview.md).
 | `emu_profiler_pc_get` | no | Busiest instruction addresses with the nearest symbol (sort, limit, address range) |
 | `emu_profiler_pc_export` | no | All executed addresses to a CSV file |
 | `emu_profiler_pc_bitmap` | no | Executed addresses as an 8 KiB base64 bitmap (code coverage) |
-| `emu_audio_capture_start` | yes (creates files) | Audio capture into a folder: channel level changes, PSG writes, reference.wav and sdl.wav (frames, file selection) |
+| `emu_audio_capture_start` | yes (creates files) | Audio capture into a folder and/or memory: channel level changes, PSG writes, reference.wav and sdl.wav (frames, file selection, memory, pcm) |
 | `emu_audio_capture_stop` | no | Stop the audio capture and finish its files |
-| `emu_audio_capture_status` | no | Audio capture status (frames, events, PSG writes, samples, SDL blocks, folder, stop reason) |
+| `emu_audio_capture_status` | no | Audio capture status (frames, events, PSG writes, samples, SDL blocks, folder, stop reason, memory) |
+| `emu_audio_capture_summary` | no | Summary of the capture memory: silent / sound spans, channels, PSG notes, speaker tone or PCM, reference vs audio output |
+| `emu_audio_capture_pcm` | no | PCM window from the capture memory (WAV or raw base64, resampled preview or exact 44100 Hz) |
 | `emu_media_load_mzf` | no | CMT-hack instant load of MZF (header + body) into RAM at LOAD_ADDR (path or bytes_b64) |
 | `emu_media_run_mzf` | **YES** | Reset + start MZF in the `--run-mzf` state (default); `bootstrap=false` = load + ROM disconnect + JP STRT without reset |
 | `emu_media_load_binary` | **YES** | Raw bytes from file to Z80 memory, **destructive** |
@@ -961,7 +963,8 @@ nothing recorded yet), `live`, `truncated`, `first_seq`, `next_seq`,
 ### `emu_trace_read`
 
 One page of records of a channel (`cputrack`, `iorqlog`, `intlog`,
-`hwlog`, `marklog`, `eventlog`), also while recording runs - the data
+`hwlog`, `marklog`, `eventlog`, and from the audio capture memory
+`audio_psg_writes`, `audio_levels`, `audio_frames`), also while recording runs - the data
 still in the RAM buffer is readable too. After `emu_trace_stop` the
 last segment stays readable until the next start. Arguments:
 
@@ -977,7 +980,10 @@ last segment stays readable until the next start. Arguments:
 - `filter` (object) - `pc_from`/`pc_to` (cputrack), `port` (<= 0xFF
   matches the low byte), `dir` (`in`/`out`), `type` (`iorq`,
   `mreq_mapped`, `iorq_unconnected`) (iorqlog), `chip`/`sub` (hwlog),
-  `marker` (marklog id), `t_from`/`t_to` (channels with `t`).
+  `marker` (marklog id), `channels` (list of channel names `ctc0`,
+  `psg0_0` .. `psg1_3`; audio_levels, audio_psg_writes), `reg` (`tone_lo`,
+  `tone`, `volume`, `noise`; audio_psg_writes), `t_from`/`t_to` (channels
+  with `t`).
 - `max_chars` (int, default 20000, 1000-45000) - character budget of
   the whole `rows` response.
 - `max_scan` (int, default 2000000) - max records examined per call.
@@ -992,10 +998,17 @@ Columns (always in this order, `columns` in the response):
 | `hwlog` | `seq`, `t`, `frame`, `pos`, `chip`, `sub`, `payload` |
 | `marklog` | `seq`, `t`, `frame`, `pos`, `id`, `name` |
 | `eventlog` | `seq`, `t`, `frame`, `pos`, `cat`, `sub`, `pc`, `text` |
+| `audio_psg_writes` | `seq`, `t`, `time_us`, `frame`, `psg`, `byte`, `ch`, `reg`, `value`, `hz`, `note` |
+| `audio_levels` | `seq`, `t`, `time_us`, `frame`, `channel`, `level` |
+| `audio_frames` | `seq`, `t`, `time_us`, `len_ticks`, `edges`, `on_pct`, `rms_level`, `max_level`, `ref_rms`, `ref_peak`, `sdl_rms`, `sdl_peak`, `sdl_blocks` |
 
 `t` is in GDG ticks since emulation start (cputrack: start of the
 instruction, only with `has_time`); cputrack `asm` is decoded from the
 recorded bytes, an interrupt acknowledge record shows `INT ACK`.
+`audio_*`: `t` absolute, `time_us` since the capture start; `hz` / `note`
+only for a new tone divider; the `audio_frames` arrays follow the
+`channels` of `emu_audio_capture_status`, `ref_*` / `sdl_*` are [L, R]
+int16 (null when not captured).
 
 The response carries `segment`, `first_seq`, `next_seq`, `live`,
 `truncated`, `lost`, `gap` (Event Viewer ring: `{from_seq, to_seq}`
@@ -1400,8 +1413,15 @@ Arguments (all optional): `dir` (folder, created; empty = a new
 default `audio_captures` next to the emulator),
 `frames` (stop after this many audio frames, 0 = until stop), `events`,
 `psg_writes`, `reference_wav`, `sdl_wav` (bool, default true - which
-files to write). Returns the status with `pending: true`, or an error
-(already running, nothing selected, folder cannot be created).
+files to write), `memory` (bool, default true - keep the capture memory
+for `emu_trace_read` `audio_*`, `emu_audio_capture_summary` and
+`emu_audio_capture_pcm`), `pcm` (list `"reference"` / `"sdl"`, default
+`["reference"]` - PCM rings; both are needed for `ref_vs_sdl` in the
+summary), `memory_minutes` (1-120, default 10 - frame summary ring),
+`pcm_seconds` (1-3600, default 60 - PCM rings). A capture into memory
+only (all four files false) creates no folder. Returns the status with
+`pending: true`, or an error (already running, nothing selected, folder
+cannot be created, not enough memory).
 
 ### `emu_audio_capture_stop`
 
@@ -1415,6 +1435,55 @@ capture is running" when there is none.
 "last_error"}`. `stop_reason`: `Stopped`, `Frame count reached`,
 `Safety limit reached`, `Emulation timeline restarted (reset or snapshot
 load)`, `Error`, `Emulator exit`, empty while running.
+
+Further `segment` (capture number since the emulator start; a new start
+replaces the memory), `origin_ticks` (absolute GDG ticks of time 0, `null`
+before the start), `channels` (channel names in the order of the
+`audio_frames` arrays), `stereo` and `memory` (`null`, or `{"bytes",
+"streams": {"psg_writes" | "levels" | "frames" | "pcm_reference" |
+"pcm_sdl": {"record_size", "capacity", "first_seq", "next_seq"}}}`;
+`first_seq` > 0 = the ring dropped its oldest records, PCM `seq` = sample
+at 44100 Hz since the start).
+
+### `emu_audio_capture_summary`
+
+Summary of the capture memory, a few kB of text. Arguments (optional):
+`frame_from` (default 0), `frame_to` (-1 = newest), `silence_rms`
+(int16 RMS threshold of the reference, default 64), `max_notes` (default
+200), `lag_frames` (-1 = search the delay of the audio output), and
+`max_lag_frames` (default 8). Returns:
+
+- `frames` [from, to], `frames_available`, `fps`, `platform`, `stereo`;
+- `sound_spans` / `silent_spans` ([[from, to]], at most 50 each,
+  `*_total` = all) - silent = reference RMS below `silence_rms`;
+- `channels` - per channel `active_frames`, `edges`, `max_level`,
+  `on_pct`, `est_hz_median` (level changes / 2 per second);
+- `psg_notes` - `ch`, `note` (`"A4"`, or `"noise"`), `cents`, `hz`,
+  `divider`, `from_frame`, `to_frame`, `max_level`, replayed from the PSG
+  writes and the PSG state at the capture start; `psg_state_incomplete`
+  = the oldest writes were dropped;
+- `ctc0` - the speaker: `edges`, `edge_interval_hist_us` [[bucket_from_us,
+  count]], `likely` (`tone`, `pcm`, `irregular`, `silent`) - a heuristic
+  estimate, the rule is in `likely_rule`;
+- `ref_vs_sdl` (needs `pcm` with `reference` and `sdl`) - `lag_samples`,
+  `lag_frames`, `lag_ambiguous` (only a steady tone in the compared part,
+  the delay cannot be determined), `diff_rms`, `diff_max` (-1..1, mono),
+  `reference_rms`, `worst_frames` [[frame, diff_rms]],
+  `sdl_missing_blocks`; at most 2 s are compared.
+
+### `emu_audio_capture_pcm`
+
+A PCM window from the capture memory. Arguments (optional): `source`
+(`reference` or `sdl`), `frame_from` / `frames` (default 0 / 25) or
+`sample_from` / `samples` (44100 Hz samples since the start), `rate`
+(1000-44100, default 11025), `stereo` (default false = mono average),
+`encoding` (`wav_b64` or `pcm_b64` = raw int16 little endian), `max_bytes`
+(data limit before base64, default 32768, at most 4 MiB). Resampling
+averages (an analysis preview); `rate` 44100 with `stereo` returns the
+samples of reference.wav / sdl.wav byte for byte. Returns `source`,
+`segment`, `live`, `rate`, `channels`, `from_sample`, `samples`,
+`frames_out`, `next_sample` (continue there), `end_of_data`, `truncated`,
+`available` [first, next], `gap`, `encoding`, `data_b64`.
 
 ## Media tools
 

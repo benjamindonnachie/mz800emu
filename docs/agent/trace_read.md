@@ -15,6 +15,7 @@ of a program run - without parsing the binary chunk files. Use
 | `hwlog` | chip event (GDG, PIO, CTC, PSG, FDC, ...) | same |
 | `marklog` | breakpoint action `mark "name"` | same |
 | `eventlog` | Event Viewer ring entry | `emu_eventlog_start` / `_stop` / `_clear`, `emu_eventlog_set_mask` |
+| `audio_psg_writes`, `audio_levels`, `audio_frames` | audio capture memory: PSG write, level change, frame summary | `emu_audio_capture_start` / `_stop` - see `emulator://docs/audio_capture_read` |
 
 ## Recipe
 

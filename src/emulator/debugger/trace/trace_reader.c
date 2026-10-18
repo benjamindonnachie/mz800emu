@@ -13,6 +13,33 @@
 
 #include "trace_reader.h"
 #include "libs/dasm-z80/z80_dasm.h"
+#include "../../audio_analysis.h"
+#include "../../audio_capture.h"
+
+#include <math.h>
+#include <stddef.h>
+
+/* Dekodér audio_* čte záznamy paměti zachycení po bajtech (trace_row_audio,
+ * trace_match); offsety musí sedět se strukturami v audio_capture.h. */
+G_STATIC_ASSERT ( offsetof ( st_AUDIO_CAPTURE_LEVEL_REC, src ) == 12 );
+G_STATIC_ASSERT ( offsetof ( st_AUDIO_CAPTURE_LEVEL_REC, level ) == 13 );
+G_STATIC_ASSERT ( offsetof ( st_AUDIO_CAPTURE_PSG_REC, value ) == 12 );
+G_STATIC_ASSERT ( offsetof ( st_AUDIO_CAPTURE_PSG_REC, psg ) == 14 );
+G_STATIC_ASSERT ( offsetof ( st_AUDIO_CAPTURE_PSG_REC, byte ) == 15 );
+G_STATIC_ASSERT ( offsetof ( st_AUDIO_CAPTURE_PSG_REC, channel ) == 16 );
+G_STATIC_ASSERT ( offsetof ( st_AUDIO_CAPTURE_PSG_REC, reg ) == 17 );
+G_STATIC_ASSERT ( offsetof ( st_AUDIO_CAPTURE_FRAME_REC, len_ticks ) == 12 );
+G_STATIC_ASSERT ( offsetof ( st_AUDIO_CAPTURE_FRAME_REC, ch ) == 16 );
+G_STATIC_ASSERT ( sizeof ( st_AUDIO_CAPTURE_FRAME_CH ) == 16 );
+G_STATIC_ASSERT ( offsetof ( st_AUDIO_CAPTURE_FRAME_CH, max_level ) == 12 );
+G_STATIC_ASSERT ( offsetof ( st_AUDIO_CAPTURE_FRAME_REC, ref_rms ) == 160 );
+G_STATIC_ASSERT ( offsetof ( st_AUDIO_CAPTURE_FRAME_REC, ref_peak ) == 164 );
+G_STATIC_ASSERT ( offsetof ( st_AUDIO_CAPTURE_FRAME_REC, sdl_rms ) == 168 );
+G_STATIC_ASSERT ( offsetof ( st_AUDIO_CAPTURE_FRAME_REC, sdl_peak ) == 172 );
+G_STATIC_ASSERT ( offsetof ( st_AUDIO_CAPTURE_FRAME_REC, sdl_blocks ) == 184 );
+G_STATIC_ASSERT ( offsetof ( st_AUDIO_CAPTURE_FRAME_REC, flags ) == 186 );
+G_STATIC_ASSERT ( AUDIO_CAPTURE_FRAME_FLAG_REF == 1u && AUDIO_CAPTURE_FRAME_FLAG_SDL == 2u );
+G_STATIC_ASSERT ( AUDIO_CAPTURE_PSG_REG_TONE == 1 );
 
 
 /* ===========================================================================
@@ -21,7 +48,8 @@
 
 /** @brief Jména kanálů podle en_TRACE_KIND. */
 static const char *const s_kind_names[ TRACE_KIND_COUNT ] = {
-    "cputrack", "iorqlog", "intlog", "hwlog", "marklog", "eventlog"
+    "cputrack", "iorqlog", "intlog", "hwlog", "marklog", "eventlog",
+    "audio_psg_writes", "audio_levels", "audio_frames"
 };
 
 /** @brief Sloupce cputrack (pořadí = bity masky). */
@@ -36,6 +64,13 @@ static const char *const s_cols_hwlog[] = { "seq", "t", "frame", "pos", "chip", 
 static const char *const s_cols_marklog[] = { "seq", "t", "frame", "pos", "id", "name" };
 /** @brief Sloupce eventlog (ring Event Vieweru). */
 static const char *const s_cols_eventlog[] = { "seq", "t", "frame", "pos", "cat", "sub", "pc", "text" };
+/** @brief Sloupce audio_psg_writes (zápisy do PSG z paměti zachycení zvuku). */
+static const char *const s_cols_audio_psg[] = { "seq", "t", "time_us", "frame", "psg", "byte", "ch", "reg", "value", "hz", "note" };
+/** @brief Sloupce audio_levels (změny úrovní kanálů). */
+static const char *const s_cols_audio_levels[] = { "seq", "t", "time_us", "frame", "channel", "level" };
+/** @brief Sloupce audio_frames (souhrny zvukových snímků; pole po kanálech platformy). */
+static const char *const s_cols_audio_frames[] = { "seq", "t", "time_us", "len_ticks", "edges", "on_pct", "rms_level",
+                                                   "max_level", "ref_rms", "ref_peak", "sdl_rms", "sdl_peak", "sdl_blocks" };
 
 /** @brief Index sloupce `t` u cputrack (vynechá se bez času). */
 #define TRACE_COL_CPUTRACK_T   6
@@ -47,6 +82,8 @@ static const char *const s_cols_eventlog[] = { "seq", "t", "frame", "pos", "cat"
 #define TRACE_COL_EVENTLOG_TEXT 7
 /** @brief Velikost záznamu ringu Event Vieweru (st_EVENTLOG_EVENT). */
 #define TRACE_EVENTLOG_RECORD_SIZE 32u
+/** @brief Největší velikost záznamu čitelného kanálu (souhrn zvukového snímku). */
+#define TRACE_MAX_RECORD_SIZE 192u
 
 
 const char *trace_kind_name ( en_TRACE_KIND kind )
@@ -65,6 +102,9 @@ const char *const *trace_columns ( en_TRACE_KIND kind, size_t *n )
         case TRACE_KIND_HWLOG:    *n = G_N_ELEMENTS ( s_cols_hwlog );    return s_cols_hwlog;
         case TRACE_KIND_MARKLOG:  *n = G_N_ELEMENTS ( s_cols_marklog );  return s_cols_marklog;
         case TRACE_KIND_EVENTLOG: *n = G_N_ELEMENTS ( s_cols_eventlog ); return s_cols_eventlog;
+        case TRACE_KIND_AUDIO_PSG_WRITES: *n = G_N_ELEMENTS ( s_cols_audio_psg ); return s_cols_audio_psg;
+        case TRACE_KIND_AUDIO_LEVELS: *n = G_N_ELEMENTS ( s_cols_audio_levels ); return s_cols_audio_levels;
+        case TRACE_KIND_AUDIO_FRAMES: *n = G_N_ELEMENTS ( s_cols_audio_frames ); return s_cols_audio_frames;
         default: *n = 0; return NULL;
     }
 }
@@ -416,6 +456,7 @@ void trace_filter_init ( st_TRACE_FILTER *f )
     f->chip = -1;
     f->sub = -1;
     f->marker = -1;
+    f->reg = -1;
 }
 
 
@@ -465,9 +506,32 @@ static bool trace_match ( en_TRACE_KIND kind, const uint8_t *r, bool has_t, uint
         case TRACE_KIND_MARKLOG:
             if ( f->marker >= 0 && rd16 ( r + 16 ) != f->marker ) return false;
             return true;
+        case TRACE_KIND_AUDIO_LEVELS:
+            if ( f->channels && !( f->channels & ( 1u << ( r[ 12 ] & 31u ) ) ) ) return false;
+            return true;
+        case TRACE_KIND_AUDIO_PSG_WRITES:
+            if ( f->reg >= 0 && r[ 17 ] != f->reg ) return false;
+            if ( f->channels ) {
+                /* Kanály zasažené zápisem: PSG0 = 1 + ch, PSG1 = 5 + ch. */
+                uint32_t hit = 0;
+                if ( r[ 14 ] & 1u ) hit |= 1u << ( 1u + ( r[ 16 ] & 3u ) );
+                if ( r[ 14 ] & 2u ) hit |= 1u << ( 5u + ( r[ 16 ] & 3u ) );
+                if ( !( f->channels & hit ) ) return false;
+            }
+            return true;
         default:
             return true;
     }
+}
+
+
+/** @brief Jméno zvukového kanálu podle indexu audio logu ("ctc0", "psg0_0".."psg1_3"). */
+const char *trace_audio_channel_name ( unsigned src )
+{
+    static const char *const names[ 9 ] = {
+        "ctc0", "psg0_0", "psg0_1", "psg0_2", "psg0_3", "psg1_0", "psg1_1", "psg1_2", "psg1_3"
+    };
+    return ( src < 9 ) ? names[ src ] : "?";
 }
 
 
@@ -588,7 +652,7 @@ typedef struct st_TRACE_HIT
     uint64_t seq;        /**< seq záznamu. */
     bool     has_t;      /**< Má čas. */
     uint64_t t;          /**< Čas v taktech GDG. */
-    uint8_t  rec[ TRACE_EVENTLOG_RECORD_SIZE ]; /**< Kopie záznamu (nejvýš 32 B). */
+    uint8_t  rec[ TRACE_MAX_RECORD_SIZE ]; /**< Kopie záznamu (nejvýš TRACE_MAX_RECORD_SIZE B). */
 } st_TRACE_HIT;
 
 
@@ -610,14 +674,127 @@ static void add_hex8 ( JsonArray *a, unsigned v )
 }
 
 
+/** @brief Přidat číslo zaokrouhlené na `dec` desetinných míst. */
+static void add_round ( JsonArray *a, double v, int dec )
+{
+    double m = pow ( 10.0, dec );
+    json_array_add_double_element ( a, floor ( v * m + 0.5 ) / m );
+}
+
+
+/** @brief Přidat dvojici [L, R] uint16 ze záznamu, nebo null (příznak neplatí). */
+static void add_lr16 ( JsonArray *a, const uint8_t *p, bool valid )
+{
+    if ( !valid ) {
+        json_array_add_null_element ( a );
+        return;
+    }
+    JsonArray *lr = json_array_new ( );
+    json_array_add_int_element ( lr, rd16 ( p ) );
+    json_array_add_int_element ( lr, rd16 ( p + 2 ) );
+    json_array_add_array_element ( a, lr );
+}
+
+
+/**
+ * @brief Řádek kanálu audio_* (paměť zachycení zvuku).
+ *
+ * Rozložení záznamů viz audio_capture.h (st_AUDIO_CAPTURE_*_REC): u všech
+ * je na offsetu 0 absolutní čas (uint64) a na offsetu 8 snímek (uint32).
+ */
+static JsonArray *trace_row_audio ( const st_TRACE_PAGE_REQ *req, const st_TRACE_HIT *h )
+{
+    JsonArray *a = json_array_new ( );
+    const uint8_t *r = h->rec;
+    uint32_t mask = req->col_mask;
+#define COL(i) ( mask & ( 1u << ( i ) ) )
+    uint64_t t = rd64 ( r );
+    if ( COL ( 0 ) ) json_array_add_int_element ( a, (gint64) h->seq );
+    if ( COL ( 1 ) ) json_array_add_int_element ( a, (gint64) t );
+    if ( COL ( 2 ) ) {
+        double us = ( req->gdg_hz && t >= req->audio_origin )
+                    ? (double) ( t - req->audio_origin ) * 1e6 / (double) req->gdg_hz : 0.0;
+        add_round ( a, us, 3 );
+    }
+    if ( req->kind == TRACE_KIND_AUDIO_LEVELS ) {
+        if ( COL ( 3 ) ) json_array_add_int_element ( a, rd32 ( r + 8 ) );
+        if ( COL ( 4 ) ) json_array_add_string_element ( a, trace_audio_channel_name ( r[ 12 ] ) );
+        if ( COL ( 5 ) ) json_array_add_int_element ( a, r[ 13 ] );
+    } else if ( req->kind == TRACE_KIND_AUDIO_PSG_WRITES ) {
+        static const char *const regs[ 4 ] = { "tone_lo", "tone", "volume", "noise" };
+        unsigned reg = r[ 17 ];
+        unsigned val = rd16 ( r + 12 );
+        if ( COL ( 3 ) ) json_array_add_int_element ( a, rd32 ( r + 8 ) );
+        if ( COL ( 4 ) ) json_array_add_int_element ( a, r[ 14 ] );
+        if ( COL ( 5 ) ) add_hex8 ( a, r[ 15 ] );
+        if ( COL ( 6 ) ) json_array_add_int_element ( a, r[ 16 ] );
+        if ( COL ( 7 ) ) json_array_add_string_element ( a, ( reg < 4 ) ? regs[ reg ] : "?" );
+        if ( COL ( 8 ) ) json_array_add_int_element ( a, val );
+        /* Hz a nota jen u nového děliče tónu (stejný vzorec jako PSG Audio Scope). */
+        double hz = ( reg == 1 ) ? audio_psg_tone_hz ( val, req->gdg_hz, req->cpu_divider ) : 0.0;
+        if ( COL ( 9 ) ) {
+            if ( hz > 0.0 ) add_round ( a, hz, 2 );
+            else json_array_add_null_element ( a );
+        }
+        if ( COL ( 10 ) ) {
+            int pitch = 0, cents = 0;
+            if ( hz > 0.0 && audio_hz_to_midi ( hz, &pitch, &cents ) ) {
+                char nm[ 8 ], b[ 24 ];
+                audio_midi_note_name ( pitch, nm, sizeof ( nm ) );
+                if ( cents ) g_snprintf ( b, sizeof ( b ), "%s%+dc", nm, cents );
+                else g_strlcpy ( b, nm, sizeof ( b ) );
+                json_array_add_string_element ( a, b );
+            } else {
+                json_array_add_null_element ( a );
+            }
+        }
+    } else {
+        /* audio_frames: t(0) frame(8) len(12) ch[9] x 16 B (16..159), ref_rms(160)
+         * ref_peak(164) sdl_rms(168) sdl_peak(172) ref_samples(176) sdl_samples(180)
+         * sdl_blocks(184) flags(186). */
+        uint32_t len = rd32 ( r + 12 );
+        unsigned nch = req->audio_channels;
+        if ( nch == 0 || nch > 9 ) nch = 9;
+        uint8_t flags = r[ 186 ];
+        if ( COL ( 3 ) ) json_array_add_int_element ( a, len );
+        for ( unsigned col = 4; col <= 7; col++ ) {
+            if ( !COL ( col ) ) continue;
+            JsonArray *v = json_array_new ( );
+            for ( unsigned i = 0; i < nch; i++ ) {
+                const uint8_t *c = r + 16 + i * 16u;
+                if ( col == 4 ) json_array_add_int_element ( v, rd32 ( c ) );
+                else if ( col == 5 ) add_round ( v, len ? 100.0 * rd32 ( c + 4 ) / len : 0.0, 1 );
+                else if ( col == 6 ) add_round ( v, len ? sqrt ( (double) rd32 ( c + 8 ) / len ) : 0.0, 2 );
+                else json_array_add_int_element ( v, c[ 12 ] );
+            }
+            json_array_add_array_element ( a, v );
+        }
+        if ( COL ( 8 ) ) add_lr16 ( a, r + 160, flags & 1u );
+        if ( COL ( 9 ) ) add_lr16 ( a, r + 164, flags & 1u );
+        if ( COL ( 10 ) ) add_lr16 ( a, r + 168, flags & 2u );
+        if ( COL ( 11 ) ) add_lr16 ( a, r + 172, flags & 2u );
+        if ( COL ( 12 ) ) {
+            if ( flags & 2u ) json_array_add_int_element ( a, rd16 ( r + 184 ) );
+            else json_array_add_null_element ( a );
+        }
+    }
+#undef COL
+    return a;
+}
+
+
 /**
  * @brief Sestavit řádek ze záznamu podle masky sloupců.
  *
+ * @param req    Požadavek stránky (druh kanálu, maska sloupců, kontext audio_*).
  * @param extra  Symbol (cputrack) nebo jméno značky (marklog), NULL = "".
  */
-static JsonArray *trace_row ( en_TRACE_KIND kind, const st_TRACE_HIT *h, uint32_t mask,
+static JsonArray *trace_row ( const st_TRACE_PAGE_REQ *req, const st_TRACE_HIT *h,
                               const char *extra )
 {
+    en_TRACE_KIND kind = req->kind;
+    uint32_t mask = req->col_mask;
+    if ( kind >= TRACE_KIND_AUDIO_PSG_WRITES ) return trace_row_audio ( req, h );
     JsonArray *a = json_array_new ( );
     const uint8_t *r = h->rec;
 #define COL(i) ( mask & ( 1u << ( i ) ) )
@@ -736,7 +913,7 @@ int trace_reader_page ( const st_TRACE_PAGE_REQ *req,
     uint64_t seq = req->from_seq;
     if ( seq > snap->next_seq ) seq = snap->next_seq;
     *out_next = seq;
-    if ( rs == 0 || rs > TRACE_EVENTLOG_RECORD_SIZE ) return -1;
+    if ( rs == 0 || rs > TRACE_MAX_RECORD_SIZE ) return -1;
 
     /* --- raw_b64: souvislé surové záznamy bez filtru --- */
     if ( req->raw ) {
@@ -893,7 +1070,7 @@ int trace_reader_page ( const st_TRACE_PAGE_REQ *req,
         } else if ( texts ) {
             ex = texts + emitted * TRACE_RESOLVE_TEXT_SIZE;
         }
-        JsonArray *row = trace_row ( req->kind, h, req->col_mask, ex );
+        JsonArray *row = trace_row ( req, h, ex );
         size_t len = json_array_chars ( row ) + 1;
         if ( emitted > 0 && used + len > budget ) {
             json_array_unref ( row );

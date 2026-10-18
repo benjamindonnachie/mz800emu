@@ -36,6 +36,7 @@
 #include <glib.h>
 
 #include "emulator/debugger/dbgapi_cmdrq.h"
+#include "emulator/audio_capture.h"
 /* Pozn.: dbgapi_ui.h NEincludujeme - viz komentář ve stub headeru. */
 /* F015a - dispatch.c v _handle_bp_list volá bpt_type_to_string /
  * bp_zone_to_string. V standalone testu se breakpoints.c nelinkuje,
@@ -2589,5 +2590,114 @@ const char *snapshot_result_to_string(en_SNAPSHOT_RESULT result)
         case SNAPSHOT_OK:             return "OK";
         case SNAPSHOT_ERR_NOT_PAUSED: return "Emulator is not paused";
         default:                      return "stub snapshot error";
+    }
+}
+
+
+/**
+ * @brief Mock audio_capture_stream_copy(): proud s aud_records syntetickými záznamy.
+ *
+ * Záznam i: levels t = origin + 10 i, frame i / 5, src i % 9, level i % 16;
+ * psg_writes t = origin + 10 i, PSG0, kanál 0, liché i = tón 254, sudé =
+ * hlasitost 2; frames t = origin + 1000 i, délka 1000, kanál 0: i hran,
+ * 500 taktů na úrovni 15, reference RMS 100 / 200; PCM pár (i, -i).
+ */
+bool audio_capture_stream_copy(en_AUDIO_CAPTURE_STREAM stream, uint64_t from_seq,
+                               uint64_t count, size_t max_bytes,
+                               st_AUDIO_CAPTURE_STREAM_COPY *out)
+{
+    memset(out, 0, sizeof(*out));
+    g_stub_state.aud_copy_calls++;
+    out->segment = g_stub_state.aud_segment;
+    out->origin_ticks = g_stub_state.aud_origin;
+    if (g_stub_state.aud_segment == 0) return true;
+    size_t rs = (stream == AUDIO_CAPTURE_STREAM_LEVELS) ? sizeof(st_AUDIO_CAPTURE_LEVEL_REC)
+              : (stream == AUDIO_CAPTURE_STREAM_PSG_WRITES) ? sizeof(st_AUDIO_CAPTURE_PSG_REC)
+              : (stream == AUDIO_CAPTURE_STREAM_FRAMES) ? sizeof(st_AUDIO_CAPTURE_FRAME_REC) : 4u;
+    out->live = true;
+    out->present = true;
+    out->record_size = rs;
+    out->next_seq = g_stub_state.aud_records;
+    uint64_t lo = from_seq, hi = out->next_seq;
+    if (lo < hi && count < hi - lo) hi = lo + count;
+    if (lo < hi && (hi - lo) * rs > max_bytes) hi = lo + max_bytes / rs;
+    if (lo >= hi) return true;
+    out->data = (uint8_t *) g_malloc0((gsize) ((hi - lo) * rs));
+    out->data_seq = lo;
+    out->data_count = hi - lo;
+    uint64_t o = g_stub_state.aud_origin;
+    for (uint64_t i = lo; i < hi; i++) {
+        uint8_t *r = out->data + (i - lo) * rs;
+        if (stream == AUDIO_CAPTURE_STREAM_LEVELS) {
+            st_AUDIO_CAPTURE_LEVEL_REC *l = (st_AUDIO_CAPTURE_LEVEL_REC *) r;
+            l->t = o + 10u * i; l->frame = (uint32_t) (i / 5); l->src = (uint8_t) (i % 9); l->level = (uint8_t) (i % 16);
+        } else if (stream == AUDIO_CAPTURE_STREAM_PSG_WRITES) {
+            st_AUDIO_CAPTURE_PSG_REC *w = (st_AUDIO_CAPTURE_PSG_REC *) r;
+            w->t = o + 10u * i; w->frame = (uint32_t) i; w->psg = 1; w->byte = 0x0E; w->channel = 0;
+            w->reg = (uint8_t) ((i & 1) ? AUDIO_CAPTURE_PSG_REG_TONE : AUDIO_CAPTURE_PSG_REG_VOLUME);
+            w->value = (uint16_t) ((i & 1) ? 254 : 2);
+        } else if (stream == AUDIO_CAPTURE_STREAM_FRAMES) {
+            st_AUDIO_CAPTURE_FRAME_REC *f = (st_AUDIO_CAPTURE_FRAME_REC *) r;
+            f->t = o + 1000u * i; f->frame = (uint32_t) i; f->len_ticks = 1000;
+            f->ch[0].edges = (uint32_t) i; f->ch[0].on_ticks = 500; f->ch[0].energy = 225u * 500u;
+            f->ch[0].max_level = 15;
+            f->flags = AUDIO_CAPTURE_FRAME_FLAG_REF;
+            f->ref_rms[0] = 100; f->ref_rms[1] = 200;
+        } else {
+            int16_t *pcm = (int16_t *) r;
+            pcm[0] = (int16_t) i; pcm[1] = (int16_t) -(int16_t) i;
+        }
+    }
+    return true;
+}
+
+
+/** @brief Mock audio_capture_stream_copy_clear(). */
+void audio_capture_stream_copy_clear(st_AUDIO_CAPTURE_STREAM_COPY *c)
+{
+    g_free(c->data);
+    memset(c, 0, sizeof(*c));
+}
+
+
+
+/**
+ * @brief Mock audio_capture_get_status(): s aud_segment > 0 běžící zachycení
+ *        s pamětí, všech 5 proudů po aud_records záznamech.
+ */
+void audio_capture_get_status(st_AUDIO_CAPTURE_STATUS *out)
+{
+    memset(out, 0, sizeof(*out));
+    out->segment = g_stub_state.aud_segment;
+    out->channels = AUDIO_CAPTURE_MAX_CHANNELS;   /* MZ-800 = 9 kanálů (audio.h zde koliduje s náhradou g_gdg) */
+    if (g_stub_state.aud_segment == 0) return;
+    out->active = true;
+    out->began = true;
+    out->origin_ticks = g_stub_state.aud_origin;
+    out->frames = g_stub_state.aud_records;
+    out->sdl_blocks = g_stub_state.aud_records;
+    out->memory = true;
+    const size_t rs[AUDIO_CAPTURE_STREAM_COUNT] = { sizeof(st_AUDIO_CAPTURE_PSG_REC), sizeof(st_AUDIO_CAPTURE_LEVEL_REC),
+                                                    sizeof(st_AUDIO_CAPTURE_FRAME_REC), 4u, 4u };
+    for (unsigned i = 0; i < AUDIO_CAPTURE_STREAM_COUNT; i++) {
+        out->streams[i].present = true;
+        out->streams[i].record_size = rs[i];
+        out->streams[i].capacity = 1000;
+        out->streams[i].next_seq = g_stub_state.aud_records;
+        out->memory_bytes += 1000u * rs[i];
+    }
+}
+
+
+/** @brief Mock audio_capture_get_psg_initial(): všechny kanály vypnuté, kanál 3 šum. */
+void audio_capture_get_psg_initial(st_AUDIO_CAPTURE_PSG_INITIAL *out)
+{
+    memset(out, 0, sizeof(*out));
+    out->valid = (g_stub_state.aud_segment != 0);
+    for (unsigned c = 0; c < 2; c++) {
+        for (unsigned k = 0; k < 4; k++) {
+            out->attn[c][k] = 15;
+            out->noise[c][k] = (k == 3);
+        }
     }
 }
