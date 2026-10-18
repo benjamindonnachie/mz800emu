@@ -16,6 +16,8 @@ if(MZ_NO_MCP)
     return()
 endif()
 
+
+
 # ---------------------------------------------------------------
 # Test 1: JSONL parser (V0.A.2)
 # ---------------------------------------------------------------
@@ -880,4 +882,14 @@ else()
                    "(Python3 interpreter not found)")
     message(STATUS "  tests/mcp: mcp_server_stdio_e2e SKIPPED "
                    "(Python3 interpreter not found)")
+endif()
+
+
+# Native MZ-700 display integration (also works with a pipe-only build).
+if(Python3_Interpreter_FOUND AND TARGET mz700emu-pal)
+    add_test(NAME mcp_suc80_display
+        COMMAND ${CMAKE_COMMAND} -E env "MZ_EMU=$<TARGET_FILE:mz700emu-pal>"
+                ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_suc80_display.py)
+    set_tests_properties(mcp_suc80_display PROPERTIES
+        LABELS "e2e;mcp;mz700;suc80" TIMEOUT 100 SKIP_RETURN_CODE 77)
 endif()
