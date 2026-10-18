@@ -24,11 +24,12 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 class Emu:
-    def __init__(self, exe, folder, fitted):
+    def __init__(self, exe, folder, fitted, config_text=None):
         self.folder = folder
         folder.mkdir(exist_ok=True)
         ini = folder / 'emu.ini'
-        ini.write_text('[VIDEO_MZ700]\nsuc80_enabled=' + str(int(fitted)) + '\n')
+        ini.write_text(config_text if config_text is not None else
+                       '[VIDEO_MZ700]\nsuc80_enabled=' + str(int(fitted)) + '\n')
         self.err = (folder / 'stderr.log').open('w')
         self.proc = subprocess.Popen(
             [str(exe), '--mcp-pipe', '--no-first-run-windows',

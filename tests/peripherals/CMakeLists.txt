@@ -76,3 +76,12 @@ mz_add_test(cmt_unicmt
     SOURCES  test_cmt_unicmt.c
     LABELS   "emu;peripherals;cmt"
 )
+
+# Portable GIDE core: no emulator/SDL stubs required.
+add_executable(test_gide_core test_gide_core.c
+    ${CMAKE_SOURCE_DIR}/src/emulator/hw-generic/gide/gide_core.c)
+target_include_directories(test_gide_core PRIVATE ${CMAKE_SOURCE_DIR}/src/emulator)
+# These are executable contracts, including in Release/RelWithDebInfo builds.
+target_compile_options(test_gide_core PRIVATE -UNDEBUG)
+add_test(NAME gide_core COMMAND test_gide_core)
+set_tests_properties(gide_core PROPERTIES LABELS "peripherals;gide" TIMEOUT 30)

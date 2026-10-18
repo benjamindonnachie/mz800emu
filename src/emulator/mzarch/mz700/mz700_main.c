@@ -1,4 +1,5 @@
 #include "main.h"
+#include "hw-generic/gide/gide.h"
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -103,6 +104,7 @@ void mzarch_platform_fn_exit(void)
 #if CFG_HWEXT_HAVE_IDE8
     ide8_exit();
 #endif
+    gide_exit();
 
     audio_exit();
 
@@ -198,6 +200,7 @@ void mzarch_platform_fn_init(void)
 #if CFG_HWEXT_HAVE_IDE8
     ide8_init();
 #endif
+    gide_init();
 
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
     debugger_init();

@@ -1,4 +1,5 @@
 #include "main.h"
+#include "hw-generic/gide/gide.h"
 #include <stdio.h>
 #include <stdint.h>
 
@@ -54,6 +55,11 @@ uint8_t port_read_cb(z80_t *cpu, uint16_t addr, void *user_data)
     uint8_t port_lsb = addr & 0xff;
 
     mzarch_main_insideop_iorq();
+
+    if (gide_claims(addr)) {
+        TRACELOG_IORQ_MARK_HANDLED();
+        return gide_read(addr);
+    }
 
     switch (port_lsb)
     {
@@ -240,6 +246,12 @@ void port_write_cb(z80_t *cpu, uint16_t addr, uint8_t value, void *user_data)
 
     /* trace-suite: pre-set "unconnected" - viz mz800_iorq.c port_write_cb. */
     TRACELOG_IORQ_MARK_UNCONNECTED();
+
+    if (gide_claims(addr)) {
+        gide_write(addr, value);
+        TRACELOG_IORQ_MARK_HANDLED();
+        return;
+    }
 
     switch (port_lsb)
     {

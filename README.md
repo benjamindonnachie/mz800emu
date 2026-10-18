@@ -32,6 +32,7 @@ https://sourceforge.net/projects/mz800emu/
   - RAM disk, memory extensions
   - Unicard
   - IDE8 hard disk interface
+  - Optional [KC-Club GIDE ATA disks and RTC for MZ-700](docs/en/devices/gide.md)
   - Optional [SUC 40/80-column display for MZ-700](docs/en/devices/suc80.md)
 - Integrated Z80 debugger:
   - Disassembler with inline assembler

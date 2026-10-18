@@ -1,4 +1,7 @@
 #include "main.h"
+#if MZARCH == 700
+#include "hw-generic/gide/gide.h"
+#endif
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -1385,6 +1388,9 @@ static void mzarch_main_reset(void)
 
 #if CFG_HWEXT_HAVE_IDE8
     ide8_reset();
+#endif
+#if MZARCH == 700
+    gide_reset();
 #endif
 
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED

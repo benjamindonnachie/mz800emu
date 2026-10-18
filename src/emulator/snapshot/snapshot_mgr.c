@@ -326,6 +326,9 @@ void snapshot_init(void)
 #if CFG_HWEXT_HAVE_IDE8
     snap_ide8_register();
 #endif
+#if MZARCH == 700
+    snap_gide_register();
+#endif
 
 #if 1 /* MEMEXT */
     snap_memext_register();
