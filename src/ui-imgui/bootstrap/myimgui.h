@@ -53,6 +53,8 @@ typedef struct MyImGui
     bool showVideorecRemoteWindow;       /**< Okno dálkového ovládání nahrávání (Tools -> Video Recording -> Remote Control..., Alt+Shift+L); persistence [VIDEOREC_UI] remote_window. */
     bool showScreenshotSetupWindow;      /**< Dialog nastavení screenshotu (Tools -> Screenshot -> Settings...). */
     bool showReplayWindow;               /**< Okno Replay Control (Replay -> Replay Control..., Alt+J); persistence [REPLAY_UI] window. */
+    bool showScreenshotWindow;           /**< Okno Screenshot Control (Tools -> Screenshot -> Screenshot Control..., Alt+G); persistence [SCREENSHOT_UI] window. */
+    bool showAudioCaptureWindow;         /**< Okno Audio Capture Control (Tools -> Audio Capture -> Audio Capture Control..., Alt+Shift+Q); persistence [AUDIOCAP_UI] window. */
     bool showLanguageWindow;
     bool showPezikSettingsWindow;
     bool showRomSettingsWindow;

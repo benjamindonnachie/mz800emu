@@ -418,10 +418,12 @@ void imgui_main_window(GLuint texture)
 
     /* Screenshot: dialog nastavení (Tools -> Screenshot -> Settings...) */
     imgui_screenshot_setup_dialog();
+    imgui_screenshot_window();
     imgui_screenshot_series_poll();
 
     /* Zachycení zvuku: dialog nastavení a notifikace konce (Tools -> Audio Capture) */
     imgui_audio_capture_setup_dialog();
+    imgui_audio_capture_window();
     imgui_audio_capture_poll();
 
     /* Upozornění na běh bez audio zařízení (jednou, před vykreslením notifikace) */

@@ -19,6 +19,14 @@ i MCP bez `dir`). Za běhu ukazuje levý horní roh obrazu **AUDIO** a zachycen�
 čas (v češtině **ZVUK**); po konci notifikace ohlásí složku. **Open Output
 Folder** otevře výstupní složku ve správci souborů.
 
+**Tools -> Audio Capture -> Audio Capture Control...** (`Alt + Shift + Q`)
+otevře plovoucí okno, které může zůstat otevřené i při hraní: stav
+(zachytává, spouští se, vypnuto), zachycený čas, složku zachycení, počet
+změn úrovní a zápisů PSG, výsledek posledního zachycení, soubory, které se
+zapíšou, a výstupní složku. Jeho tlačítka zachycení spustí nebo ukončí
+(`Alt + Q`) a otevřou výstupní složku a nastavení. Okno, které bylo
+otevřené, se po novém spuštění emulátoru otevře znovu.
+
 Zachycení začne na konci nejbližšího snímku; když se zapisuje `sdl.wav`, až
 po dalších šesti snímcích (asi 0,1 s), během kterých se ustálí zvukový
 výstup. Skončí stopem, po zadaném počtu snímků, po jedné hodině, nebo když

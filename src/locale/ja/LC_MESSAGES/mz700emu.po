@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mz800emu 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-19 12:44+0200\n"
+"POT-Creation-Date: 2026-10-19 14:37+0200\n"
 "PO-Revision-Date: 2026-03-11 21:00+0100\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -354,33 +354,33 @@ msgstr "%.1f dB"
 msgid "%.0f dB"
 msgstr "%.0f dB"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:52
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:144
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:66
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:172
 #: src/ui-imgui/videorec/videorec_menu.cpp:422
 #, c-format
 msgid "Cannot open folder: %s"
 msgstr "フォルダーを開けません: %s"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:53
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:72
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:119
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:67
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:86
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:141
 msgid "Audio Capture Error"
 msgstr "オーディオキャプチャのエラー"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:71
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:85
 #, c-format
 msgid "Cannot start the audio capture: %s"
 msgstr "オーディオキャプチャを開始できません: %s"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:80
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:94
 msgid "Audio Capture"
 msgstr "オーディオキャプチャ"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:83
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:97
 msgid "Record Audio Capture"
 msgstr "オーディオをキャプチャ"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:87
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:101
 msgid ""
 "Records what the sound hardware does into a new folder until you stop it:\n"
 "changes of the channel levels, PSG writes, the exact sound (reference.wav)\n"
@@ -390,108 +390,119 @@ msgstr ""
 "チャンネルのレベル変化、PSGへの書き込み、正確な音 (reference.wav)\n"
 "と実際に聞こえる音 (sdl.wav)。サウンドの不具合を探すためのものです。"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:92
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:178
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:106
+msgid "Audio Capture Control..."
+msgstr "音声キャプチャ操作..."
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:110
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:431
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:209
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:658
 #: src/ui-imgui/videorec/videorec_menu.cpp:462
 #: src/ui-imgui/videorec/videorec_remote_window.cpp:317
 msgid "Settings..."
 msgstr "設定..."
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:95
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:181
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:113
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:429
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:212
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:656
 #: src/ui-imgui/videorec/videorec_menu.cpp:466
 #: src/ui-imgui/videorec/videorec_remote_window.cpp:315
 msgid "Open Output Folder"
 msgstr "出力フォルダーを開く"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:118
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:140
 #, c-format
 msgid "Audio capture stopped after %.1f s: %s"
 msgstr "オーディオキャプチャは %.1f 秒後に停止しました: %s"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:123
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:145
 #, c-format
 msgid "Audio capture ended (%s): %.1f s saved to %s"
 msgstr "オーディオキャプチャ終了 (%s): %.1f 秒を %s に保存しました"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:128
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:150
 #, c-format
 msgid "Audio capture saved: %.1f s to %s"
 msgstr "オーディオキャプチャを保存しました: %.1f 秒を %s に"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:143
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:165
 #, c-format
 msgid "AUDIO %.1f s"
 msgstr "AUDIO %.1f 秒"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:145
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:167
 msgid "AUDIO starting"
 msgstr "AUDIO 開始中"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:190
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:212
 msgid "Audio Capture Settings"
 msgstr "オーディオキャプチャの設定"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:193
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:215
 msgid "Files to write"
 msgstr "書き込むファイル"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:194
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:216
 msgid "events.csv - changes of the channel levels"
 msgstr "events.csv - チャンネルのレベル変化"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:195
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:217
 msgid "psg_writes.csv - PSG writes, decoded"
 msgstr "psg_writes.csv - PSGへの書き込み (デコード済み)"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:196
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:218
 msgid "reference.wav - exact sound in emulated time"
 msgstr "reference.wav - エミュレート時間での正確な音"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:197
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:219
 msgid "sdl.wav - sound of the audio output (what you hear)"
 msgstr "sdl.wav - オーディオ出力の音 (聞こえる音)"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:201
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:371
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:223
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:410
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:407
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:594
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:260
 msgid "Output folder"
 msgstr "出力フォルダー"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:204
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:226
 msgid "(default: audio_captures folder next to the emulator)"
 msgstr "(デフォルト: エミュレーターと同じ場所の audio_captures フォルダー)"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:214
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:384
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:236
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:420
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:80
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:273
 msgid "Select Directory"
 msgstr "ディレクトリを選択"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:217
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:239
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:426
 msgid "Each capture creates a new folder in the output folder."
 msgstr "キャプチャごとに出力フォルダーに新しいフォルダーを作成します。"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:218
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:240
 #, c-format
 msgid "Record Audio Capture (%s) starts and stops the capture."
 msgstr "オーディオをキャプチャ (%s) でキャプチャを開始/停止します。"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:227
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:249
 #: src/ui-imgui/cmt/ImGuiCmt.cpp:175
 #: src/ui-imgui/debugger/sections/dbg_cpu_panel.cpp:2419
 #: src/ui-imgui/dsk/dsk_create_window.cpp:104
 #: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:109
 #: src/ui-imgui/joy/joy_setup_window.cpp:564
 #: src/ui-imgui/message/message_window.cpp:90
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:406
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:442
 #: src/ui-imgui/snapshot/snapshot_notification.cpp:95
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:338
 msgid "OK"
 msgstr "OK"
 
-#: src/ui-imgui/audiocap/audio_capture_ui.cpp:233
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:255
 #: src/ui-imgui/cmt/ImGuiCmt.cpp:187
 #: src/ui-imgui/debugger/membrowser/membrowser_annot_dialog.cpp:148
 #: src/ui-imgui/debugger/membrowser/membrowser_fill_dialog.cpp:264
@@ -504,7 +515,7 @@ msgstr "OK"
 #: src/ui-imgui/memext/memext_save_dialog.cpp:207
 #: src/ui-imgui/ramdisk/pezik_settings_window.cpp:289
 #: src/ui-imgui/rom/rom_settings_window.cpp:323
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:411
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:447
 #: src/ui-imgui/snapshot/snapshot_save_dialog.cpp:139
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:176
 #: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:99
@@ -513,6 +524,91 @@ msgstr "OK"
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:343
 msgid "Cancel"
 msgstr "キャンセル"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:360
+msgid "Audio Capture Control"
+msgstr "音声キャプチャ操作"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:376
+#: src/ui-imgui/topmenu/replay_window.cpp:201
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:171
+msgid "State"
+msgstr "状態"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:379
+msgid "Capturing"
+msgstr "キャプチャ中"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:381
+msgid "Starting"
+msgstr "開始中"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:383
+#: src/ui-imgui/debugger/menu/dbg_topmenu.cpp:306
+#: src/ui-imgui/debugger/menu/dbg_topmenu.cpp:348
+#: src/ui-imgui/debugger/menu/dbg_topmenu.cpp:391
+#: src/ui-imgui/debugger/menu/dbg_topmenu.cpp:488
+#: src/ui-imgui/topmenu/replay_window.cpp:217
+#: src/ui-imgui/videorec/videorec_menu.cpp:96
+msgid "Off"
+msgstr "オフ"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:388
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:177
+msgid "Time"
+msgstr "時間"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:388
+msgid "Last length"
+msgstr "前回の長さ"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:389
+msgid "Folder"
+msgstr "フォルダ"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:390
+#, c-format
+msgid "%llu level changes, %llu PSG writes"
+msgstr "レベル変化 %llu、PSG 書き込み %llu"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:392
+msgid "Recorded"
+msgstr "記録内容"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:395
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:397
+#: src/ui-imgui/topmenu/replay_window.cpp:290
+msgid "Last result"
+msgstr "前回の結果"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:405
+msgid "Files"
+msgstr "ファイル"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:414
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:633
+#: src/ui-imgui/topmenu/replay_window.cpp:307
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:227
+msgid "Controls"
+msgstr "操作"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:416
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:421
+msgid "Start Audio Capture"
+msgstr "音声キャプチャを開始"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:417
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:421
+msgid "Stop Audio Capture"
+msgstr "音声キャプチャを停止"
+
+#: src/ui-imgui/audiocap/audio_capture_ui.cpp:434
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:661
+#: src/ui-imgui/topmenu/replay_window.cpp:361
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:320
+#, c-format
+msgid "Show or hide this window: %s"
+msgstr "このウィンドウの表示/非表示: %s"
 
 #: src/ui-imgui/autotype/autotype_window.cpp:53
 msgid "Invalid character at position"
@@ -2515,6 +2611,7 @@ msgid "syms in range"
 msgstr "範囲内のシンボル"
 
 #: src/ui-imgui/debugger/dasm_window/dasm_window.cpp:556
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:625
 #: src/ui-imgui/topmenu/replay_window.cpp:252
 msgid "off"
 msgstr "オフ"
@@ -6652,15 +6749,6 @@ msgstr ""
 #: src/ui-imgui/debugger/menu/dbg_topmenu.cpp:286
 msgid "Select trace output directory"
 msgstr "トレース出力ディレクトリを選択"
-
-#: src/ui-imgui/debugger/menu/dbg_topmenu.cpp:306
-#: src/ui-imgui/debugger/menu/dbg_topmenu.cpp:348
-#: src/ui-imgui/debugger/menu/dbg_topmenu.cpp:391
-#: src/ui-imgui/debugger/menu/dbg_topmenu.cpp:488
-#: src/ui-imgui/topmenu/replay_window.cpp:217
-#: src/ui-imgui/videorec/videorec_menu.cpp:96
-msgid "Off"
-msgstr "オフ"
 
 #: src/ui-imgui/debugger/menu/dbg_topmenu.cpp:308
 #: src/ui-imgui/debugger/menu/dbg_topmenu.cpp:354
@@ -11228,45 +11316,49 @@ msgstr "ROMバイナリファイル"
 msgid "CMT Hack Patch ROM"
 msgstr "CMT Hack Patch ROM"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:60
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:82
 msgid "The emulator screen is not available"
 msgstr "エミュレーター画面を利用できません"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:95
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:123
 #, c-format
 msgid "Screenshot saved (%u x %u): %s"
 msgstr "スクリーンショットを保存しました (%u x %u): %s"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:99
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:127
 #, c-format
 msgid "Cannot save screenshot to '%s': %s"
 msgstr "スクリーンショットを '%s' に保存できません: %s"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:100
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:145
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:221
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:235
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:128
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:173
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:257
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:271
 msgid "Screenshot Error"
 msgstr "スクリーンショットのエラー"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:130
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:162
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:158
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:190
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:635
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:644
 msgid "Save Screenshot"
 msgstr "スクリーンショットを保存"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:161
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:189
 msgid "Screenshot"
 msgstr "スクリーンショット"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:165
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:193
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:635
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:645
 msgid "Save Screenshot As..."
 msgstr "スクリーンショットに名前を付けて保存..."
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:170
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:198
 msgid "Record Changed Frames"
 msgstr "変化したフレームを記録"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:174
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:202
 msgid ""
 "Saves a PNG of every emulated frame that differs from the previous one (area "
 "and scale from Settings) until you stop it."
@@ -11274,89 +11366,97 @@ msgstr ""
 "停止するまで、前のフレームと異なるエミュレートされたフレームごとに PNG を保存"
 "します (範囲と倍率は設定から)。"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:220
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:206
+msgid "Screenshot Control..."
+msgstr "スクリーンショット操作..."
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:256
 #, c-format
 msgid "Cannot start the frame series: %s"
 msgstr "フレームシリーズを開始できません: %s"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:234
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:270
 #, c-format
 msgid "Frame series stopped after %u files: %s"
 msgstr "フレームシリーズは %u ファイルで停止しました: %s"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:238
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:274
 #, c-format
 msgid "Frame series saved: %u files of %u frames to %s"
 msgstr "フレームシリーズを保存しました: %u ファイル (%u フレーム中)、保存先 %s"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:253
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:289
 #, c-format
 msgid "FRAMES %u / %u"
 msgstr "フレーム %u / %u"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:288
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:324
 msgid "Native (computer dots, 320 or 640 wide)"
 msgstr "ネイティブ (コンピューターのドット、幅 320 または 640)"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:289
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:325
 msgid "1x"
 msgstr "1x"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:290
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:326
 msgid "2x (window at 100 %)"
 msgstr "2x (ウィンドウ 100 %)"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:291
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:327
 msgid "3x"
 msgstr "3x"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:292
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:328
 msgid "4x"
 msgstr "4x"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:307
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:343
 #, c-format
 msgid "Image size: %u x %u or %u x %u (640-dot modes)"
 msgstr "画像サイズ: %u x %u または %u x %u (640 ドットモード)"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:310
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:346
 #, c-format
 msgid "Image size: %u x %u"
 msgstr "画像サイズ: %u x %u"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:327
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:363
 msgid "Screenshot Settings"
 msgstr "スクリーンショットの設定"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:332
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:368
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:587
 msgid "Area"
 msgstr "範囲"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:333
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:369
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:588
 msgid "Whole frame with border"
 msgstr "ボーダーを含む全体"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:336
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:372
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:587
 msgid "Picture without border"
 msgstr "ボーダーなしの画面"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:342
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:378
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:591
 msgid "Scale"
 msgstr "倍率"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:366
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:402
 msgid "1x drops every second column in the 640-dot modes."
 msgstr "1x では 640 ドットモードで 1 列おきに省略されます。"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:374
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:410
 msgid "(default: screenshots folder next to the emulator)"
 msgstr "(デフォルト: エミュレーターと同じ場所の screenshots フォルダー)"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:389
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:425
 msgid "Frame series: only changed frames"
 msgstr "フレームシリーズ: 変化したフレームのみ"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:391
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:427
 msgid ""
 "Checked: Record Changed Frames saves only frames that differ from the last "
 "saved one. Unchecked: every emulated frame."
@@ -11364,17 +11464,75 @@ msgstr ""
 "オン: 変化したフレームを記録は、最後に保存したフレームと異なるフレームのみを"
 "保存します。オフ: エミュレートされたすべてのフレーム。"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:396
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:432
 #, c-format
 msgid "Save Screenshot (%s) saves the picture shown in the window."
 msgstr "スクリーンショットを保存 (%s) はウィンドウに表示中の画像を保存します。"
 
-#: src/ui-imgui/screenshot/screenshot_ui.cpp:397
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:433
 #, c-format
 msgid "Record Changed Frames (%s) saves emulated frames into a new folder."
 msgstr ""
 "変化したフレームを記録 (%s) は、エミュレートされたフレームを新しいフォルダー"
 "に保存します。"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:574
+msgid "Screenshot Control"
+msgstr "スクリーンショット操作"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:597
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:599
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:604
+msgid "Last screenshot"
+msgstr "前回のスクリーンショット"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:609
+#, c-format
+msgid "Recording: %u files of %u frames"
+msgstr "記録中: %u ファイル / %u フレーム"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:611
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:614
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:618
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:622
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:625
+msgid "Frame series"
+msgstr "フレームシリーズ"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:613
+#, c-format
+msgid "Writing: %u files"
+msgstr "書き込み中: %u ファイル"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:617
+#, c-format
+msgid "Stopped after %u files: %s"
+msgstr "%u ファイルで停止: %s"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:620
+#, c-format
+msgid "Last: %u files of %u frames"
+msgstr "前回: %u ファイル / %u フレーム"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:628
+msgid "Series folder"
+msgstr "シリーズのフォルダ"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:635
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:647
+msgid "Start Frame Series"
+msgstr "フレームシリーズを開始"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:636
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:647
+msgid "Stop Frame Series"
+msgstr "フレームシリーズを停止"
+
+#: src/ui-imgui/screenshot/screenshot_ui.cpp:653
+msgid ""
+"The frame series saves a PNG of every changed emulated frame into a new "
+"folder."
+msgstr "フレームシリーズは、変化したエミュレートフレームごとに PNG を新しいフォルダへ保存します。"
 
 #: src/ui-imgui/snapshot/snapshot_load_dialog.cpp:157
 msgid "Snapshot Preview"
@@ -12930,11 +13088,6 @@ msgstr "MCP Activity##menu_mcp_activity"
 msgid "Replay Control"
 msgstr "リプレイ操作"
 
-#: src/ui-imgui/topmenu/replay_window.cpp:201
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:171
-msgid "State"
-msgstr "状態"
-
 #: src/ui-imgui/topmenu/replay_window.cpp:209
 msgid "Seeking"
 msgstr "移動中"
@@ -12965,15 +13118,6 @@ msgstr "移動先フレーム"
 msgid "Deviated"
 msgstr "逸脱"
 
-#: src/ui-imgui/topmenu/replay_window.cpp:290
-msgid "Last result"
-msgstr "前回の結果"
-
-#: src/ui-imgui/topmenu/replay_window.cpp:307
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:227
-msgid "Controls"
-msgstr "操作"
-
 #: src/ui-imgui/topmenu/replay_window.cpp:329
 msgid ""
 "Rewind goes back to the previous checkpoint; while recording the inputs "
@@ -12983,17 +13127,13 @@ msgstr "前のチェックポイントへ戻ります。記録中はそれ以降
 #: src/ui-imgui/topmenu/replay_window.cpp:353
 #, c-format
 msgid "Frame %d = %s; back via a checkpoint, forward at maximum speed."
-msgstr "フレーム %d = %s。戻る場合はチェックポイント経由、進む場合は最高速度で再生します。"
+msgstr ""
+"フレーム %d = %s。戻る場合はチェックポイント経由、進む場合は最高速度で再生し"
+"ます。"
 
 #: src/ui-imgui/topmenu/replay_window.cpp:357
 msgid "Available while playing a replay."
 msgstr "リプレイ再生中に使用できます。"
-
-#: src/ui-imgui/topmenu/replay_window.cpp:361
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:320
-#, c-format
-msgid "Show or hide this window: %s"
-msgstr "このウィンドウの表示/非表示: %s"
 
 #: src/ui-imgui/topmenu/topmenu.cpp:38
 msgid ""
@@ -13299,10 +13439,6 @@ msgstr "録画のつなぎ目 (スナップショットを読み込みました)
 #: src/ui-imgui/videorec/videorec_remote_window.cpp:152
 msgid "Recording Remote Control"
 msgstr "録画リモコン"
-
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:177
-msgid "Time"
-msgstr "時間"
 
 #: src/ui-imgui/videorec/videorec_remote_window.cpp:180
 msgid "Video frames"

@@ -19,6 +19,15 @@ without `dir` uses it too). While it runs, the top left corner of the picture
 shows **AUDIO** and the captured time; when it ends, a notification shows the
 folder. **Open Output Folder** opens the output folder in the file manager.
 
+**Tools -> Audio Capture -> Audio Capture Control...** (`Alt + Shift + Q`)
+opens a floating window that can stay open while you play: the state
+(capturing, starting, off), the captured time, the folder of the capture,
+the number of level changes and PSG writes, the result of the last
+capture, the files that will be written and the output folder. Its
+buttons start or stop the capture (`Alt + Q`), open the output folder and
+the settings. The window opens again after a restart of the emulator if
+it was open.
+
 The capture starts at the end of the next frame; when `sdl.wav` is written,
 after six more frames (about 0.1 s) that let the audio output settle. It
 ends with stop, after the given number of frames, after one hour, or when

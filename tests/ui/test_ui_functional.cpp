@@ -45,6 +45,8 @@ extern "C" {
 #include "ui-imgui/videorec/videorec_menu.h"
 #include "ui-imgui/topmenu/topmenu.h"
 #include "emulator/replay.h"
+#include "ui-imgui/screenshot/screenshot_ui.h"
+#include "ui-imgui/audiocap/audio_capture_ui.h"
 #include "i18n.h"
 
 /* UI globál, který jinak vytváří sdlapp_imgui_video.cpp. */
@@ -73,6 +75,13 @@ extern "C" void snapshot_notification_show_ex(const char *message, bool is_error
 extern "C" bool snapshot_notification_error_active(void)
 {
     return s_modal_open;
+}
+
+/* Stub surface obrazu (sdlapp_imgui_video.cpp test nelinkuje): bez obrazu
+ * screenshot jen ohlásí chybu, okno Screenshot Control se vykreslí. */
+extern "C" SDL_Surface *iface_sdl3_video_get_screen_surface(void)
+{
+    return NULL;
 }
 
 extern "C" void snapshot_notification_show(const char *message, bool is_error)
@@ -849,6 +858,47 @@ static void test_replay_window_renders(void)
     g_free(dir);
 }
 
+/* Alt+G přepíná okno Screenshot Control, Alt+Shift+Q okno Audio Capture
+ * Control (Alt+Q bez Shift okno nepřepíná). */
+static void test_tool_window_shortcuts(void)
+{
+    if (!s_ui_ok) TEST_IGNORE_MESSAGE("SDL/GL not available");
+    g_gui->showScreenshotWindow = false;
+    press_alt_key(ImGuiKey_G, false, imgui_screenshot_shortcuts);
+    TEST_ASSERT_TRUE(g_gui->showScreenshotWindow);
+    press_alt_key(ImGuiKey_G, true, imgui_screenshot_shortcuts); /* Alt+Shift+G patří debuggeru */
+    TEST_ASSERT_TRUE(g_gui->showScreenshotWindow);
+    press_alt_key(ImGuiKey_G, false, imgui_screenshot_shortcuts);
+    TEST_ASSERT_FALSE(g_gui->showScreenshotWindow);
+
+    g_gui->showAudioCaptureWindow = false;
+    press_alt_key(ImGuiKey_Q, true, imgui_audio_capture_shortcuts);
+    TEST_ASSERT_TRUE(g_gui->showAudioCaptureWindow);
+    press_alt_key(ImGuiKey_Q, true, imgui_audio_capture_shortcuts);
+    TEST_ASSERT_FALSE(g_gui->showAudioCaptureWindow);
+}
+
+/* Okna Screenshot Control a Audio Capture Control se vykreslí (bez assertu
+ * ImGui) a zavření (flag) je skryje. */
+static void test_tool_windows_render(void)
+{
+    if (!s_ui_ok) TEST_IGNORE_MESSAGE("SDL/GL not available");
+    g_gui->showScreenshotWindow = true;
+    g_gui->showAudioCaptureWindow = true;
+    for (int i = 0; i < 3; i++) {
+        frame_begin();
+        imgui_screenshot_window();
+        imgui_audio_capture_window();
+        frame_end();
+    }
+    g_gui->showScreenshotWindow = false;
+    g_gui->showAudioCaptureWindow = false;
+    frame_begin();
+    imgui_screenshot_window();
+    imgui_audio_capture_window();
+    frame_end();
+}
+
 int main(int argc, char *argv[])
 {
     mztest_parse_args(argc, argv);
@@ -883,6 +933,8 @@ int main(int argc, char *argv[])
     RUN_TEST(test_realtime_ui_renders);
     RUN_TEST(test_replay_shortcuts);
     RUN_TEST(test_replay_window_renders);
+    RUN_TEST(test_tool_window_shortcuts);
+    RUN_TEST(test_tool_windows_render);
     int result = UNITY_END();
 
     ui_teardown();

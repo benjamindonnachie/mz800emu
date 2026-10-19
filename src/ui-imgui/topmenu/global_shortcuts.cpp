@@ -425,15 +425,18 @@ void imgui_global_shortcuts(void)
         imgui_videorec_shortcuts();
 
         /*
-         * Screenshot: Alt + F
-         * Uloží PNG zobrazovaného obrazu do výstupního adresáře (Tools ->
-         * Screenshot). F není v jiných globálních Alt zkratkách použité.
+         * Screenshot: Alt + F uloží PNG zobrazovaného obrazu do výstupního
+         * adresáře, Alt + Shift + F spustí / ukončí sérii snímků, Alt + G
+         * zobrazí / skryje okno Screenshot Control (Tools -> Screenshot).
+         * F ani G (bez Shift) nejsou v jiných globálních Alt zkratkách použité
+         * (Alt + Shift + G = okno PSG State debuggeru).
          */
         imgui_screenshot_shortcuts();
 
         /*
-         * Zachycení zvuku: Alt + Q (start / stop, Tools -> Audio Capture).
-         * Q není v žádné jiné zkratce GUI použité.
+         * Zachycení zvuku: Alt + Q start / stop, Alt + Shift + Q okno Audio
+         * Capture Control (Tools -> Audio Capture). Q není v žádné jiné
+         * zkratce GUI použité.
          */
         imgui_audio_capture_shortcuts();
 

@@ -1,3 +1,5 @@
+	- Nová funkce: okno Screenshot Control (Tools -> Screenshot -> Screenshot Control..., Alt+G) a okno Audio Capture Control (Tools -> Audio Capture -> Audio Capture Control..., Alt+Shift+Q), obdoba dálkového ovládání nahrávání videa: stav, poslední výsledek a celé ovládání s klávesami v okně, které může zůstat otevřené. Viz screenshots.md a audio-capture.md.
+
 	- BUGFIX: Z80 - PUSH, CALL, RST a přijetí přerušení nebo NMI zapisovaly nižší bajt ukládané hodnoty dřív. Nově se zapíše nejdřív vyšší bajt (na SP-1), pak nižší, jak uvádí manuál Zilog Z80. Obsah paměti po instrukci se nemění; pořadí je vidět u breakpointů na zápis do zásobníku a u zápisů do paměťově mapovaných I/O.
 
 
