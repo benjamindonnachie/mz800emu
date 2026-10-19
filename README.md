@@ -10,6 +10,11 @@ This fork develops MZ-700 SUC 80-column, KC-Club GIDE/RTC, configurable
 expansion boot ROM and banked ZP/M support. See the
 [MZ-700 system and BIOS guide](docs/en/devices/mz700-zpm3.md).
 
+![ZP/M N10 and ZCCP running on the MZ-700 in SUC 80-column mode](docs/images/mz700-zpm3-suc80.png)
+
+*ZP/M N10 with ZCCP in SUC 80 × 25 mode, booted from GIDE, with 60,672 bytes
+of application space.*
+
 ## A project thirty years in the making
 
 This is the culmination of a project I started over thirty years ago. My
@@ -19,6 +24,9 @@ and Hučík had already realised my ambition for bank-switched RAM.
 
 The emulator is fantastic. Special thanks to its author, Michal Hučík, for
 making it available and providing the foundation for this development work.
+
+I also credit Codex (OpenAI) as co-author of this fork's MZ-700 extensions,
+BIOS and supporting tools.
 
 The next step is to get the GIDE board in my junk collection running, then
 implement RAM expansion and HDMI video using a Raspberry Pi RP2350B, taking
