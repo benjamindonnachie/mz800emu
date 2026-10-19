@@ -93,7 +93,7 @@ mz800emu --headless --speed max --run-mzf test.mzf \
 | 1 | test selhal: `--fail-on-pc`, `exit 1` |
 | 2 | timeout |
 | 3 | chyba emulátoru nebo voleb (neplatná volba, chybějící soubor) |
-| 4 | rezervováno |
+| 4 | záznam přehrávaný s `--exit-at-replay-end` se liší od nahraného (`replay_desync`, viz [../replay.md](../replay.md)) |
 | 64-255 | volné pro kódy zapsané programem (`--exit-on-out`, `exit Value`) |
 
 Kód 3 za neplatnou volbu se použije jen tehdy, když je zadaná některá
@@ -133,7 +133,7 @@ a cesty zkrácené):
             "i" : 0, "r" : 25, "im" : 1, "iff1" : 0, "iff2" : 0, "halted" : false },
   "raster" : { "beam_row" : 0, "frame_ticks" : 45 },
   "hashes" : { "algorithm" : "sha256", "ram" : "64090b03...", "memext" : "2fb5b470...",
-               "vram" : "edf097e8...", "screen" : "f58b3934..." },
+               "vram" : "edf097e8...", "screen" : "f58b3934...", "cpu" : "9c1e07d2..." },
   "artifacts" : { "screenshot" : ".../out/screen.png", "snapshot" : null,
                   "audio_capture" : null, "video" : null },
   "inputs" : { "run_mzf" : ".../Gardner.mzf", "bpt" : null },
@@ -148,8 +148,13 @@ Běh ukončený breakpointem má například `"reason" : "exit_action"` a
 - `emulator.build_revision`: číslo revize oficiálního buildu, -1 u
   ostatních buildů.
 - `reason`: `frames`, `timeout`, `exit_action` (akce breakpointu `exit`),
-  `error`, nebo `quit` (proces ukončený zvenku dřív, než nastala
-  podmínka, třeba `Ctrl+C`, nebo po `--record-frames`).
+  `error`, `quit` (proces ukončený zvenku dřív, než nastala podmínka,
+  třeba `Ctrl+C`, nebo po `--record-frames`), nebo `replay_end` /
+  `replay_desync` (konec záznamu přehrávaného s `--exit-at-replay-end`
+  nebo `--replay-verify`).
+- `replay`: `null`, nebo výsledek záznamu použitého v běhu (`path`,
+  `outcome`: `ended`, `desync`, `recorded`, ..., `outcome_frame`,
+  `frames`, `deviated`, `desync_parts`, `message`).
 - `trigger.hits`: zásahy breakpointu počítané až po přeskočených.
 - `time.frames` a `time.gdg_ticks` se počítají od začátku běhu,
   `frames_total` a `gdg_ticks_total` od začátku emulace. `emulated_seconds`
@@ -157,9 +162,10 @@ Běh ukončený breakpointem má například `"reason" : "exit_action"` a
 - `cpu`: registry jako čísla (`af2` ... `hl2` jsou stínové registry),
   `halted` true nebo false.
 - `hashes`: SHA-256 vnitřní RAM (64 KB), RAM MemExt (jen připojený),
-  VRAM (MZ-800: všechny čtyři plány), PCG (MZ-1500) a obrazovky
-  (framebuffer jako indexy palety). Dva běhy se stejnými volbami dají
-  stejné hashe, takže je skript může porovnat s referencí.
+  VRAM (MZ-800: všechny čtyři plány), PCG (MZ-1500), obrazovky
+  (framebuffer jako indexy palety) a `cpu` (registry Z80 včetně skrytého
+  stavu: WZ, Q, odložení po EI, čekající INT a NMI). Dva běhy se stejnými
+  volbami dají stejné hashe, takže je skript může porovnat s referencí.
 - Po chybě před startem emulace (neplatná volba) má soubor jen `schema`,
   `emulator`, `reason`, `exit_code`, `message`, `trigger`, `artifacts`,
   `inputs` a `warnings`.

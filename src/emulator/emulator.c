@@ -38,6 +38,7 @@
 #include "screenshot/screenshot_series.h"
 #include "audio_capture.h"
 #include "automation.h"
+#include "replay.h"
 
 st_EMULATOR g_emulator;
 
@@ -56,6 +57,9 @@ static void emulator_exit_cleanup(void)
     fprintf(stderr, "Application is normaly exiting...\n");
 
     version_check_exit();
+    /* Záznam vstupů: běžící záznam se uloží (před snapshot_exit, používá
+     * snapshot_io), přehrávání se zahodí. */
+    replay_shutdown();
     /* Video záznam: synchronní stop (flush, sidecar, finalizace AVI, join writeru). */
     videorec_exit();
     /* Série screenshotů: stop a dopsání fronty (join writeru). */
@@ -245,6 +249,7 @@ gpointer emulator_thread(gpointer ptr)
         file_driver_init();
         memory_driver_init();
 
+        replay_init();
         mzarch_platform_fn_init();
         snapshot_init();
         videorec_init();

@@ -19,6 +19,8 @@
 #include "hw-generic/memory/memory.h"
 #include "hw-generic/memory/memext.h"
 #include "hw-generic/gdg/framebuffer.h"
+#include "mzarch/mzarch.h"
+#include "libs/cpu-z80/z80.h"
 
 
 void setUp(void)
@@ -51,6 +53,7 @@ void test_state_hash_part_names(void)
     TEST_ASSERT_EQUAL_STRING("vram", state_hash_part_name(STATE_HASH_VRAM));
     TEST_ASSERT_EQUAL_STRING("pcg", state_hash_part_name(STATE_HASH_PCG));
     TEST_ASSERT_EQUAL_STRING("screen", state_hash_part_name(STATE_HASH_SCREEN));
+    TEST_ASSERT_EQUAL_STRING("cpu", state_hash_part_name(STATE_HASH_CPU));
     TEST_ASSERT_EQUAL_STRING("unknown", state_hash_part_name(STATE_HASH_PART_COUNT));
 }
 
@@ -115,6 +118,42 @@ void test_state_hash_screen(void)
 }
 
 
+
+
+/** @brief CPU = registry a skrytý stav; čítače T-stavů hash nemění. */
+void test_state_hash_cpu(void)
+{
+    z80_t *cpu = g_mzarch_main.cpu;
+    TEST_ASSERT_NOT_NULL(cpu);
+    char a[STATE_HASH_HEX_LEN + 1], b[STATE_HASH_HEX_LEN + 1];
+    unsigned char bytes[STATE_HASH_CPU_BYTES];
+
+    z80_set_reg(cpu, Z80_REG_PC, 0x1234);
+    state_hash_cpu_bytes(bytes);
+    TEST_ASSERT_EQUAL_HEX8(0x34, bytes[22]);
+    TEST_ASSERT_EQUAL_HEX8(0x12, bytes[23]);
+
+    TEST_ASSERT_TRUE(state_hash_part(STATE_HASH_CPU, a));
+    uint32_t saved_total = cpu->total_cycles;
+    cpu->total_cycles += 1000;
+    TEST_ASSERT_TRUE(state_hash_part(STATE_HASH_CPU, b));
+    cpu->total_cycles = saved_total;
+    TEST_ASSERT_EQUAL_STRING(a, b);
+
+    uint16_t wz = z80_get_reg(cpu, Z80_REG_WZ);
+    z80_set_reg(cpu, Z80_REG_WZ, (uint16_t)(wz ^ 0x0101));
+    TEST_ASSERT_TRUE(state_hash_part(STATE_HASH_CPU, b));
+    z80_set_reg(cpu, Z80_REG_WZ, wz);
+    TEST_ASSERT_TRUE(strcmp(a, b) != 0);
+
+    bool ei = cpu->ei_delay;
+    cpu->ei_delay = !ei;
+    TEST_ASSERT_TRUE(state_hash_part(STATE_HASH_CPU, b));
+    cpu->ei_delay = ei;
+    TEST_ASSERT_TRUE(strcmp(a, b) != 0);
+}
+
+
 int main(int argc, char *argv[])
 {
     mztest_parse_args(argc, argv);
@@ -127,6 +166,7 @@ int main(int argc, char *argv[])
     RUN_TEST(test_state_hash_memext_only_connected);
     RUN_TEST(test_state_hash_vram_pcg);
     RUN_TEST(test_state_hash_screen);
+    RUN_TEST(test_state_hash_cpu);
     int result = UNITY_END();
 
     mztest_teardown();

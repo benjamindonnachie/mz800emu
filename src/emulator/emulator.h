@@ -41,8 +41,15 @@ typedef enum en_EMU_PAUSE_REASON
                                        ne zdroj pauzy. */
     EMU_PAUSE_REASON_BP_SATURATION, /**< Auto-pauza po překročení objemu zápisů akcí
                                          breakpointů (breakpoints_fwd_account_bytes()). */
-    EMU_PAUSE_REASON_EVENT_TRIGGER  /**< Pauza triggerem záznamu událostí
+    EMU_PAUSE_REASON_EVENT_TRIGGER, /**< Pauza triggerem záznamu událostí
                                          (eventlog_trigger.h). */
+    EMU_PAUSE_REASON_REPLAY,        /**< Přechodná pauza záznamu vstupů: požadavek
+                                         (start záznamu nebo přehrávání) se vyřizuje
+                                         v paused smyčce, po něm se emulace znovu
+                                         rozběhne (replay.h). */
+    EMU_PAUSE_REASON_REPLAY_END,    /**< Přehrávání záznamu došlo na konec (replay.h). */
+    EMU_PAUSE_REASON_REPLAY_DESYNC  /**< Přehrávání záznamu se rozjelo: hash stavu
+                                         se liší od záznamu (replay.h). */
 } en_EMU_PAUSE_REASON;
 
 /**

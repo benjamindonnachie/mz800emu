@@ -59,6 +59,7 @@
 #include "freeze/freeze.h"
 #include "memsearch/memsearch.h"
 #include "run_control/run_control.h"
+#include "../replay.h"
 #include "run_control/run_log.h"
 #include "state_hash.h"
 #include "png_encode.h"
@@ -1594,6 +1595,11 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
     const bool rc_was_paused = EMULATOR_TEST_PAUSED ? true : false;
     const bool rc_was_step = TEST_DEBUGGER_STEP_CALL ? true : false;
 
+    /* Záznam vstupů (replay.h): při záznamu odmítne zásah, který záznam
+     * neumí zopakovat, a zásah v pauze mimo hranici snímku. Bez záznamu
+     * jedno čtení. */
+    const bool rp_refused = (g_replay_mode != REPLAY_MODE_OFF) && !replay_dbg_before(rq);
+
     /*
      * Dispatch příkazů — zatím základní implementace.
      * Konkrétní handlery budou doplněny až budou k dispozici
@@ -1601,7 +1607,11 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
      *
      * TODO: doplnit handlery pro jednotlivé příkazy
      */
-    switch (cmd)
+    if (rp_refused)
+    {
+        rq->success = false;
+    }
+    else switch (cmd)
     {
         case DBGAPI_CMD_NONE:
             /* Ping — bez efektu */
@@ -8333,6 +8343,13 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
     };
 
     run_control_after_cmd ( (unsigned) cmd, (int) rq->cmd_origin, rc_was_paused, rc_was_step );
+
+    /* Záznam vstupů: uložit zásah (`d` za běhu, `p` v pauze) nebo nový
+     * vzorek vstupů; při přehrávání označit odchýlení. */
+    if ((g_replay_mode != REPLAY_MODE_OFF) && !rp_refused)
+    {
+        replay_dbg_after(rq, rc_was_paused);
+    };
 
     /* MCP_ACTION broadcast hook - po úspěšném zpracování CMDRQ od MCP
      * klienta emitujeme notifikaci do UI (= budoucí Activity Log panel

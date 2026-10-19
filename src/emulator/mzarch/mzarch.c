@@ -69,6 +69,9 @@
 #endif
 #endif
 
+#include "replay.h"
+#include "replay_cli.h"
+
 // TODO: tohle volame v mz800_main_do_emulator_paused()
 #define iface_sdl_update_window_in_beam_interval(a, b)
 
@@ -173,6 +176,17 @@ static bool s_mzarch_frame_done_hooks_due = false;
 #endif
 
 /**
+ * @brief Konec snímku ohlásil bod B_f záznamu vstupů (replay.h).
+ *
+ * Nastaví callback konce snímku jen při běžícím záznamu / přehrávání nebo
+ * čekajícím požadavku (replay_frame_hook_wanted()); vyřídí ho per-event
+ * blok hlavní smyčky za run bounds, před testem pauzy, ve všech buildech.
+ *
+ * @invariant Čte a píše ho jen EMU vlákno, proto není atomický.
+ */
+static bool s_mzarch_replay_due = false;
+
+/**
  * This event is called every time a video frame is to be completed (regardless of whether it will be rendered or not)
  *
  * Volá se z gdg_process_events() při zpracování události konce posledního
@@ -221,6 +235,13 @@ static inline void mz800_main_event_callback_screen_done(void)
     if (g_automation_frame_hook)
     {
         automation_on_screen_done();
+    };
+
+    /* Záznam a přehrání vstupů: bod B_f se tu jen ohlásí, provede ho
+     * per-event blok mezi instrukcemi (replay.h). Bez záznamu jedno čtení. */
+    if (replay_frame_hook_wanted())
+    {
+        s_mzarch_replay_due = true;
     };
 
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
@@ -358,6 +379,13 @@ static void mzarch_main_frame_done_debugger_hooks(void)
     if (!TEST_DEBUGGER_STEP_CALL)
     {
         mzarch_main_dbgapi_drain();
+    };
+
+    /* Přehrání zásahů debuggeru zaznamenaných v drainu tohoto snímku
+     * (poloha `d`, replay.h). Bez záznamu jedno čtení. */
+    if (replay_frame_hook_wanted())
+    {
+        replay_on_drain_point();
     };
 
     /* V1 Freeze Bytes - per-frame apply všech zafrozených bajtů (cheat
@@ -1100,6 +1128,10 @@ static inline void mzzarch_main_do_emulator_paused(void)
         /* Přemapování MemExt vyžádané z UI i během pauzy (do ~20 ms). */
         memext_map_request_poll();
 
+        /* Záznam a přehrání vstupů: start, stop, reset a autotype v pauze
+         * (replay.h). Bez záznamu a požadavku jen dvě čtení. */
+        replay_on_paused();
+
         if (iface_video_get_redraw_full_screen_request())
         {
             framebuffer_screen_done();
@@ -1185,6 +1217,10 @@ static inline void mzzarch_main_do_emulator_paused(void)
 
         /* Přemapování MemExt vyžádané z UI i během pauzy (do ~20 ms). */
         memext_map_request_poll();
+
+        /* Záznam a přehrání vstupů: start, stop, reset a autotype v pauze
+         * (replay.h). Bez záznamu a požadavku jen dvě čtení. */
+        replay_on_paused();
 
         mzarch_main_queue_next_event();
 
@@ -1393,6 +1429,11 @@ void mzarch_main_reset_and_run_mzf(const char *filename)
     mzarch_bootstrap_run_mzf(filename);
 }
 
+void mzarch_main_reset_now(void)
+{
+    mzarch_main_reset();
+}
+
 void mzarch_main(void)
 {
     mzarch_main_reset();
@@ -1461,6 +1502,10 @@ void mzarch_main(void)
     /* Automatizace: začátek počítání snímků (po --run-mzf a ostatních
      * volbách), breakpointy z --bpt / --exit-on-*. */
     automation_start();
+
+    /* Záznam a přehrání vstupů z příkazové řádky (--replay-record,
+     * --replay): požadavek vyřídí první hranice snímku. */
+    replay_cli_start();
 
     g_print("%s main loop started\n", g_mzarch_full_name);
 
@@ -1678,6 +1723,17 @@ void mzarch_main(void)
                 run_control_check_run_bounds ( );
             };
 #endif
+
+            /* Záznam a přehrání vstupů: bod B_f (replay.h). Až za run
+             * bounds, aby pauza run(frames) / deadline vznikla na téže
+             * hranici; před testem pauzy, aby pauza ze záznamu (konec
+             * přehrávání, start) vstoupila do paused smyčky hned. V per-event
+             * bloku, ne v instrukční smyčce: bez záznamu jedna větev. */
+            if (s_mzarch_replay_due)
+            {
+                s_mzarch_replay_due = false;
+                replay_on_frame_boundary();
+            };
 
             /* jsme v pauze? */
             if (EMULATOR_TEST_PAUSED)

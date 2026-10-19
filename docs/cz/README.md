@@ -122,6 +122,10 @@ jsou odmítnuty s chybou - pro vygenerovaný výpis použijte `--help`.
 | `--bpt` | `<soubor.bpt>` | Automatický běh: načíst breakpointy ze souboru (automaticky načítaná sada a proměnné se v automatickém běhu nepoužijí, při konci se nic neukládá). Breakpoint s akcí `exit` běh ukončí. |
 | `--result-json`, `--automation-dir` | `<soubor>`, `<složka>` | Automatický běh: zapsat výsledek (důvod, návratový kód, čas, registry, hashe, artefakty) jako JSON; `--automation-dir` uloží i `screen.png`. |
 | `--exit-screenshot`, `--exit-snapshot` | `<soubor>` | Automatický běh: uložit konečnou obrazovku jako PNG / konečný stav jako snapshot. |
+| `--replay-record` | `<soubor>` | Nahrát vstupy běhu do souboru záznamu (`.mzr`) od prvního snímku; soubor se zapíše při ukončení emulátoru. Viz [Záznam a přehrání vstupů](replay.md). |
+| `--replay-hash-interval` | `<N>` | S `--replay-record`: počet snímků mezi hashi stavu (1-100000, výchozí 50). |
+| `--replay` | `<soubor>` | Přehrát soubor záznamu od startovního snapshotu; živý vstup se ignoruje, přehrávání se pozastaví na konci nebo na prvním rozdílném snímku. |
+| `--exit-at-replay-end`, `--replay-verify` | - | S `--replay`: ukončit běh na konci přehrávání - kód 0, 4 při rozdílném stavu, 3 když záznam nejde spustit. `--replay-verify` navíc běží v MAX SPEED. |
 
 ### Layout CDL exportu
 
@@ -280,6 +284,15 @@ složky, co dělá zvukový hardware: změny úrovní kanálů, zápisy do PSG, 
 zvuk a zvuk, který slyšíte (dva WAV k porovnání) - pro hledání chyb zvuku.
 Také z příkazové řádky (`--audio-capture`) a přes MCP. Podrobnosti viz
 [`audio-capture.md`](audio-capture.md).
+
+## Záznam a přehrání vstupů
+
+Replay -> Record Inputs... nahraje vstupy běhu (klávesnice, joystick, resety,
+zápisy debuggeru) od startovního snapshotu; Replay -> Play Replay... přesně
+stejný běh zopakuje, i v novém procesu a při libovolné rychlosti, takže chybu
+jde zkoumat znovu a znovu s jinými breakpointy nebo trace, a zastaví se na
+prvním snímku, kde se stav liší. `--replay-verify` ověří nahraný běh v CI.
+Podrobnosti viz [`replay.md`](replay.md).
 
 ## MAX SPEED benchmark
 

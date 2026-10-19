@@ -1311,7 +1311,8 @@ async def emu_wait_stop(run_seq: int | None = None,
     ``timeout_ms``; then call the tool again. The record has ``reason``
     (``"run_to"``, ``"breakpoint"``, ``"deadline"``, ``"frames"``,
     ``"step"``, ``"manual"``, ``"exit"``, ``"bp_action_saturation"``,
-    ``"event_trigger"``), ``pc``, ``bp_id`` (breakpoint), ``started_by`` /
+    ``"event_trigger"``, ``"replay"``, ``"replay_end"``, ``"replay_desync"``),
+    ``pc``, ``bp_id`` (breakpoint), ``started_by`` /
     ``start_cmd`` (who started the run: ``"mcp"`` or ``"user"`` in the
     GUI), ``stopped_by`` (who paused it, for ``"manual"``),
     ``start_ticks`` / ``stop_ticks`` (GDG ticks since the emulator started -
@@ -7743,6 +7744,141 @@ async def emu_frame_hash() -> str:
         "paused": <bool>}``.
     """
     resp = await _send_request("frame_hash")
+    return json.dumps(_data_or_error(resp))
+
+
+# ---------------------------------------------------------------------------
+# Replay: record inputs once, play them back exactly (replay-core)
+# ---------------------------------------------------------------------------
+
+#: Seconds the wrapper waits for a replay request (the emulator waits up
+#: to 10 s for the emulation thread, a start also saves / loads a snapshot).
+_REPLAY_TIMEOUT_S = 20.0
+
+
+@mcp.tool()
+async def emu_replay_record_start(path: str, hash_interval: int = 50,
+                                  description: Optional[str] = None) -> str:
+    """Start recording the emulator inputs into a replay file (``.mzr``).
+
+    The recording starts from a complete snapshot of the machine (always
+    with the RAM disk) and stores every change of the keyboard matrix
+    and joystick state at a frame boundary, resets, autotype and debugger
+    writes (``emu_mem_write``, ``emu_set_register``, ``emu_io_write``,
+    region writes, IRQ / NMI injection), plus SHA-256 hashes of the CPU,
+    RAM, MemExt, VRAM and PCG every ``hash_interval`` frames. Play it
+    back with ``emu_replay_play``: the run repeats exactly, also in a new
+    process and at any speed, so you can repeat a bug with other
+    breakpoints, trace or ramlog.
+
+    While recording:
+
+    * keyboard input from the GUI is taken at the next frame boundary,
+    * a write or input change while paused **between** frame boundaries
+      (after a step or a breakpoint) is refused - pause at a boundary
+      with ``emu_run(frames=N)`` or a ``deadline`` first; while running,
+      writes are taken at the frame boundary automatically,
+    * loading a snapshot, media, tape control, settings and Freeze Bytes
+      are refused (they cannot be repeated),
+    * the host joystick (type JOYSTICK) is not recorded (warning).
+
+    When the emulation runs, it pauses at the next frame boundary, the
+    recording starts and the emulation runs on; when paused it stays
+    paused.
+
+    Args:
+        path: Replay file on the emulator host (overwritten on stop).
+        hash_interval: Frames between state hashes (1..100000).
+        description: Optional text stored in the manifest.
+
+    Returns:
+        JSON with the replay status (see ``emu_replay_status``), or an
+        error (``recording or playback is already running``, ``autotype
+        is running``, ``Freeze Bytes are active``, ...).
+    """
+    data: dict[str, Any] = {"path": path, "hash_interval": hash_interval}
+    if description is not None:
+        data["description"] = description
+    resp = await _send_request("replay_record_start", data, timeout_s=_REPLAY_TIMEOUT_S)
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_replay_record_stop() -> str:
+    """Stop recording and save the replay file.
+
+    Stopped at a frame boundary (running, or paused after
+    ``emu_run(frames=N)``), the replay ends with a final state hash.
+    Stopped in a pause between boundaries, it ends at the last boundary.
+
+    Returns:
+        JSON status with ``outcome: "recorded"`` and ``outcome_message``
+        (frames, events, file), or an error (``no recording is
+        running``, a write error).
+    """
+    resp = await _send_request("replay_record_stop", timeout_s=_REPLAY_TIMEOUT_S)
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_replay_play(path: str, pause_after_load: bool = False) -> str:
+    """Play a replay file back from its start snapshot.
+
+    Live input (GUI keyboard, virtual keyboard, MCP keys) is ignored
+    during playback. Every recorded hash is compared; the first frame
+    where the state differs stops the playback (pause reason
+    ``replay_desync``, ``outcome: "desync"``, ``desync_parts`` such as
+    ``cpu``, ``ram``, ``vram``, ``time``). At the end the emulation
+    pauses with reason ``replay_end`` (``outcome: "ended"``); wait for it
+    with ``emu_wait_stop`` or poll ``emu_replay_status``.
+
+    Breakpoints, trace and ramlog may stay on. A write to the machine
+    during playback (``emu_mem_write``, a breakpoint ``poke`` / ``set``
+    action, Freeze Bytes, reset, loading a snapshot) marks the playback
+    as ``deviated``: it goes on, but hashes are no longer checked.
+
+    Args:
+        path: Replay file on the emulator host.
+        pause_after_load: True = stay paused after loading the start
+            snapshot (set breakpoints, then ``emu_resume``); False = run.
+
+    Returns:
+        JSON status (``mode: "playing"``, ``frames``), or an error (file
+        not readable, other platform or TV system, replay with debugger
+        events in a build without the debugger).
+    """
+    resp = await _send_request("replay_play",
+                               {"path": path, "pause_after_load": pause_after_load},
+                               timeout_s=_REPLAY_TIMEOUT_S)
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_replay_play_stop() -> str:
+    """Stop a running playback (``outcome: "stopped"``); live input works again.
+
+    Returns:
+        JSON status, or an error (``no playback is running``).
+    """
+    resp = await _send_request("replay_play_stop", timeout_s=_REPLAY_TIMEOUT_S)
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_replay_status() -> str:
+    """Status of recording and playback.
+
+    Returns:
+        JSON ``{"mode": "off" | "recording" | "playing", "frame": int,
+        "frames": int (replay length while playing), "events": int,
+        "hashes": int, "hash_interval": int, "warnings": int,
+        "deviated": bool, "deviation": str, "path": str, "outcome":
+        "none" | "recorded" | "ended" | "desync" | "stopped" | "error",
+        "outcome_frame": int, "outcome_message": str, "desync_parts":
+        [str]}``. ``outcome*`` describe the last finished recording or
+        playback.
+    """
+    resp = await _send_request("replay_status")
     return json.dumps(_data_or_error(resp))
 
 

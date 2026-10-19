@@ -122,6 +122,10 @@ are rejected with an error - use `--help` for a generated listing.
 | `--bpt` | `<file.bpt>` | Unattended run: load breakpoints from the file (the automatically loaded set and variables are not used in an unattended run, nothing is saved at exit). A breakpoint with the action `exit` ends the run. |
 | `--result-json`, `--automation-dir` | `<file>`, `<folder>` | Unattended run: write the result (reason, exit code, time, registers, hashes, artifacts) as JSON; `--automation-dir` also saves `screen.png`. |
 | `--exit-screenshot`, `--exit-snapshot` | `<file>` | Unattended run: save the final screen as PNG / the final state as a snapshot. |
+| `--replay-record` | `<file>` | Record the inputs of the run into a replay file (`.mzr`) from the first frame; the file is written when the emulator exits. See [Replay](replay.md). |
+| `--replay-hash-interval` | `<N>` | With `--replay-record`: frames between state hashes (1-100000, default 50). |
+| `--replay` | `<file>` | Play a replay file back from its start snapshot; live input is ignored, the playback pauses at the end or at the first differing frame. |
+| `--exit-at-replay-end`, `--replay-verify` | - | With `--replay`: end the run at the end of the playback - exit code 0, 4 when the state differs, 3 when the replay cannot start. `--replay-verify` also runs at MAX SPEED. |
 
 ### CDL export layout
 
@@ -268,6 +272,15 @@ folder what the sound hardware does: changes of the channel levels, PSG
 writes, the exact sound and the sound you hear (two WAV files to compare) -
 for finding sound bugs. Also from the command line (`--audio-capture`) and
 over MCP. For details see [`audio-capture.md`](audio-capture.md).
+
+## Replay
+
+Replay -> Record Inputs... records the inputs of a run (keyboard, joystick,
+resets, debugger writes) from a start snapshot; Replay -> Play Replay...
+repeats exactly the same run, also in a new process and at any speed, so a
+bug can be studied again and again with other breakpoints or trace, and
+stops at the first frame where the state differs. `--replay-verify` checks
+a recorded run in CI. For details see [`replay.md`](replay.md).
 
 ## MAX SPEED benchmark
 

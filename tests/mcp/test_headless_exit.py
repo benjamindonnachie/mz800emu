@@ -142,8 +142,8 @@ def case_frames(exe, tmp):
     cpu = res["cpu"]
     check(isinstance(cpu["pc"], int) and 0x1200 <= cpu["pc"] <= 0x1240, f"PC in the test program ({cpu['pc']})")
     h = res["hashes"]
-    check(h["algorithm"] == "sha256" and all(len(h[k]) == 64 for k in ("ram", "vram", "screen")),
-          f"hashes ram/vram/screen ({sorted(h)})")
+    check(h["algorithm"] == "sha256" and all(len(h[k]) == 64 for k in ("ram", "vram", "screen", "cpu")),
+          f"hashes ram/vram/screen/cpu ({sorted(h)})")
     check((out / "screen.png").read_bytes()[:8] == b"\x89PNG\r\n\x1a\n", "screen.png written")
     check(res["artifacts"]["screenshot"] and Path(res["artifacts"]["screenshot"]).name == "screen.png",
           "artifacts.screenshot")

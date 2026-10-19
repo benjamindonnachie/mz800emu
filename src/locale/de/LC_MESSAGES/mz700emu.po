@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mz800emu 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-18 18:57+0200\n"
+"POT-Creation-Date: 2026-10-18 23:04+0200\n"
 "PO-Revision-Date: 2026-03-11 21:00+0100\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -63,21 +63,21 @@ msgstr ""
 "Adresse = 0x%04x\n"
 "Befehl = '%s'\n"
 
-#: src/emulator/emulator.c:437
+#: src/emulator/emulator.c:451
 #: src/ui-imgui/mcp_activity/mcp_activity_window.cpp:421
 #: src/ui-imgui/videorec/videorec_menu.cpp:140
 msgid "PAUSED"
 msgstr "PAUSIERT"
 
-#: src/emulator/emulator.c:440
+#: src/emulator/emulator.c:454
 msgid "Max speed"
 msgstr "Maximalgeschwindigkeit"
 
-#: src/emulator/emulator.c:443
+#: src/emulator/emulator.c:457
 msgid "Custom speed"
 msgstr "Benutzerdefinierte Geschwindigkeit"
 
-#: src/emulator/emulator.c:445
+#: src/emulator/emulator.c:459
 msgid "Normal speed"
 msgstr "Normale Geschwindigkeit"
 
@@ -517,40 +517,40 @@ msgstr "OK"
 msgid "Cancel"
 msgstr "Abbrechen"
 
-#: src/ui-imgui/autotype/autotype_window.cpp:51
+#: src/ui-imgui/autotype/autotype_window.cpp:52
 msgid "Invalid character at position"
 msgstr "Ungültiges Zeichen an Position"
 
-#: src/ui-imgui/autotype/autotype_window.cpp:163
+#: src/ui-imgui/autotype/autotype_window.cpp:164
 #: src/ui-imgui/topmenu/interface/menu_keyjoy.cpp:29
 msgid "Autotype Buffer"
 msgstr "Autotype-Puffer"
 
-#: src/ui-imgui/autotype/autotype_window.cpp:185
+#: src/ui-imgui/autotype/autotype_window.cpp:186
 msgid "Autotype!"
 msgstr "Autotype!"
 
-#: src/ui-imgui/autotype/autotype_window.cpp:186
+#: src/ui-imgui/autotype/autotype_window.cpp:187
 msgid "Stop!"
 msgstr "Stop!"
 
-#: src/ui-imgui/autotype/autotype_window.cpp:201
+#: src/ui-imgui/autotype/autotype_window.cpp:202
 msgid "Text buffer is empty"
 msgstr "Text-Puffer ist leer"
 
-#: src/ui-imgui/autotype/autotype_window.cpp:215
+#: src/ui-imgui/autotype/autotype_window.cpp:216
 msgid "Key down"
 msgstr "Taste gedrückt"
 
-#: src/ui-imgui/autotype/autotype_window.cpp:234
+#: src/ui-imgui/autotype/autotype_window.cpp:235
 msgid "Key up"
 msgstr "Taste losgelassen"
 
-#: src/ui-imgui/autotype/autotype_window.cpp:285
+#: src/ui-imgui/autotype/autotype_window.cpp:286
 msgid "Characters"
 msgstr "Zeichen"
 
-#: src/ui-imgui/autotype/autotype_window.cpp:295
+#: src/ui-imgui/autotype/autotype_window.cpp:296
 msgid "Typed"
 msgstr "Getippt"
 
@@ -607,20 +607,20 @@ msgstr "Speichern unter"
 msgid "Save MZF file as"
 msgstr "MZF-Datei speichern unter"
 
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:245
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:246
 msgid "Tape Filelist"
 msgstr "Band-Dateiliste"
 
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:281
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:305 src/ui-imgui/cmt/cmt_window.cpp:212
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:284
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:308 src/ui-imgui/cmt/cmt_window.cpp:213
 #: src/ui-imgui/debugger/sections/dbg_stack_panel.cpp:2677
 #: src/ui-imgui/debugger/vars/vars_window.cpp:1502
 #: src/ui-imgui/debugger/watch/watch_window.cpp:1696
 msgid "Name"
 msgstr "Name"
 
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:282
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:308 src/ui-imgui/cmt/cmt_window.cpp:211
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:285
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:311 src/ui-imgui/cmt/cmt_window.cpp:212
 #: src/ui-imgui/debugger/memsearch_window/memsearch_window.cpp:576
 #: src/ui-imgui/debugger/watch/watch_window.cpp:1700
 #: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:132
@@ -630,8 +630,8 @@ msgstr "Name"
 msgid "Type"
 msgstr "Typ"
 
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:283
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:311
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:286
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:314
 #: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:133
 #: src/ui-imgui/snapshot/snapshot_load_dialog.cpp:209
 #: src/ui-imgui/snapshot/snapshot_load_dialog.cpp:211
@@ -640,131 +640,137 @@ msgstr "Typ"
 msgid "Size"
 msgstr "Größe"
 
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:284
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:314
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:287
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:317
 #: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:416
 msgid "Start"
 msgstr "Start"
 
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:285
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:317
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:288
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:320
 msgid "Exec"
 msgstr "Exec"
 
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:286
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:320 src/ui-imgui/cmt/cmt_window.cpp:213
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:289
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:323 src/ui-imgui/cmt/cmt_window.cpp:214
 #: src/ui-imgui/topmenu/menu_speed.cpp:27
 msgid "Speed"
 msgstr "Geschwindigkeit"
 
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:287
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:323
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:290
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:326
 msgid "Length"
 msgstr "Länge"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:64
+#: src/ui-imgui/cmt/cmt_window.cpp:65
 msgid "Playing time:"
 msgstr "Spielzeit:"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:68
+#: src/ui-imgui/cmt/cmt_window.cpp:69
 msgid "Remaining time:"
 msgstr "Verbleibende Zeit:"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:80 src/ui-imgui/cmt/cmt_window.cpp:826
+#: src/ui-imgui/cmt/cmt_window.cpp:81 src/ui-imgui/cmt/cmt_window.cpp:845
 msgid "CMT Hack"
 msgstr "CMT Hack"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:89
+#: src/ui-imgui/cmt/cmt_window.cpp:90
 msgid "CPU Boost"
 msgstr "CPU-Boost"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:126
+#: src/ui-imgui/cmt/cmt_window.cpp:127
 msgid "Click here to change the time info mode."
 msgstr "Hier klicken, um den Zeitmodus zu ändern."
 
-#: src/ui-imgui/cmt/cmt_window.cpp:210
+#: src/ui-imgui/cmt/cmt_window.cpp:211
 msgid "Block"
 msgstr "Block"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:210
+#: src/ui-imgui/cmt/cmt_window.cpp:211
 msgid "of"
 msgstr "von"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:211
+#: src/ui-imgui/cmt/cmt_window.cpp:212
 msgid "FSize"
 msgstr "FGröße"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:212
+#: src/ui-imgui/cmt/cmt_window.cpp:213
 msgid "FExec"
 msgstr "FExec"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:213
+#: src/ui-imgui/cmt/cmt_window.cpp:214
 msgid "FStart"
 msgstr "FStart"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:214
+#: src/ui-imgui/cmt/cmt_window.cpp:215
 msgid "Stream"
 msgstr "Stream"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:215
+#: src/ui-imgui/cmt/cmt_window.cpp:216
 msgid "Rate"
 msgstr "Rate"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:215
+#: src/ui-imgui/cmt/cmt_window.cpp:216
 msgid "SSize"
 msgstr "SGröße"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:437
+#: src/ui-imgui/cmt/cmt_window.cpp:438
 msgid "Default MZ Speed:"
 msgstr "Standard MZ-Geschwindigkeit:"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:800 src/ui-imgui/cmt/cmt_window.cpp:914
+#: src/ui-imgui/cmt/cmt_window.cpp:780
+msgid "Tape control is not available while a replay is recorded or played."
+msgstr ""
+"Die Kassettensteuerung ist während der Aufnahme oder Wiedergabe von Eingaben "
+"nicht verfügbar."
+
+#: src/ui-imgui/cmt/cmt_window.cpp:817 src/ui-imgui/cmt/cmt_window.cpp:934
 msgid "Virtual CMT"
 msgstr "Virtuelles CMT"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:835
+#: src/ui-imgui/cmt/cmt_window.cpp:854
 msgid "CMT Hack is activated!"
 msgstr "CMT Hack ist aktiviert!"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:836
+#: src/ui-imgui/cmt/cmt_window.cpp:855
 msgid "Virtual CMT is not available!"
 msgstr "Virtuelles CMT ist nicht verfügbar!"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:842
+#: src/ui-imgui/cmt/cmt_window.cpp:861
 #: src/ui-imgui/version_check/imgui_version_check.cpp:390
 msgid "Close"
 msgstr "Schließen"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:863
+#: src/ui-imgui/cmt/cmt_window.cpp:883
 msgid "No tape loaded"
 msgstr "Kein Band geladen"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:872
+#: src/ui-imgui/cmt/cmt_window.cpp:892
 #: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:363
 msgid "Recording"
 msgstr "Aufnahme"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:882
+#: src/ui-imgui/cmt/cmt_window.cpp:902
 msgid "Playing"
 msgstr "Wiedergabe"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:897
+#: src/ui-imgui/cmt/cmt_window.cpp:917
 msgid "Stopped - Ready to Play"
 msgstr "Gestoppt - Wiedergabebereit"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:904
+#: src/ui-imgui/cmt/cmt_window.cpp:924
 msgid "(paused)"
 msgstr "(pausiert)"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:925
+#: src/ui-imgui/cmt/cmt_window.cpp:946
 msgid "*** Empty ***"
 msgstr "*** Leer ***"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:931
+#: src/ui-imgui/cmt/cmt_window.cpp:952
 msgid "Recording (paused)"
 msgstr "Aufnahme (pausiert)"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:935
+#: src/ui-imgui/cmt/cmt_window.cpp:956
 msgid "Recording.."
 msgstr "Aufnahme.."
 
@@ -4664,7 +4670,7 @@ msgid "Live"
 msgstr "Live"
 
 #: src/ui-imgui/debugger/membrowser/membrowser_diff_window.cpp:405
-#: src/ui-imgui/topmenu/menu_snapshot.cpp:60
+#: src/ui-imgui/topmenu/menu_snapshot.cpp:69
 msgid "Snapshot"
 msgstr "Schnappschuss"
 
@@ -5337,7 +5343,7 @@ msgstr "Schnappschuss Δ"
 #: src/ui-imgui/debugger/menu/dbg_topmenu.cpp:148
 #: src/ui-imgui/maxspeed_bench_window.cpp:156
 #: src/ui-imgui/plotter/plotter_window.cpp:414
-#: src/ui-imgui/topmenu/topmenu.cpp:41
+#: src/ui-imgui/topmenu/topmenu.cpp:53
 msgid "Reset"
 msgstr "Zurücksetzen"
 
@@ -6644,7 +6650,7 @@ msgid "Max Speed"
 msgstr "Maximale Geschwindigkeit"
 
 #: src/ui-imgui/debugger/menu/dbg_topmenu.cpp:160
-#: src/ui-imgui/topmenu/topmenu.cpp:36
+#: src/ui-imgui/topmenu/topmenu.cpp:48
 msgid "Pause Emulation"
 msgstr "Emulation pausieren"
 
@@ -10547,7 +10553,7 @@ msgstr "Geräte erneut scannen"
 msgid "Joystick"
 msgstr "Joystick"
 
-#: src/ui-imgui/main_window.cpp:107
+#: src/ui-imgui/main_window.cpp:109
 msgid "No audio device - running without sound"
 msgstr "Kein Audiogerät - Betrieb ohne Ton"
 
@@ -11555,7 +11561,7 @@ msgid "Compression level"
 msgstr "Komprimierungsstufe"
 
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:97
-#: src/ui-imgui/topmenu/menu_snapshot.cpp:79
+#: src/ui-imgui/topmenu/menu_snapshot.cpp:93
 msgid "Quick Save"
 msgstr "Schnellspeichern"
 
@@ -12749,19 +12755,120 @@ msgstr "Entwicklermodus"
 msgid "ImGui Demo"
 msgstr "ImGui Demo"
 
-#: src/ui-imgui/topmenu/menu_snapshot.cpp:62
+#: src/ui-imgui/topmenu/menu_replay.cpp:47
+msgid "Replay"
+msgstr "Replay"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:55
+msgid "Record Inputs..."
+msgstr "Eingaben aufnehmen..."
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:59
+msgid ""
+"Record keyboard, joystick, resets and debugger writes from a start snapshot, "
+"to repeat the run exactly later."
+msgstr ""
+"Tastatur, Joystick, Resets und Debugger-Schreibzugriffe ab einem Start-"
+"Snapshot aufnehmen, um den Lauf später exakt zu wiederholen."
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:61
+msgid "Play Replay..."
+msgstr "Replay abspielen..."
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:65
+msgid "Stop Replay"
+msgstr "Replay stoppen"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:73
+#, c-format
+msgid "Recording: frame %u, %u events"
+msgstr "Aufnahme: Frame %u, %u Ereignisse"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:77
+#, c-format
+msgid "Playing: frame %u / %u"
+msgstr "Wiedergabe: Frame %u / %u"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:80
+#, c-format
+msgid "Deviated: %s"
+msgstr "Abgewichen: %s"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:85
+#, c-format
+msgid "Last: %s"
+msgstr "Zuletzt: %s"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:89
+msgid "No replay"
+msgstr "Kein Replay"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:115
+msgid "Record Inputs"
+msgstr "Eingaben aufnehmen"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:115
+msgid "Play Replay"
+msgstr "Replay abspielen"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:131
+#: src/ui-imgui/topmenu/menu_replay.cpp:160
+msgid "Replay failed"
+msgstr "Replay fehlgeschlagen"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:132
+#: src/ui-imgui/topmenu/menu_replay.cpp:161
+msgid "Replay Error"
+msgstr "Replay-Fehler"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:147
+msgid "Replay recorded"
+msgstr "Replay aufgenommen"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:151
+msgid "Replay ended"
+msgstr "Replay beendet"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:155
+#, c-format
+msgid "Replay differs from the recording at frame %u (%s)"
+msgstr "Replay weicht bei Frame %u von der Aufnahme ab (%s)"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:157
+msgid "Replay Desync"
+msgstr "Replay-Abweichung"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:213
+#, c-format
+msgid "REPLAY REC %u"
+msgstr "REPLAY AUFN %u"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:217
+#, c-format
+msgid "REPLAY PLAY %u / %u%s"
+msgstr "REPLAY WIEDERG %u / %u%s"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:218
+msgid " (deviated)"
+msgstr " (abgewichen)"
+
+#: src/ui-imgui/topmenu/menu_snapshot.cpp:72
 msgid "Load Snapshot..."
 msgstr "Schnappschuss laden..."
 
-#: src/ui-imgui/topmenu/menu_snapshot.cpp:67
+#: src/ui-imgui/topmenu/menu_snapshot.cpp:78
+msgid "Not available while a replay is recorded or played."
+msgstr "Während der Aufnahme oder Wiedergabe eines Replays nicht verfügbar."
+
+#: src/ui-imgui/topmenu/menu_snapshot.cpp:81
 msgid "Save Snapshot..."
 msgstr "Schnappschuss speichern..."
 
-#: src/ui-imgui/topmenu/menu_snapshot.cpp:74
+#: src/ui-imgui/topmenu/menu_snapshot.cpp:88
 msgid "Quick Load"
 msgstr "Schnellladen"
 
-#: src/ui-imgui/topmenu/menu_snapshot.cpp:86
+#: src/ui-imgui/topmenu/menu_snapshot.cpp:100
 msgid "Snapshot Setup..."
 msgstr "Schnappschuss-Einstellungen..."
 
@@ -12829,7 +12936,15 @@ msgstr "Versionsprüfung einrichten"
 msgid "MCP Activity##menu_mcp_activity"
 msgstr "MCP Activity##menu_mcp_activity"
 
-#: src/ui-imgui/topmenu/topmenu.cpp:57
+#: src/ui-imgui/topmenu/topmenu.cpp:38
+msgid ""
+"Machine settings cannot be changed while a replay is recorded or played. "
+"Stop it in the Replay menu first."
+msgstr ""
+"Die Maschineneinstellungen können während der Aufnahme oder Wiedergabe eines "
+"Replays nicht geändert werden. Stoppen Sie es zuerst im Menü Replay."
+
+#: src/ui-imgui/topmenu/topmenu.cpp:69
 msgid "About..."
 msgstr "Über..."
 
@@ -13360,15 +13475,15 @@ msgid ""
 msgstr ""
 "Änderungen gelten ab der nächsten Aufnahme (die Zeitbasis wechselt sofort)."
 
-#: src/ui-imgui/vkbd_window.cpp:224
+#: src/ui-imgui/vkbd_window.cpp:225
 msgid "MZ-700 Virtual Keyboard"
 msgstr "MZ-700 Virtuelle Tastatur"
 
-#: src/ui-imgui/vkbd_window.cpp:226
+#: src/ui-imgui/vkbd_window.cpp:227
 msgid "MZ-1500 Virtual Keyboard"
 msgstr "MZ-1500 Virtuelle Tastatur"
 
-#: src/ui-imgui/vkbd_window.cpp:228
+#: src/ui-imgui/vkbd_window.cpp:229
 msgid "MZ-800 Virtual Keyboard"
 msgstr "MZ-800 Virtuelle Tastatur"
 

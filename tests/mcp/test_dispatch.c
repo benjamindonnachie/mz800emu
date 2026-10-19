@@ -118,8 +118,11 @@
  * run-control doplnil wait_stop a get_stop_history (čekání na zastavení
  * běhu a historie zastavení, na KONEC cmd_map[]) = 202 + 2 = 204, a
  * frame_hash (SHA-256 obrazu a VRAM, na KONEC cmd_map[]) = 204 + 1 = 205.
+ * replay-core doplnil replay_record_start, replay_record_stop, replay_play,
+ * replay_play_stop a replay_status (záznam a přehrání vstupů, na KONEC
+ * cmd_map[]) = 205 + 5 = 210.
  */
-#define MCP_EXPECTED_CMD_COUNT 205
+#define MCP_EXPECTED_CMD_COUNT 210
 
 
 /* ====================================================================== */
@@ -8331,6 +8334,115 @@ void test_frame_hash_submits(void) {
     free(resp);
 }
 
+
+
+/**
+ * @brief replay_record_start: povinná cesta, rozsah hash_interval, předání požadavku.
+ */
+void test_replay_record_start_params(void) {
+    dispatch_stub_reset();
+    en_MCP_DISPATCH_RESULT rc;
+    JsonParser *parser = NULL;
+    char *resp = NULL;
+    (void)_rc_call("{\"type\":\"request\",\"req_id\":9100,\"cmd\":\"replay_record_start\",\"data\":{}}",
+                   &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, rc);
+    free(resp);
+
+    (void)_rc_call("{\"type\":\"request\",\"req_id\":9101,\"cmd\":\"replay_record_start\","
+                   "\"data\":{\"path\":\"a.mzr\",\"hash_interval\":0}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, rc);
+    TEST_ASSERT_EQUAL_INT(0, g_stub_replay.calls);
+    free(resp);
+
+    g_stub_replay.status.mode = REPLAY_MODE_RECORDING;
+    JsonObject *d = _rc_call("{\"type\":\"request\",\"req_id\":9102,\"cmd\":\"replay_record_start\","
+                             "\"data\":{\"path\":\"a.mzr\",\"hash_interval\":7}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_EQUAL_INT(1, g_stub_replay.last_kind);
+    TEST_ASSERT_EQUAL_STRING("a.mzr", g_stub_replay.last_path);
+    TEST_ASSERT_EQUAL_UINT32(7, g_stub_replay.last_interval);
+    TEST_ASSERT_EQUAL_STRING("recording", json_object_get_string_member(d, "mode"));
+    g_object_unref(parser);
+    free(resp);
+
+    /* Chyba vyřízení z emu vlákna se vrátí jako chyba s textem. */
+    g_stub_replay.fail = true;
+    (void)_rc_call("{\"type\":\"request\",\"req_id\":9103,\"cmd\":\"replay_record_start\","
+                   "\"data\":{\"path\":\"b.mzr\"}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_EMU_ERROR, rc);
+    TEST_ASSERT_NOT_NULL(strstr(resp, "stub failure"));
+    free(resp);
+}
+
+
+/**
+ * @brief replay_play: bool pause_after_load; stop jen ve správném režimu.
+ */
+void test_replay_play_and_stop_modes(void) {
+    dispatch_stub_reset();
+    en_MCP_DISPATCH_RESULT rc;
+    JsonParser *parser = NULL;
+    char *resp = NULL;
+    (void)_rc_call("{\"type\":\"request\",\"req_id\":9110,\"cmd\":\"replay_play\","
+                   "\"data\":{\"path\":\"a.mzr\",\"pause_after_load\":1}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, rc);
+    free(resp);
+
+    JsonObject *d = _rc_call("{\"type\":\"request\",\"req_id\":9111,\"cmd\":\"replay_play\","
+                             "\"data\":{\"path\":\"a.mzr\",\"pause_after_load\":true}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_NOT_NULL(d);
+    TEST_ASSERT_EQUAL_INT(2, g_stub_replay.last_kind);
+    TEST_ASSERT_TRUE(g_stub_replay.last_pause_after_load);
+    g_object_unref(parser);
+    free(resp);
+
+    /* Nic neběží: oba stopy chyba bez požadavku. */
+    int calls = g_stub_replay.calls;
+    (void)_rc_call("{\"type\":\"request\",\"req_id\":9112,\"cmd\":\"replay_play_stop\"}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_EMU_ERROR, rc);
+    TEST_ASSERT_NOT_NULL(strstr(resp, "no playback is running"));
+    free(resp);
+    (void)_rc_call("{\"type\":\"request\",\"req_id\":9113,\"cmd\":\"replay_record_stop\"}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_EMU_ERROR, rc);
+    TEST_ASSERT_EQUAL_INT(calls, g_stub_replay.calls);
+    free(resp);
+
+    g_stub_replay.status.mode = REPLAY_MODE_PLAYING;
+    (void)_rc_call("{\"type\":\"request\",\"req_id\":9114,\"cmd\":\"replay_play_stop\"}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_EQUAL_INT(3, g_stub_replay.last_kind);
+    g_object_unref(parser);
+    free(resp);
+}
+
+
+/**
+ * @brief replay_status: pole stavu včetně rozjetých částí jako pole.
+ */
+void test_replay_status_fields(void) {
+    dispatch_stub_reset();
+    g_stub_replay.status.mode = REPLAY_MODE_OFF;
+    g_stub_replay.status.outcome = REPLAY_OUTCOME_DESYNC;
+    g_stub_replay.status.outcome_frame = 120;
+    g_strlcpy(g_stub_replay.status.desync_parts, "cpu,ram", sizeof(g_stub_replay.status.desync_parts));
+    en_MCP_DISPATCH_RESULT rc;
+    JsonParser *parser = NULL;
+    char *resp = NULL;
+    JsonObject *d = _rc_call("{\"type\":\"request\",\"req_id\":9120,\"cmd\":\"replay_status\"}",
+                             &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_EQUAL_STRING("off", json_object_get_string_member(d, "mode"));
+    TEST_ASSERT_EQUAL_STRING("desync", json_object_get_string_member(d, "outcome"));
+    TEST_ASSERT_EQUAL_INT(120, json_object_get_int_member(d, "outcome_frame"));
+    JsonArray *parts = json_object_get_array_member(d, "desync_parts");
+    TEST_ASSERT_EQUAL_UINT(2, json_array_get_length(parts));
+    TEST_ASSERT_EQUAL_STRING("ram", json_array_get_string_element(parts, 1));
+    TEST_ASSERT_EQUAL_INT(0, g_stub_replay.calls);
+    g_object_unref(parser);
+    free(resp);
+}
 int main(void) {
     UNITY_BEGIN();
 
@@ -8423,6 +8535,9 @@ int main(void) {
     RUN_TEST(test_step_completed_flags);
     RUN_TEST(test_mem_read_sha256_and_want_data);
     RUN_TEST(test_frame_hash_submits);
+    RUN_TEST(test_replay_record_start_params);
+    RUN_TEST(test_replay_play_and_stop_modes);
+    RUN_TEST(test_replay_status_fields);
     RUN_TEST(test_snapshot_load_not_paused_reason);
     RUN_TEST(test_cooperation_hint_set_modes);
 

@@ -187,6 +187,9 @@ en_DBGAPI_SUBMIT_STATUS dbgapi_ui_submit_cmd_sync_watched(st_DBGAPI_CMDRQ_QUEUE 
 #include "../emulator.h"      /* EMULATOR_TEST_PAUSED, emulator_pause */
 #endif
 
+/* Záznam a přehrání vstupů (replay_*): v test buildu náhrada ve stubu. */
+#include "../replay.h"
+
 
 /* ------------------------------------------------------------------ */
 /* Konstanty a typy                                                    */
@@ -400,6 +403,16 @@ static en_MCP_DISPATCH_RESULT _handle_get_stop_history(const st_JSONL_MESSAGE *r
                                                        char **out_response);
 static en_MCP_DISPATCH_RESULT _handle_frame_hash(const st_JSONL_MESSAGE *req,
                                                  char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_replay_record_start(const st_JSONL_MESSAGE *req,
+                                                          char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_replay_record_stop(const st_JSONL_MESSAGE *req,
+                                                         char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_replay_play(const st_JSONL_MESSAGE *req,
+                                                  char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_replay_play_stop(const st_JSONL_MESSAGE *req,
+                                                       char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_replay_status(const st_JSONL_MESSAGE *req,
+                                                    char **out_response);
 /* V0.B.7 - resource backing pro emulator://config/mcp */
 static en_MCP_DISPATCH_RESULT _handle_get_mcp_config(const st_JSONL_MESSAGE *req,
                                                      char **out_response);
@@ -1222,6 +1235,12 @@ static const st_MCP_CMD_MAP_ENTRY g_cmd_map[] = {
     { "get_stop_history",         DBGAPI_CMD_NONE,                    _handle_get_stop_history         },
     /* run-control (M5): SHA-256 obrazu a VRAM bez přenosu dat. */
     { "frame_hash",               DBGAPI_CMD_FRAME_HASH,              _handle_frame_hash               },
+    /* replay-core (M6a): záznam a přehrání vstupů (fronta požadavků replay.h). */
+    { "replay_record_start",      DBGAPI_CMD_NONE,                    _handle_replay_record_start      },
+    { "replay_record_stop",       DBGAPI_CMD_NONE,                    _handle_replay_record_stop       },
+    { "replay_play",              DBGAPI_CMD_NONE,                    _handle_replay_play              },
+    { "replay_play_stop",         DBGAPI_CMD_NONE,                    _handle_replay_play_stop         },
+    { "replay_status",            DBGAPI_CMD_NONE,                    _handle_replay_status            },
     /* sentinel */
     { NULL,              DBGAPI_CMD_NONE,              NULL                  },
 };
@@ -1357,6 +1376,12 @@ static en_MCP_DISPATCH_RESULT _err_response(int64_t req_id,
             default:
                 break;
         }
+    }
+    /* Příkaz odmítla brána záznamu vstupů (replay.h): přidat proč. */
+    char refusal[REPLAY_STATUS_TEXT_MAX] = "";
+    if (rc == MCP_DISPATCH_EMU_ERROR && !reason && replay_is_active()) {
+        replay_take_refusal(refusal, sizeof(refusal));
+        if (refusal[0]) reason = refusal;
     }
     char *combined = reason ? g_strdup_printf("%s [%s]", reason, msg) : NULL;
     char *line = jsonl_build_response(req_id, false, NULL,
@@ -17772,4 +17797,200 @@ static en_MCP_DISPATCH_RESULT _handle_memsearch_close(const st_JSONL_MESSAGE *re
 }
 
 
+
+
+/* ============================================================================
+ * Záznam a přehrání vstupů (replay.h)
+ * ============================================================================ */
+
+/** @brief Nejdelší čekání na vyřízení požadavku záznamu (ms). */
+#define MCP_REPLAY_REQUEST_TIMEOUT_MS 10000
+
+
+/**
+ * @brief Stav záznamu / přehrávání jako JSON objekt.
+ *
+ * Členy: `mode`, `frame`, `frames`, `events`, `hashes`, `hash_interval`,
+ * `warnings`, `deviated`, `deviation`, `path`, `outcome`, `outcome_frame`,
+ * `outcome_message`, `desync_parts` (pole jmen částí).
+ */
+static JsonObject *_replay_status_to_json(const st_REPLAY_STATUS *st) {
+    JsonObject *o = json_object_new();
+    json_object_set_string_member(o, "mode", replay_mode_name(st->mode));
+    json_object_set_int_member(o, "frame", (gint64)st->frame);
+    json_object_set_int_member(o, "frames", (gint64)st->frames);
+    json_object_set_int_member(o, "events", (gint64)st->events);
+    json_object_set_int_member(o, "hashes", (gint64)st->hashes);
+    json_object_set_int_member(o, "hash_interval", (gint64)st->hash_interval);
+    json_object_set_int_member(o, "warnings", (gint64)st->warnings);
+    json_object_set_boolean_member(o, "deviated", st->deviated ? TRUE : FALSE);
+    json_object_set_string_member(o, "deviation", st->deviation);
+    json_object_set_string_member(o, "path", st->path);
+    json_object_set_string_member(o, "outcome", replay_outcome_name(st->outcome));
+    json_object_set_int_member(o, "outcome_frame", (gint64)st->outcome_frame);
+    json_object_set_string_member(o, "outcome_message", st->outcome_message);
+    JsonArray *parts = json_array_new();
+    if (st->desync_parts[0]) {
+        char **v = g_strsplit(st->desync_parts, ",", -1);
+        for (int i = 0; v[i]; i++) json_array_add_string_element(parts, v[i]);
+        g_strfreev(v);
+    }
+    json_object_set_array_member(o, "desync_parts", parts);
+    return o;
+}
+
+
+/**
+ * @brief Počká na vyřízení požadavku a vrátí odpověď (stav) nebo chybu.
+ *
+ * Chyba požadavku (`request_ok` false) = EMU_ERROR s textem z emu vlákna;
+ * nevyřízení do MCP_REPLAY_REQUEST_TIMEOUT_MS = EMU_ERROR "not processed".
+ */
+static en_MCP_DISPATCH_RESULT _replay_finish_request(int64_t req_id, uint32_t seq,
+                                                     char **out_response) {
+    if (!replay_wait_request(seq, MCP_REPLAY_REQUEST_TIMEOUT_MS)) {
+        return _err_response(req_id, "replay request was not processed in time",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    st_REPLAY_STATUS st;
+    replay_get_status(&st);
+    if (!st.request_ok) {
+        return _err_response(req_id, st.request_message[0] ? st.request_message : "replay request failed",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    return _ok_response(req_id, _replay_status_to_json(&st), out_response);
+}
+
+
+/** @brief Datový objekt požadavku nebo NULL. */
+static JsonObject *_replay_data_obj(const st_JSONL_MESSAGE *req) {
+    JsonNode *data_node = (JsonNode *)jsonl_msg_get_data_node(req);
+    return (data_node && json_node_get_node_type(data_node) == JSON_NODE_OBJECT)
+           ? json_node_get_object(data_node) : NULL;
+}
+
+
+/**
+ * @brief Volitelný bool parametr.
+ * @return true = v pořádku (chybí -> @p def); false = parametr není bool.
+ */
+static bool _replay_obj_bool(JsonObject *obj, const char *key, bool def, bool *out) {
+    *out = def;
+    if (!obj || !json_object_has_member(obj, key)) return true;
+    JsonNode *n = json_object_get_member(obj, key);
+    if (!n || json_node_get_node_type(n) != JSON_NODE_VALUE
+        || json_node_get_value_type(n) != G_TYPE_BOOLEAN) return false;
+    *out = json_node_get_boolean(n) ? true : false;
+    return true;
+}
+
+
+/**
+ * @brief `replay_record_start` handler - start záznamu vstupů do souboru.
+ *
+ * Parametry: `path` (string, povinný, `.mzr`), `hash_interval` (int
+ * 1..100000, default 50 snímků), `description` (string). Za běhu se
+ * emulace na nejbližší hranici snímku pozastaví, záznam začne a emulace
+ * běží dál; v pauze zůstane v pauze. Response: stav (viz replay_status).
+ */
+static en_MCP_DISPATCH_RESULT _handle_replay_record_start(const st_JSONL_MESSAGE *req,
+                                                          char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _replay_data_obj(req);
+    char *path = _obj_str_dup(obj, "path");
+    if (!path || !path[0]) {
+        g_free(path);
+        return _err_response(req_id, "path is required", MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    gint64 interval = _obj_int_or(obj, "hash_interval", 0);
+    if (obj && json_object_has_member(obj, "hash_interval") && (interval < 1 || interval > 100000)) {
+        g_free(path);
+        return _err_response(req_id, "hash_interval must be in range 1..100000",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    char *desc = _obj_str_dup(obj, "description");
+    uint32_t seq = replay_request_record(path, (uint32_t)interval, desc);
+    g_free(path);
+    g_free(desc);
+    return _replay_finish_request(req_id, seq, out_response);
+}
+
+
+/**
+ * @brief Společná obsluha `replay_record_stop` a `replay_play_stop`.
+ * @param want Režim, který má běžet; jinak chyba bez požadavku.
+ */
+static en_MCP_DISPATCH_RESULT _replay_stop(const st_JSONL_MESSAGE *req, en_REPLAY_MODE want,
+                                           char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    st_REPLAY_STATUS st;
+    replay_get_status(&st);
+    if (st.mode != want) {
+        return _err_response(req_id, want == REPLAY_MODE_RECORDING ? "no recording is running"
+                                                                   : "no playback is running",
+                             MCP_DISPATCH_EMU_ERROR, out_response);
+    }
+    return _replay_finish_request(req_id, replay_request_stop(), out_response);
+}
+
+
+/**
+ * @brief `replay_record_stop` handler - konec záznamu a uložení souboru.
+ *
+ * Response: stav s `outcome` = `recorded` (nebo chyba uložení).
+ */
+static en_MCP_DISPATCH_RESULT _handle_replay_record_stop(const st_JSONL_MESSAGE *req,
+                                                         char **out_response) {
+    return _replay_stop(req, REPLAY_MODE_RECORDING, out_response);
+}
+
+
+/**
+ * @brief `replay_play` handler - start přehrávání záznamu.
+ *
+ * Parametry: `path` (string, povinný), `pause_after_load` (bool, default
+ * false: po načtení startovního snapshotu se emulace rozběhne). Konec
+ * přehrávání = pauza s důvodem `replay_end` nebo `replay_desync`
+ * (událost `paused`, wait_stop). Response: stav (viz replay_status).
+ */
+static en_MCP_DISPATCH_RESULT _handle_replay_play(const st_JSONL_MESSAGE *req,
+                                                  char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _replay_data_obj(req);
+    char *path = _obj_str_dup(obj, "path");
+    if (!path || !path[0]) {
+        g_free(path);
+        return _err_response(req_id, "path is required", MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    bool pause_after_load = false;
+    if (!_replay_obj_bool(obj, "pause_after_load", false, &pause_after_load)) {
+        g_free(path);
+        return _err_response(req_id, "pause_after_load must be a boolean",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    uint32_t seq = replay_request_play(path, pause_after_load);
+    g_free(path);
+    return _replay_finish_request(req_id, seq, out_response);
+}
+
+
+/**
+ * @brief `replay_play_stop` handler - ukončí přehrávání (outcome `stopped`).
+ */
+static en_MCP_DISPATCH_RESULT _handle_replay_play_stop(const st_JSONL_MESSAGE *req,
+                                                       char **out_response) {
+    return _replay_stop(req, REPLAY_MODE_PLAYING, out_response);
+}
+
+
+/**
+ * @brief `replay_status` handler - stav záznamu a přehrávání (lokální, bez fronty).
+ */
+static en_MCP_DISPATCH_RESULT _handle_replay_status(const st_JSONL_MESSAGE *req,
+                                                    char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    st_REPLAY_STATUS st;
+    replay_get_status(&st);
+    return _ok_response(req_id, _replay_status_to_json(&st), out_response);
+}
 #endif /* MZ800EMU_CFG_MCP_SERVER_ENABLED */

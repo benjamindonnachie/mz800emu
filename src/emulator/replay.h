@@ -1,0 +1,354 @@
+/**
+ * @file   replay.h
+ * @brief  Záznam a přehrání vstupů (deterministický replay), jádro.
+ *
+ * Záznam = startovní snapshot + změny vstupů a zásahy na hranici snímku
+ * + periodické hashe stavu (formát v replay_format.h). Přehrání načte
+ * snapshot, na stejných místech aplikuje vstupy a porovnává hashe; první
+ * rozdílný snímek nahlásí a emulaci zastaví.
+ *
+ * Body v emu vlákně (všechny mimo instrukční smyčku):
+ *
+ * | Funkce | Kde | Co |
+ * |--------|-----|----|
+ * | replay_on_frame_boundary() | per-event blok hlavní smyčky za run bounds, před testem pauzy (bod B_f) | reset, vstupy, hash, konec přehrávání |
+ * | replay_on_drain_point() | za drainem fronty dbgapi (jen debugger) | přehrání zásahů `d` |
+ * | replay_on_paused() | každý průchod paused smyčkou | start, stop, reset a autotype v pauze |
+ *
+ * Hlavní smyčka volá replay_on_frame_boundary() jen za příznakem, který
+ * nastaví konec snímku, a to jen při běžícím záznamu / přehrávání nebo
+ * čekajícím požadavku (replay_frame_hook_wanted()). Bez záznamu tak
+ * v per-event bloku přibude jen test jednoho příznaku.
+ *
+ * Řízení (GUI, MCP, CLI) jde přes frontu požadavků s pořadovým číslem
+ * (replay_request_*()); emu vlákno je vyřídí v paused smyčce. Za běhu
+ * emulace se proto emulace v nejbližší hranici snímku pozastaví, požadavek
+ * se vyřídí a emulace se znovu rozběhne. Stav čte kdokoliv přes
+ * replay_get_status() (kopie pod zámkem).
+ *
+ * Vstupy z UI vlákna (klávesnice, VKBD, joystick z numerické klávesnice,
+ * autotype, reset) jdou přes replay_host_*(): mimo záznam se zapíší
+ * hned jako dřív, při záznamu se převezmou v bodě B_f, při přehrávání se
+ * zahodí (živý vstup se ignoruje).
+ */
+
+#ifndef REPLAY_H
+#define REPLAY_H
+
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#include "mzarch/mzarch_config.h"
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+    /**
+     * @brief Režim záznamu a přehrávání.
+     */
+    typedef enum en_REPLAY_MODE
+    {
+        REPLAY_MODE_OFF = 0,   /**< Nic neběží (živý vstup jako dřív). */
+        REPLAY_MODE_RECORDING, /**< Probíhá záznam. */
+        REPLAY_MODE_PLAYING    /**< Probíhá přehrávání. */
+    } en_REPLAY_MODE;
+
+    /**
+     * @brief Výsledek posledního skončeného záznamu nebo přehrávání.
+     */
+    typedef enum en_REPLAY_OUTCOME
+    {
+        REPLAY_OUTCOME_NONE = 0,     /**< Zatím nic neskončilo. */
+        REPLAY_OUTCOME_RECORDED,     /**< `recorded`: záznam uložen do souboru. */
+        REPLAY_OUTCOME_ENDED,        /**< `ended`: přehrávání došlo na konec bez rozjetí. */
+        REPLAY_OUTCOME_DESYNC,       /**< `desync`: hash se lišil, přehrávání zastaveno. */
+        REPLAY_OUTCOME_STOPPED,      /**< `stopped`: přehrávání zastavil uživatel. */
+        REPLAY_OUTCOME_ERROR         /**< `error`: start nebo uložení selhalo (viz `message`). */
+    } en_REPLAY_OUTCOME;
+
+    /** @brief Délka textových polí ve st_REPLAY_STATUS (včetně nuly). */
+#define REPLAY_STATUS_TEXT_MAX 256
+
+    /** @brief Délka cesty ve st_REPLAY_STATUS (včetně nuly). */
+#define REPLAY_STATUS_PATH_MAX 1024
+
+    /**
+     * @brief Kopie stavu záznamu a přehrávání pro UI, MCP a CLI.
+     *
+     * @invariant Řetězce jsou vždy ukončené nulou (případně zkrácené).
+     */
+    typedef struct st_REPLAY_STATUS
+    {
+        en_REPLAY_MODE mode;         /**< Aktuální režim. */
+        uint32_t frame;              /**< Snímek od startu (záznam i přehrávání). */
+        uint32_t frames;             /**< Délka přehrávaného nebo naposledy přehraného záznamu (0 při záznamu). */
+        uint32_t events;             /**< Počet zaznamenaných / přehrávaných událostí. */
+        uint32_t hashes;             /**< Počet řádků hashů (zaznamenaných / ověřených). */
+        uint32_t hash_interval;      /**< Interval hashů ve snímcích. */
+        uint32_t warnings;           /**< Počet varování záznamu. */
+        bool deviated;               /**< Přehrávání odchýleno zásahem (hashe se dál neověřují). */
+        char deviation[REPLAY_STATUS_TEXT_MAX]; /**< Čím odchýleno (anglicky), "" = nic. */
+        char path[REPLAY_STATUS_PATH_MAX];      /**< Soubor aktuálního nebo posledního záznamu. */
+        uint32_t request_done;       /**< Číslo posledního vyřízeného požadavku (replay_request_*). */
+        bool request_ok;             /**< Výsledek posledního vyřízeného požadavku. */
+        char request_message[REPLAY_STATUS_TEXT_MAX]; /**< Chyba nebo poznámka k požadavku (anglicky). */
+        en_REPLAY_OUTCOME outcome;   /**< Jak skončil poslední záznam / přehrávání. */
+        uint32_t outcome_frame;      /**< Snímek konce nebo prvního rozjetí. */
+        char outcome_message[REPLAY_STATUS_TEXT_MAX]; /**< Popis konce (anglicky). */
+        char desync_parts[REPLAY_STATUS_TEXT_MAX];    /**< Rozjeté části oddělené čárkou (`cpu,ram,time`). */
+    } st_REPLAY_STATUS;
+
+    /**
+     * @brief Aktuální režim (en_REPLAY_MODE jako int).
+     *
+     * Zapisuje jen emu vlákno (atomicky); číst smí kdokoliv atomicky
+     * (g_atomic_int_get) nebo emu vlákno přímo.
+     */
+    extern int g_replay_mode;
+
+    /**
+     * @brief Příznaky pro háček konce snímku: bit 0 = záznam nebo přehrávání
+     *        běží, bit 1 = čeká požadavek (replay_request_*()).
+     *
+     * Bit 0 píše jen emu vlákno, bit 1 nastavuje žadatel a nuluje emu
+     * vlákno; vše atomicky (g_atomic_int_*).
+     */
+    extern int g_replay_frame_hook;
+
+    /**
+     * @brief true = při konci snímku má hlavní smyčka zavolat replay_on_frame_boundary().
+     * @note Emu vlákno, volá se z callbacku konce snímku (jedno čtení).
+     */
+#define replay_frame_hook_wanted() (g_replay_frame_hook != 0)
+
+    /**
+     * @brief true = běží záznam nebo přehrávání (atomické čtení, libovolné vlákno).
+     */
+    bool replay_is_active(void);
+
+    /**
+     * @brief Jméno výsledku (`recorded`, `ended`, `desync`, `stopped`, `error`, `none`).
+     */
+    const char *replay_outcome_name(en_REPLAY_OUTCOME outcome);
+
+    /**
+     * @brief Jméno režimu (`off`, `recording`, `playing`).
+     */
+    const char *replay_mode_name(en_REPLAY_MODE mode);
+
+    /* ----------------------------------------------------------------
+     * Inicializace
+     * ---------------------------------------------------------------- */
+
+    /**
+     * @brief Inicializace modulu (výchozí stav vstupů). Volat jednou při startu
+     *        emulátoru; zámek je statický a funguje i před ní.
+     */
+    void replay_init(void);
+
+    /**
+     * @brief Ukončení: běžící záznam uloží (se závěrečným hashem, jen když emulace
+     *        stojí na hranici snímku), přehrávání zahodí.
+     *
+     * @pre Emu vlákno už neběží nebo stojí (volá se z emulator_quit*).
+     * @post `g_replay_mode` == REPLAY_MODE_OFF.
+     */
+    void replay_shutdown(void);
+
+    /* ----------------------------------------------------------------
+     * Požadavky (libovolné vlákno)
+     * ---------------------------------------------------------------- */
+
+    /**
+     * @brief Požádá o start záznamu do souboru.
+     *
+     * @param path          Cílový soubor `.mzr` (zkopíruje se).
+     * @param hash_interval Interval hashů ve snímcích; 0 = výchozí (50).
+     * @param description   Popis do manifestu nebo NULL.
+     * @return Číslo požadavku pro replay_wait_request() (vždy > 0).
+     */
+    uint32_t replay_request_record(const char *path, uint32_t hash_interval, const char *description);
+
+    /**
+     * @brief Požádá o start přehrávání souboru.
+     *
+     * @param path            Soubor `.mzr`.
+     * @param pause_after_load true = po načtení zůstat v pauze; false = rozběhnout.
+     * @return Číslo požadavku.
+     */
+    uint32_t replay_request_play(const char *path, bool pause_after_load);
+
+    /**
+     * @brief Požádá o konec: záznam uloží, přehrávání ukončí (výsledek `stopped`).
+     * @return Číslo požadavku.
+     */
+    uint32_t replay_request_stop(void);
+
+    /**
+     * @brief Počká, až emu vlákno požadavek vyřídí.
+     *
+     * @param seq        Číslo z replay_request_*().
+     * @param timeout_ms Nejdelší čekání.
+     * @return true = vyřízeno (výsledek ve stavu: `request_ok`,
+     *         `request_message`); false = vypršel čas.
+     * @note Nevolat z emu vlákna (vyřizuje je právě ono).
+     */
+    bool replay_wait_request(uint32_t seq, int timeout_ms);
+
+    /**
+     * @brief Kopie stavu (pod zámkem, libovolné vlákno).
+     */
+    void replay_get_status(st_REPLAY_STATUS *out);
+
+    /* ----------------------------------------------------------------
+     * Vstupy z UI vlákna
+     * ---------------------------------------------------------------- */
+
+    /**
+     * @brief Předá výsledek skenu klávesnice hostitele (celá matice).
+     *
+     * @param matrix    10 sloupců, 0 = stisknuto.
+     * @param joy_dev   Index zařízení joysticku z numerické klávesnice, -1 = žádné.
+     * @param joy_state Stav toho joysticku (platí jen při @p joy_dev >= 0).
+     *
+     * Mimo záznam zapíše `g_pio8255.keyboard_matrix` (a `g_joy`) hned, při
+     * záznamu uloží jako čekající (převezme se v bodě B_f), při přehrávání
+     * zahodí.
+     */
+    void replay_host_keyboard_submit(const uint8_t *matrix, int joy_dev, uint8_t joy_state);
+
+    /**
+     * @brief Stisk nebo uvolnění klávesy okna virtuální klávesnice.
+     *
+     * Mimo záznam změní bit `g_pio8255.vkbd_matrix` hned, při záznamu
+     * čekající matici okna, při přehrávání nic.
+     */
+    void replay_host_vkbd_set(int col, int bit, bool pressed);
+
+    /**
+     * @brief Start (text != NULL) nebo zastavení (NULL) autotype z okna.
+     *
+     * @param text  Text (zkopíruje se, pokud jde do záznamu) nebo NULL.
+     * @param kd_ms Doba stisku v ms.
+     * @param ku_ms Doba uvolnění v ms.
+     *
+     * Mimo záznam nastaví časy a pio8255_set_autotype(text) hned (text
+     * musí žít, dokud autotype běží - jako dřív); při záznamu se převezme
+     * v bodě B_f (kopie), při přehrávání se zahodí.
+     */
+    void replay_host_autotype(const char *text, double kd_ms, double ku_ms);
+
+    /**
+     * @brief Přesměrování žádosti o reset (volá mzarch_platform_fn_reset_request()).
+     *
+     * @return true = žádost převzal záznam (volající ji nemá zpracovat);
+     *         false = zpracovat jako dřív (mimo záznam; při přehrávání se
+     *         přehrávání předtím označí jako odchýlené).
+     */
+    bool replay_divert_reset_request(void);
+
+    /* ----------------------------------------------------------------
+     * Háčky emu vlákna
+     * ---------------------------------------------------------------- */
+
+    /**
+     * @brief Bod B_f (viz tabulka v hlavičce souboru).
+     * @pre Emu vlákno, per-event blok, mezi instrukcemi, záznam nebo přehrávání běží.
+     */
+    void replay_on_frame_boundary(void);
+
+    /**
+     * @brief Přehrání zásahů `d` aktuálního snímku (za drainem fronty dbgapi).
+     * @pre Emu vlákno; bez přehrávání nic nedělá.
+     */
+    void replay_on_drain_point(void);
+
+    /**
+     * @brief Průchod paused smyčkou: vyřízení požadavků, resetu a autotype v pauze.
+     * @pre Emu vlákno, emulace v pauze.
+     */
+    void replay_on_paused(void);
+
+    /**
+     * @brief Oznámení zápisu do stavu mimo záznam (akce breakpointu, Freeze Bytes).
+     *
+     * @param what Krátký popis anglicky (`breakpoint action poke`, ...).
+     *
+     * Při záznamu přidá varování do manifestu, při přehrávání přejde do
+     * stavu odchýleno. Mimo záznam nic.
+     * @pre Emu vlákno.
+     */
+    void replay_note_external_write(const char *what);
+
+    /**
+     * @brief true = emulace stojí v pauze na hranici snímku záznamu.
+     *
+     * Hranice = od posledního bodu B_f (nebo od startu) se nezměnil čas GDG.
+     * @pre Emu vlákno.
+     */
+    bool replay_paused_at_boundary(void);
+
+    /**
+     * @brief Snímek od startu záznamu / přehrávání (emu vlákno).
+     */
+    uint32_t replay_current_frame(void);
+
+    /**
+     * @brief Konec přehrávání ukončí proces (`--exit-at-replay-end`).
+     *
+     * @param enable true = na konci přehrávání (i po rozjetí) požádat
+     *               automatizaci o konec s kódem 0 (`replay_end`) nebo 4
+     *               (`replay_desync`); false = jen pauza.
+     * @pre Před startem emulace (CLI).
+     */
+    void replay_set_exit_at_end(bool enable);
+
+    /**
+     * @brief Text posledního odmítnutí příkazu branou záznamu (anglicky).
+     *
+     * Text si vezme jen jeden čtenář: po přečtení se vymaže, aby se
+     * nepřipojil k pozdější nesouvisející chybě (MCP dispatch ho přidá
+     * k chybě příkazu).
+     *
+     * @param[out] out Buffer; po návratu text nebo "" (žádné odmítnutí).
+     * @param size     Velikost bufferu.
+     */
+    void replay_take_refusal(char *out, size_t size);
+
+#ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
+    struct st_DBGAPI_CMDRQ;
+
+    /**
+     * @brief Brána záznamu před provedením příkazu dbgapi.
+     *
+     * Při záznamu odmítne příkaz, který mění stav a záznam ho neumí
+     * zopakovat, a příkaz měnící stav nebo vstup v pauze mimo hranici
+     * snímku (text přes replay_take_refusal()).
+     *
+     * @return true = provést; false = odmítnuto (volající nastaví success = false).
+     * @pre Emu vlákno; volá se jen při `g_replay_mode != REPLAY_MODE_OFF`.
+     */
+    bool replay_dbg_before(struct st_DBGAPI_CMDRQ *rq);
+
+    /**
+     * @brief Brána záznamu po provedení příkazu dbgapi.
+     *
+     * Při záznamu uloží zásah (`d` za běhu, `p` v pauze) nebo nový vzorek
+     * vstupů po vstupním příkazu v pauze; při přehrávání označí odchýlení
+     * po živém zásahu do stavu.
+     *
+     * @param rq         Provedený příkaz.
+     * @param was_paused Emulace stála před provedením.
+     * @pre Emu vlákno; jen pokud replay_dbg_before() vrátilo true.
+     */
+    void replay_dbg_after(struct st_DBGAPI_CMDRQ *rq, bool was_paused);
+#endif
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* REPLAY_H */

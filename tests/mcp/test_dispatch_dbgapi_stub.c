@@ -46,6 +46,7 @@
  * je self-contained (jen stdint/stdbool/glib/dbgapi_cmdrq.h/bp_event.h). */
 #include "emulator/debugger/breakpoints.h"
 #include "emulator/snapshot/snapshot.h"
+#include "emulator/replay.h"
 
 #include "test_dispatch_dbgapi_stub.h"
 
@@ -124,6 +125,7 @@ st_DISPATCH_STUB_STATE g_stub_state;
  * "nikdy nevolán" od "volán s id=0".
  */
 void dispatch_stub_reset(void) {
+    memset(&g_stub_replay, 0, sizeof(g_stub_replay));
     /* V1.A.1: uvolnit případné heap stringy z předchozího testu před
      * memsetem (jinak by se ztratily). */
     if (g_stub_state.snapshot_last_filepath) {
@@ -2905,4 +2907,86 @@ void audio_capture_get_psg_initial(st_AUDIO_CAPTURE_PSG_INITIAL *out)
             out->noise[c][k] = (k == 3);
         }
     }
+}
+
+
+/* ============================================================================
+ * Záznam a přehrání vstupů (replay.h) - náhrada bez emu vlákna
+ * ============================================================================ */
+
+st_DISPATCH_STUB_REPLAY g_stub_replay;
+
+int g_replay_mode = REPLAY_MODE_OFF;
+int g_replay_frame_hook = 0;
+
+
+/** @brief Zapíše požadavek do g_stub_replay a vrátí jeho číslo (vyřízený hned). */
+static uint32_t stub_replay_request(int kind, const char *path, uint32_t interval, bool pause)
+{
+    g_stub_replay.calls++;
+    g_stub_replay.last_kind = kind;
+    g_strlcpy(g_stub_replay.last_path, path ? path : "", sizeof(g_stub_replay.last_path));
+    g_stub_replay.last_interval = interval;
+    g_stub_replay.last_pause_after_load = pause;
+    g_stub_replay.status.request_done = (uint32_t)g_stub_replay.calls;
+    g_stub_replay.status.request_ok = !g_stub_replay.fail;
+    g_strlcpy(g_stub_replay.status.request_message, g_stub_replay.fail ? "stub failure" : "",
+              sizeof(g_stub_replay.status.request_message));
+    return (uint32_t)g_stub_replay.calls;
+}
+
+uint32_t replay_request_record(const char *path, uint32_t hash_interval, const char *description)
+{
+    (void)description;
+    return stub_replay_request(1, path, hash_interval, false);
+}
+
+uint32_t replay_request_play(const char *path, bool pause_after_load)
+{
+    return stub_replay_request(2, path, 0, pause_after_load);
+}
+
+uint32_t replay_request_stop(void)
+{
+    return stub_replay_request(3, NULL, 0, false);
+}
+
+bool replay_wait_request(uint32_t seq, int timeout_ms)
+{
+    (void)timeout_ms;
+    return g_stub_replay.status.request_done >= seq;
+}
+
+void replay_get_status(st_REPLAY_STATUS *out)
+{
+    *out = g_stub_replay.status;
+}
+
+bool replay_is_active(void)
+{
+    return g_stub_replay.status.mode != REPLAY_MODE_OFF;
+}
+
+void replay_take_refusal(char *out, size_t size)
+{
+    if (size) out[0] = '\0';
+}
+
+const char *replay_mode_name(en_REPLAY_MODE mode)
+{
+    return mode == REPLAY_MODE_RECORDING ? "recording" : mode == REPLAY_MODE_PLAYING ? "playing" : "off";
+}
+
+const char *replay_outcome_name(en_REPLAY_OUTCOME outcome)
+{
+    switch (outcome)
+    {
+        case REPLAY_OUTCOME_RECORDED: return "recorded";
+        case REPLAY_OUTCOME_ENDED: return "ended";
+        case REPLAY_OUTCOME_DESYNC: return "desync";
+        case REPLAY_OUTCOME_STOPPED: return "stopped";
+        case REPLAY_OUTCOME_ERROR: return "error";
+        default: break;
+    };
+    return "none";
 }

@@ -23,6 +23,7 @@
 #include "emulator/mzarch/mzarch.h"
 #include "emulator/hw-generic/cmt/cmt_cli.h"
 #include "emulator/automation.h"
+#include "emulator/replay_cli.h"
 #include "version_info.h"
 
 #ifdef MZ800EMU_CFG_MCP_SERVER_ENABLED
@@ -315,6 +316,24 @@ static const st_SDLAPP_OPTION_DEF g_known_options[] = {
       "Unattended runs: save a PNG screenshot of the final screen at the end." },
     { "--exit-snapshot",    SDLAPP_OPTION_VALUE, SDLAPP_OPTVAL_STRING,      NULL,        "<filepath>",
       "Unattended runs: save a snapshot (.mzs) of the final state at the end." },
+    { "--replay-record",    SDLAPP_OPTION_VALUE, SDLAPP_OPTVAL_STRING,      NULL,        "<filepath>",
+      "Record the inputs of this run into a replay file (.mzr): start snapshot, "
+      "keyboard / joystick changes at frame boundaries, resets, debugger writes "
+      "and periodic state hashes. Recording starts at the first frame and the "
+      "file is written when the emulator exits." },
+    { "--replay-hash-interval", SDLAPP_OPTION_VALUE, SDLAPP_OPTVAL_STRING,  NULL,        "<N>",
+      "With --replay-record: frames between state hashes (1-100000, default 50)." },
+    { "--replay",           SDLAPP_OPTION_VALUE, SDLAPP_OPTVAL_STRING,      NULL,        "<filepath>",
+      "Play a replay file back from its start snapshot. Live input is ignored; "
+      "the playback pauses at the end or at the first frame whose state hash "
+      "differs from the recording." },
+    { "--exit-at-replay-end", SDLAPP_OPTION_FLAG, SDLAPP_OPTVAL_NONE,       NULL,        NULL,
+      "With --replay: end the run when the playback ends - exit code 0 "
+      "(reason replay_end), 4 when the state differs (replay_desync), 3 when "
+      "the replay cannot be started. Works with --result-json." },
+    { "--replay-verify",    SDLAPP_OPTION_FLAG,  SDLAPP_OPTVAL_NONE,        NULL,        NULL,
+      "With --replay: check the replay at MAX SPEED and exit at its end "
+      "(--exit-at-replay-end). Typically with --headless." },
     { "--maxspeed-bench",   SDLAPP_OPTION_FLAG,  SDLAPP_OPTVAL_NONE,        NULL,        NULL,
       "Start in MAX SPEED and periodically print the MAX SPEED benchmark report "
       "(efficiency %, throughput, FB-FPS, distribution) to the console. Works in "
@@ -450,6 +469,14 @@ int main(int argc, char *argv[])
     if (!automation_cli_validate())
     {
         return automation_cli_error(EXIT_FAILURE, "invalid automation options");
+    };
+
+    /* Záznam a přehrání vstupů (--replay-record, --replay, ...): volby se
+     * ověří hned, záznam / přehrání zahájí emulátorové vlákno
+     * (replay_cli_start). */
+    if (!replay_cli_validate())
+    {
+        return automation_cli_error(EXIT_FAILURE, "invalid replay options");
     };
 
     /* --spdfd: alternativní launch mód. Větvíme dřív, než se inicializuje

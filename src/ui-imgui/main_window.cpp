@@ -4,6 +4,7 @@
 #include "libs/imgui/imgui.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_opengl.h>
+#include <cstring>
 
 // Lokalizace
 #include "i18n.h"
@@ -14,6 +15,7 @@
 #include "hw-generic/pio8255/pio8255.h"
 #include "imgui_windows.h"
 #include "emulator/emulator.h"
+#include "emulator/replay.h"
 
 #include "mzarch/mzarch_config.h"
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
@@ -213,7 +215,11 @@ static void ShowFullScreenImageEmulatorWindow(GLuint texture)
     if (!g_gui->MainWindowHasFocus && pvevious_MainWindowHasFocus)
     {
         g_gui->haveKeyboardEvents = FALSE;
-        pio8255_keyboard_matrix_reset();
+        /* Ztráta fokusu = žádná klávesa; přes záznam vstupů (replay.h),
+         * při záznamu se klidová matice převezme na hranici snímku. */
+        uint8_t idle_matrix[10];
+        memset(idle_matrix, 0xff, sizeof(idle_matrix));
+        replay_host_keyboard_submit(idle_matrix, -1, 0xff);
     };
     pvevious_MainWindowHasFocus = g_gui->MainWindowHasFocus;
     if (g_gui->haveKeyboardEvents)
@@ -238,6 +244,8 @@ static void ShowFullScreenImageEmulatorWindow(GLuint texture)
     imgui_screenshot_series_overlay();
     /* Indikátor zachycení zvuku (pod indikátorem série, jen UI) */
     imgui_audio_capture_overlay();
+    /* Indikátor záznamu / přehrání vstupů (levý dolní roh, jen UI) */
+    imgui_replay_overlay();
     ImGui::PopStyleVar(2);
 
     // bool isPopupOpen = ImGui::IsPopupOpen("ContextMenu", ImGuiPopupFlags_AnyPopup);
@@ -398,6 +406,9 @@ void imgui_main_window(GLuint texture)
     imgui_snapshot_load_dialog();
     imgui_snapshot_setup_dialog();
     imgui_snapshot_quicksave_handler();
+
+    /* Záznam a přehrání vstupů: dialogy nabídky Replay a oznámení výsledku */
+    imgui_replay_dialogs();
 
     /* Video záznam: dialog nastavení, okno dálkového ovládání + notifikace událostí (před vykreslením notifikace) */
     imgui_videorec_setup_dialog();

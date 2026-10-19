@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <string.h>
 #include <SDL3/SDL.h>
 #include "main.h"
 #include "iface_keyboard.h"
@@ -34,6 +35,23 @@
 #if HAVE_JOY
 #include "hw-generic/joy/joy.h"
 #endif
+#include "replay.h"
+
+/**
+ * @brief Matice, do které sken klávesnice hostitele počítá (jen UI vlákno).
+ *
+ * Sken (iface_keyboard_full_scan()) nezapisuje přímo do
+ * `g_pio8255.keyboard_matrix`: celou matici nejdřív spočítá sem a pak ji
+ * předá najednou přes replay_host_keyboard_submit(). Emu vlákno tak nikdy
+ * nevidí rozpracovaný sken (nejdřív samé 0FFh, pak jednotlivé klávesy)
+ * a záznam vstupů může matici převzít až na hranici snímku.
+ */
+static uint8_t s_iface_scan_matrix[10];
+
+/* Scan funkce níže píší přes PIO8255_MZKEYBIT_RESET - v tomto souboru do
+ * s_iface_scan_matrix místo do g_pio8255.keyboard_matrix. */
+#undef PIO8255_MZKEYBIT_RESET
+#define PIO8255_MZKEYBIT_RESET( column, bit ) s_iface_scan_matrix [ column ] &= ~ ( 1 << bit );
 
 static inline void iface_keyboard_scan_col0(const bool *state)
 {
@@ -462,10 +480,13 @@ void iface_keyboard_full_scan(const bool *state, SDL_Keymod kmod, int numkeys)
     if ((state[SDL_SCANCODE_LALT]) || (state[SDL_SCANCODE_RALT]))
         return;
 
-    pio8255_keyboard_matrix_reset();
+    memset(s_iface_scan_matrix, 0xff, sizeof(s_iface_scan_matrix));
 
     if (!numkeys)
+    {
+        replay_host_keyboard_submit(s_iface_scan_matrix, -1, 0xff);
         return;
+    };
 
     iface_keyboard_scan_col0(state);
     iface_keyboard_scan_col1(state);
@@ -478,16 +499,22 @@ void iface_keyboard_full_scan(const bool *state, SDL_Keymod kmod, int numkeys)
     iface_keyboard_scan_col8(state);
     iface_keyboard_scan_col9(state);
 
+    int joy_dev = -1;
+    uint8_t joy_state = 0xff;
 #if HAVE_JOY
     int device;
     for (device = 0; device < JOY_DEVID_COUNT; device++)
     {
         if (g_joy.dev[device].type == JOY_TYPE_NUM_KEYPAD)
         {
-            joy_reset_dev_state(device);
-            iface_keyboard_joy_num_keypad_scan(state, &g_joy.dev[device].state);
+            joy_dev = device;
+            iface_keyboard_joy_num_keypad_scan(state, &joy_state);
             break;
         };
     };
 #endif
+
+    /* Celá matice (a joystick z numerické klávesnice) najednou: mimo
+     * záznam vstupů se zapíše hned, při záznamu až na hranici snímku. */
+    replay_host_keyboard_submit(s_iface_scan_matrix, joy_dev, joy_state);
 }

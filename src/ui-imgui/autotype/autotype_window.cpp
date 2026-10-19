@@ -23,6 +23,7 @@
 extern "C"
 {
 #include "hw-generic/pio8255/pio8255.h"
+#include "emulator/replay.h"
 }
 
 /* Stav autotype okna */
@@ -61,12 +62,12 @@ static void activate_autotype(void) {
 
     if (!validate_text(s_text_buffer)) return;
 
-    /* Nastavit prodlevy */
-    pio8255_autotype_set_key_down_ms((double)s_kd_ms);
-    pio8255_autotype_set_key_up_ms((double)s_ku_ms);
-
-    /* Předat text do PIO8255 — autotype engine si ho převezme */
-    pio8255_set_autotype(s_text_buffer);
+    /* Prodlevy a text předat do PIO8255 (autotype engine si text převezme;
+     * při záznamu vstupů až na hranici snímku jako kopii, při přehrávání
+     * se zahodí - viz replay_host_autotype()). Změna prodlev za běhu
+     * autotype se při záznamu / přehrávání neuplatní (byla by mimo
+     * záznam). */
+    replay_host_autotype(s_text_buffer, (double)s_kd_ms, (double)s_ku_ms);
     s_autotype_active = true;
     s_typed_bytes = 0;
     s_error_msg[0] = '\0';
@@ -74,7 +75,7 @@ static void activate_autotype(void) {
 
 /* Deaktivace autotypu */
 static void deactivate_autotype(void) {
-    pio8255_set_autotype(NULL);
+    replay_host_autotype(NULL, (double)s_kd_ms, (double)s_ku_ms);
     s_autotype_active = false;
 }
 
@@ -218,7 +219,7 @@ extern "C" void imgui_autotype_window(bool *p_open) {
         if (ImGui::InputInt("##kd", &s_kd_ms, 1, 10, ImGuiInputTextFlags_CharsDecimal)) {
             if (s_kd_ms < 0) s_kd_ms = 0;
             if (s_kd_ms > 100) s_kd_ms = 100;
-            if (s_autotype_active) {
+            if (s_autotype_active && !replay_is_active()) {
                 pio8255_autotype_set_key_down_ms((double)s_kd_ms);
             }
         }
@@ -237,7 +238,7 @@ extern "C" void imgui_autotype_window(bool *p_open) {
         if (ImGui::InputInt("##ku", &s_ku_ms, 1, 10, ImGuiInputTextFlags_CharsDecimal)) {
             if (s_ku_ms < 0) s_ku_ms = 0;
             if (s_ku_ms > 100) s_ku_ms = 100;
-            if (s_autotype_active) {
+            if (s_autotype_active && !replay_is_active()) {
                 pio8255_autotype_set_key_up_ms((double)s_ku_ms);
             }
         }

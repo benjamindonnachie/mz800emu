@@ -1,0 +1,102 @@
+---
+title: Replay - record inputs once, repeat the run exactly
+description: How to record a run (keys, joystick, resets, debugger writes) into a .mzr file and play it back exactly in the same or a new process - repeat a bug with other breakpoints, trace or ramlog, find the first frame where two runs differ, check a run in CI (--replay-verify, exit code 4).
+---
+# Replay: record inputs once, repeat the run exactly
+
+Recipe for an AI client that has found a situation worth repeating (a
+bug, a crash, a glitch) and wants to repeat exactly the same run with
+other observation tools, or to keep it as a regression check.
+
+## What a replay is
+
+A `.mzr` file = a complete start snapshot (always with the RAM disk) +
+every input change at a frame boundary + SHA-256 hashes of the state
+every N frames. Playback loads the snapshot, applies the same inputs at
+the same places and compares the hashes; it stops at the first frame
+whose state differs. The emulator core is deterministic from the same
+state with the same inputs (also in a new process and at any speed), so
+a replay repeats the run instruction for instruction.
+
+Recorded: keyboard matrix (GUI keyboard, virtual keyboard, `emu_input_*`
+and `emu_input_send_keys*` together), numeric keypad and MCP joystick,
+resets, autotype, debugger writes (`emu_mem_write`, `emu_mem_write_force`,
+region writes, `emu_set_register`, CPU flags, `emu_io_write`,
+`emu_irq_inject`, `emu_nmi_inject`). Hashed parts: `cpu` (registers and
+hidden Z80 state), `ram`, `memext`, `vram`, `pcg`, and the emulated time.
+
+Not recorded: host joystick, contents of disk images, Unicard clock and
+SD directory, INI settings. Tape control, snapshot load, media and
+settings tools are refused while recording.
+
+## Recipe: record a bug, then investigate it with other tools
+
+1. Bring the machine to the start point (load a program, a snapshot),
+   pause at a frame boundary: `emu_run(frames=1)`.
+2. `emu_replay_record_start(path="bug.mzr")`.
+3. Drive the program: `emu_input_send_keys_with_delays`, `emu_run`,
+   writes. Until the bug shows.
+4. `emu_replay_record_stop()` - `outcome: "recorded"`.
+5. Repeat as often as needed, each time with other tools:
+   ```
+   emu_replay_play(path="bug.mzr", pause_after_load=true)
+   emu_bp_add(...)            # or emu_ramlog_start, emu_trace_start ...
+   emu_resume()
+   emu_wait_stop()            # a breakpoint, or reason "replay_end"
+   ```
+   Breakpoints that only observe (`log`, `mark`, trace, ramlog, CDL)
+   keep the replay valid. A breakpoint `poke` / `set`, `emu_mem_write`
+   or Freeze Bytes during playback mark it `deviated` (it goes on, the
+   hashes are no longer checked) - `emu_replay_status` shows it.
+
+## Rules while recording
+
+| Situation | What happens |
+|-----------|--------------|
+| write while running | taken at the frame boundary, recorded with position `d` |
+| write while paused at a frame boundary (after `emu_pause` sent while running, `emu_run(frames=N)`, a deadline, or right after the start) | recorded with position `p` |
+| write while paused **between** boundaries (after a step, a breakpoint, `emu_run_until_addr`) | refused: "changes the machine in a pause between frame boundaries" - run to a boundary first (`emu_run(frames=1)`) |
+| keys (`emu_input_*`, HID scripts) | taken from the key matrix at each frame boundary; in a pause only at a boundary |
+| `emu_snapshot_load*`, `emu_media_*` (except `emu_media_state`), `emu_cmt_*` that control the tape, `emu_settings_set`, `emu_platform_set`, `emu_periph_*`, `emu_memmap_set`, `emu_io_read`, `emu_freeze_add` | refused: "is not allowed while recording a replay" |
+| reset (`emu_reset`, F12) | taken at the next frame boundary (in a pause at a boundary at once) |
+| breakpoint action `poke` / `set` | not recorded; warning in the manifest |
+
+The refusal text comes inside the error of the tool
+(`... [MEM_WRITE failed]`). Steps, breakpoints, trace and reads work as
+usual while recording.
+
+## Finding where two runs differ
+
+Playback reports the first frame with a hash difference: `emu_wait_stop`
+returns `reason: "replay_desync"`, `emu_replay_status` gives
+`outcome_frame` and `desync_parts` (`cpu`, `ram`, `memext`, `vram`,
+`pcg`, `time`). The emulation is paused at that frame boundary - read
+memory and registers there. For a finer search record with a smaller
+`hash_interval` (down to 1 = every frame).
+
+`inputs.jsonl` inside the `.mzr` (ZIP) is text: removing or moving one
+event and playing back shows what that input changed. Lines:
+`{"f":frame,"at":"b"|"d"|"p","k":"kbd","m":[10 column bytes]}`,
+`"k":"joy","p":port,"s":state`, `"k":"autotype"`, `"k":"reset"`,
+`"k":"dbg","cmd":"mem_write_checked","args":{...}`, last
+`{"f":N,"k":"end"}`.
+
+## CI check without an MCP client
+
+```
+mz800emu --headless --replay bug.mzr --replay-verify --result-json result.json
+```
+
+Exit code 0 = every hash matched (`reason: "replay_end"`), 4 = the state
+differs (`reason: "replay_desync"`, `replay.outcome_frame`,
+`replay.desync_parts`), 3 = the replay cannot start. `--replay-record
+FILE --exit-after-frames N` records a run of the command line. See
+`emulator://docs/unattended_runs`.
+
+## Status fields
+
+`emu_replay_status()`: `mode` (`off` / `recording` / `playing`),
+`frame`, `frames` (length of the played / last played replay), `events`,
+`hashes`, `hash_interval`, `warnings`, `deviated`, `deviation`, `path`,
+`outcome` (`none`, `recorded`, `ended`, `desync`, `stopped`, `error`),
+`outcome_frame`, `outcome_message`, `desync_parts`.

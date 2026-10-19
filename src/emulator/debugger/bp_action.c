@@ -53,6 +53,7 @@
 #include "dbgapi_cmdrq.h"          /* trace: dbgapi_trace_lifecycle + en_DBGAPI_TRACE_* */
 #include "debugger/trace/ramlog.h"
 #include "debugger/trace/ramlog_hook.h"   /* ramlog_start/stop: ramlog_hook_start/stop */
+#include "replay.h"                 /* záznam vstupů: zápisy akcí mimo záznam */
 
 
 /* ========================================================================= */
@@ -2258,6 +2259,8 @@ static void execute_stmt ( const bp_action_stmt_t *s,
             uint32_t rl_saved = ramlog_source_push ( RAMLOG_SRC_POKE, g_mzarch_main.instruction_addr );
             memory_write_byte ( (uint16_t) addr, (uint8_t) val );
             ramlog_source_pop ( rl_saved );
+            /* Záznam vstupů: zápis akcí BP se do záznamu neukládá. */
+            if ( g_replay_mode != REPLAY_MODE_OFF ) replay_note_external_write ( "breakpoint action poke" );
             break;
         };
         case STMT_SET_REG: {
@@ -2266,6 +2269,7 @@ static void execute_stmt ( const bp_action_stmt_t *s,
                 fprintf ( stderr, "[BP-ACTION] set: no CPU context\n" );
                 break;
             };
+            if ( g_replay_mode != REPLAY_MODE_OFF ) replay_note_external_write ( "breakpoint action set" );
             if ( !write_cpu_reg ( s->setreg.reg, ctx->cpu, v ) ) {
                 fprintf ( stderr, "[BP-ACTION] set: unknown register '%s'\n",
                           s->setreg.reg );

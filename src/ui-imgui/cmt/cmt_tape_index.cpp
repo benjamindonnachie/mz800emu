@@ -28,6 +28,7 @@
 
 #include "CmtGlyphRenderer.h"
 #include "ImGuiCmt.hpp"
+#include "imgui_cmt.h"
 
 extern "C"
 {
@@ -249,6 +250,8 @@ void imgui_cmt_tape_index_window(bool *p_open)
         ImGui::End();
         return;
     };
+    /* Záznam vstupů: výběr bloku a přehrávání pásky teď nejdou. */
+    const bool replay_lock = imgui_cmt_replay_lock_begin();
 
     static int selected_row = -1;
     if (selected_row >= static_cast<int>(g_tapeFileList.size()))
@@ -502,5 +505,6 @@ void imgui_cmt_tape_index_window(bool *p_open)
         *p_open = false;
     };
 
+    imgui_cmt_replay_lock_end(replay_lock);
     ImGui::End();
 }

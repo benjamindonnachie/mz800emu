@@ -17,6 +17,7 @@
 #include "emulator.h"
 #include "cfgmain.h"
 #include "state_hash.h"
+#include "replay.h"
 #include "build_revision/build_revision.h"
 #include "emulator/mzarch/mzarch_platform.h"
 #include "mzarch/mzarch.h"
@@ -141,7 +142,7 @@ static st_AM s_am = {
 static const char *const s_am_options[] = {
     "--result-json", "--automation-dir", "--exit-after-frames", "--timeout-frames",
     "--timeout-seconds", "--exit-on-pc", "--fail-on-pc", "--exit-on-write", "--exit-on-out",
-    "--bpt", "--exit-screenshot", "--exit-snapshot", NULL,
+    "--bpt", "--exit-screenshot", "--exit-snapshot", "--exit-at-replay-end", "--replay-verify", NULL,
 };
 
 
@@ -339,6 +340,8 @@ static const char *am_reason_name(en_AUTOMATION_REASON reason)
         case AUTOMATION_REASON_EXIT_ACTION: return "exit_action";
         case AUTOMATION_REASON_ERROR: return "error";
         case AUTOMATION_REASON_QUIT: return "quit";
+        case AUTOMATION_REASON_REPLAY_END: return "replay_end";
+        case AUTOMATION_REASON_REPLAY_DESYNC: return "replay_desync";
         default: break;
     };
     return "none";
@@ -414,6 +417,7 @@ static void am_json_trigger(JsonBuilder *b)
     else if (s_am.reason == AUTOMATION_REASON_TIMEOUT) kind = "timeout";
     else if (s_am.reason == AUTOMATION_REASON_ERROR) kind = "error";
     else if (s_am.reason == AUTOMATION_REASON_QUIT) kind = "quit";
+    else if (s_am.reason == AUTOMATION_REASON_REPLAY_END || s_am.reason == AUTOMATION_REASON_REPLAY_DESYNC) kind = "replay";
     am_json_str_or_null(b, "kind", kind);
     if (s_am.trig_bp_id >= 0)
     {
@@ -433,7 +437,55 @@ static void am_json_trigger(JsonBuilder *b)
     {
         am_json_str_or_null(b, "option", sdlapp_option_present("--timeout-seconds")
                                              ? "--timeout-seconds" : "--timeout-frames");
+    }
+    else if (s_am.reason == AUTOMATION_REASON_REPLAY_END || s_am.reason == AUTOMATION_REASON_REPLAY_DESYNC)
+    {
+        am_json_str_or_null(b, "option", sdlapp_option_present("--replay-verify")
+                                             ? "--replay-verify" : "--exit-at-replay-end");
     };
+    json_builder_end_object(b);
+}
+
+
+/**
+ * @brief Objekt `replay`: výsledek přehrávání / záznamu vstupů (replay.h).
+ *
+ * `null`, pokud se v běhu záznam ani přehrávání nepoužily. Jinak `mode`
+ * (stav při zápisu), `path`, `outcome`, `outcome_frame`, `frames`
+ * (délka přehrávaného záznamu, 0 jinak), `deviated`, `deviation`,
+ * `desync_parts` (pole jmen částí) a `message`.
+ */
+static void am_json_replay(JsonBuilder *b)
+{
+    st_REPLAY_STATUS st;
+    replay_get_status(&st);
+    json_builder_set_member_name(b, "replay");
+    if (!st.path[0] && st.mode == REPLAY_MODE_OFF)
+    {
+        json_builder_add_null_value(b);
+        return;
+    };
+    json_builder_begin_object(b);
+    am_json_str_or_null(b, "mode", replay_mode_name(st.mode));
+    am_json_str_or_null(b, "path", st.path);
+    am_json_str_or_null(b, "outcome", replay_outcome_name(st.outcome));
+    json_builder_set_member_name(b, "outcome_frame");
+    json_builder_add_int_value(b, st.outcome_frame);
+    json_builder_set_member_name(b, "frames");
+    json_builder_add_int_value(b, st.frames);
+    json_builder_set_member_name(b, "deviated");
+    json_builder_add_boolean_value(b, st.deviated);
+    am_json_str_or_null(b, "deviation", st.deviation[0] ? st.deviation : NULL);
+    json_builder_set_member_name(b, "desync_parts");
+    json_builder_begin_array(b);
+    if (st.desync_parts[0])
+    {
+        char **v = g_strsplit(st.desync_parts, ",", -1);
+        for (int i = 0; v[i]; i++) json_builder_add_string_value(b, v[i]);
+        g_strfreev(v);
+    };
+    json_builder_end_array(b);
+    am_json_str_or_null(b, "message", st.outcome_message[0] ? st.outcome_message : NULL);
     json_builder_end_object(b);
 }
 
@@ -594,6 +646,7 @@ static bool am_write_result_file(const char *path, bool machine, bool screenshot
     json_builder_add_int_value(b, s_am.code);
     am_json_str_or_null(b, "message", s_am.message);
     am_json_trigger(b);
+    am_json_replay(b);
     if (machine)
     {
         am_json_machine(b);

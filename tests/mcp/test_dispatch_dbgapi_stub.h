@@ -16,6 +16,7 @@
 #include <stdint.h>
 
 #include "emulator/debugger/dbgapi_cmdrq.h"
+#include "emulator/replay.h"
 
 
 /* Forward deklarace dbgapi UI submit API.
@@ -850,6 +851,26 @@ typedef struct st_DISPATCH_STUB_STATE {
 
 
 extern st_DISPATCH_STUB_STATE g_stub_state;
+
+
+/**
+ * @brief Náhrada modulu záznamu vstupů (replay.h) pro testy dispatch.
+ *
+ * Požadavky (replay_request_*) se "vyřídí" hned: zapíšou se sem, číslo
+ * požadavku = počet volání, výsledek podle @c fail. Stav vrací
+ * replay_get_status() z @c status (test ho smí nastavit).
+ */
+typedef struct st_DISPATCH_STUB_REPLAY {
+    int calls;                  /**< Počet požadavků od resetu. */
+    int last_kind;              /**< 1 = record, 2 = play, 3 = stop. */
+    char last_path[512];        /**< Cesta posledního požadavku ("" = žádná). */
+    uint32_t last_interval;     /**< hash_interval posledního záznamu (0 = výchozí). */
+    bool last_pause_after_load; /**< pause_after_load posledního přehrání. */
+    bool fail;                  /**< true = požadavek skončí chybou "stub failure". */
+    st_REPLAY_STATUS status;    /**< Stav vracený replay_get_status(). */
+} st_DISPATCH_STUB_REPLAY;
+
+extern st_DISPATCH_STUB_REPLAY g_stub_replay;
 
 
 /** @brief Reset stub state před testem. */

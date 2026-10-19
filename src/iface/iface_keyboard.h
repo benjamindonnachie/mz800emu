@@ -24,6 +24,20 @@ extern "C"
 #endif
     extern void iface_keyboard_event_keydown(SDL_Keycode scancode);
     extern void iface_keyboard_event_keyup(SDL_Keycode scancode);
+    /**
+     * @brief Sken celé klávesnice hostitele do klávesnicové matice MZ.
+     *
+     * Spočítá celou matici (a stav joysticku z numerické klávesnice, je-li
+     * tak joystick nastaven) a předá ji najednou přes
+     * replay_host_keyboard_submit(): mimo záznam vstupů se zapíše hned, při
+     * záznamu se převezme na hranici snímku, při přehrávání se zahodí.
+     * Se stisknutým Alt nedělá nic (klávesové zkratky emulátoru).
+     *
+     * @param state   Stav kláves SDL (SDL_GetKeyboardState()).
+     * @param kmod    Modifikátory SDL.
+     * @param numkeys Počet položek @p state; 0 = žádná klávesa (předá klidovou matici).
+     * @pre UI vlákno.
+     */
     extern void iface_keyboard_full_scan(const bool *state, SDL_Keymod kmod, int numkeys);
 
 #ifdef __cplusplus

@@ -5,6 +5,7 @@
 #include <stdlib.h>
 
 #include "emulator.h"
+#include "replay.h"
 #include "customspeed.h"
 
 #include "mzarch/mzarch.h"
@@ -220,6 +221,12 @@ void mzarch_platform_fn_reset_request(void)
      * platformu inicializuje; bez guardu by g_mutex_lock(NULL) spadl.
      * Reset bez běžícího stroje nemá co resetovat - tiše zahodíme. */
     if (g_mzarch_main.reset_request_mutex == NULL)
+    {
+        return;
+    };
+    /* Záznam vstupů: reset se provede až v bodě hranice snímku, kde ho
+     * záznam uloží (replay.h); při přehrávání znamená odchýlení. */
+    if (replay_divert_reset_request())
     {
         return;
     };

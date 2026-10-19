@@ -30,7 +30,7 @@ with the same fields:
 | Field | Meaning |
 |-------|---------|
 | `run_seq` | number of the run that stopped |
-| `reason` | `run_to` (target or step over reached), `breakpoint`, `deadline`, `frames` (`emu_run`), `step`, `manual` (pause), `exit` (breakpoint action `exit`), `bp_action_saturation`, `event_trigger` |
+| `reason` | `run_to` (target or step over reached), `breakpoint`, `deadline`, `frames` (`emu_run`), `step`, `manual` (pause), `exit` (breakpoint action `exit`), `bp_action_saturation`, `event_trigger`, `replay` (short pause while a replay starts), `replay_end` / `replay_desync` (end of a replay playback, see `emulator://docs/replay`) |
 | `pc` | PC at the stop (next instruction) |
 | `bp_id` | breakpoint that stopped the run (`breakpoint`) |
 | `started_by`, `start_cmd` | who started the run (`mcp` = an agent, `user` = the GUI) and how (`run_to`, `step_into`, `run`, `external` = Pause key) |

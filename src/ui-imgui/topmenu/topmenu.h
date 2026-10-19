@@ -65,6 +65,21 @@ void imgui_menu_mz800_dip_switch(void);
     void imgui_menu_snapshot(void);
     void imgui_menu_tools(void);
 
+    /** @brief Nabídka Replay: záznam a přehrání vstupů (menu_replay.cpp). */
+    void imgui_menu_replay(void);
+
+    /**
+     * @brief Každý snímek UI: souborové dialogy nabídky Replay a oznámení
+     *        výsledku záznamu / přehrávání (chyba startu, uloženo, konec, rozjetí).
+     */
+    void imgui_replay_dialogs(void);
+
+    /**
+     * @brief Indikátor REC / PLAY v levém dolním rohu obrazu (jen UI).
+     * @pre Volá se hned po vykreslení obrazu emulátoru (poslední položka = obraz).
+     */
+    void imgui_replay_overlay(void);
+
     void imgui_global_shortcuts(void);
 
 #ifdef __cplusplus

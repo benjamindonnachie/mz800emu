@@ -39,13 +39,16 @@ echo $?            # 0 pass, 1 fail, 2 timeout, 3 error
   beats the timeout.
 - Exit codes: 0 success, 1 test failed, 2 timeout, 3 error of the
   emulator or the options (invalid option, missing `--run-mzf` file), 4
-  reserved, 64-255 free for program codes. Code 3 for invalid options only
-  when an unattended-run option is given (otherwise 1 as before).
+  a played-back replay differs (`--replay FILE --replay-verify`, see
+  `emulator://docs/replay`), 64-255 free for program codes. Code 3 for
+  invalid options only when an unattended-run option is given (otherwise
+  1 as before).
 - `result.json` is written also on timeout and errors. After an option
   error it has no `time` / `cpu` / `hashes`.
-- `hashes` (SHA-256 of RAM, MemExt, VRAM, PCG, screen) are deterministic:
-  two runs with the same options and the same files give the same values,
-  so a script can compare them with a reference run.
+- `hashes` (SHA-256 of RAM, MemExt, VRAM, PCG, screen and `cpu` =
+  registers with the hidden Z80 state) are deterministic: two runs with
+  the same options and the same files give the same values, so a script
+  can compare them with a reference run.
 - `trigger.hits` counts the breakpoint hits after the skipped ones
   (`skip=2` -> `hits` 1 on the third pass).
 - In an unattended run the saved default breakpoint set (`.bpt`) and

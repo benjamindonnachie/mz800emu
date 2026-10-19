@@ -133,6 +133,19 @@ extern "C"
      * bootstrapu do periferií a RAM.
      */
     extern void mzarch_main_reset_and_run_mzf(const char *filename);
+
+    /**
+     * @brief Okamžitý reset stroje (stejný jako tlačítko Reset, bez fronty žádostí).
+     *
+     * Volá ho záznam vstupů (replay.c), aby reset proběhl přesně v bodě
+     * hranice snímku, kde ho záznam uložil, a ne až v příští iteraci
+     * hlavní smyčky jako mzarch_platform_fn_reset_request().
+     *
+     * @pre Emulátorové vlákno, bod mezi instrukcemi (per-event blok nebo
+     *      paused smyčka).
+     * @post Stav jako po mzarch_main_reset(); stav pauzy se nemění.
+     */
+    extern void mzarch_main_reset_now(void);
     extern void mzarch_main_insideop_iorq(void);
     extern void mzarch_main_insideop_mreq(void);
     extern void mzarch_main_insideop_mreq_e00x(void);

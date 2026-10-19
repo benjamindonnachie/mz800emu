@@ -100,7 +100,7 @@ mz800emu --headless --speed max --run-mzf test.mzf \
 | 1 | test failed: `--fail-on-pc`, `exit 1` |
 | 2 | timeout |
 | 3 | error of the emulator or of the options (invalid option, missing file) |
-| 4 | reserved |
+| 4 | a replay played back with `--exit-at-replay-end` differs from the recording (`replay_desync`, see [../replay.md](../replay.md)) |
 | 64-255 | free for codes written by the program (`--exit-on-out`, `exit Value`) |
 
 Code 3 for an invalid option is used only when an unattended-run option is
@@ -140,7 +140,7 @@ and paths shortened):
             "i" : 0, "r" : 25, "im" : 1, "iff1" : 0, "iff2" : 0, "halted" : false },
   "raster" : { "beam_row" : 0, "frame_ticks" : 45 },
   "hashes" : { "algorithm" : "sha256", "ram" : "64090b03...", "memext" : "2fb5b470...",
-               "vram" : "edf097e8...", "screen" : "f58b3934..." },
+               "vram" : "edf097e8...", "screen" : "f58b3934...", "cpu" : "9c1e07d2..." },
   "artifacts" : { "screenshot" : ".../out/screen.png", "snapshot" : null,
                   "audio_capture" : null, "video" : null },
   "inputs" : { "run_mzf" : ".../Gardner.mzf", "bpt" : null },
@@ -157,8 +157,13 @@ line).
 - `emulator.build_revision`: the revision number of an official build, -1
   for other builds.
 - `reason`: `frames`, `timeout`, `exit_action` (breakpoint action `exit`),
-  `error`, or `quit` (the process was ended from outside before a
-  condition, for example by `Ctrl+C` or after `--record-frames`).
+  `error`, `quit` (the process was ended from outside before a
+  condition, for example by `Ctrl+C` or after `--record-frames`), or
+  `replay_end` / `replay_desync` (end of a replay played back with
+  `--exit-at-replay-end` or `--replay-verify`).
+- `replay`: `null`, or the result of the replay used in the run (`path`,
+  `outcome`: `ended`, `desync`, `recorded`, ..., `outcome_frame`,
+  `frames`, `deviated`, `desync_parts`, `message`).
 - `trigger.hits`: hits of the breakpoint counted after the skipped ones.
 - `time.frames` and `time.gdg_ticks` count from the start of the run;
   `frames_total` and `gdg_ticks_total` from the start of the emulation.
@@ -166,10 +171,11 @@ line).
 - `cpu`: registers as numbers (`af2` ... `hl2` are the shadow registers),
   `halted` true or false.
 - `hashes`: SHA-256 of the internal RAM (64 KB), the MemExt RAM (only when
-  connected), the VRAM (MZ-800: all four planes), the PCG (MZ-1500) and
-  the screen (the framebuffer as palette indices). Two runs with the same
-  options give the same hashes, so a script can compare them with a
-  reference.
+  connected), the VRAM (MZ-800: all four planes), the PCG (MZ-1500), the
+  screen (the framebuffer as palette indices) and `cpu` (the Z80 registers
+  including the hidden state: WZ, Q, EI delay, pending INT and NMI). Two
+  runs with the same options give the same hashes, so a script can compare
+  them with a reference.
 - After an error before the emulation starts (invalid option), the file
   has only `schema`, `emulator`, `reason`, `exit_code`, `message`,
   `trigger`, `artifacts`, `inputs` and `warnings`.

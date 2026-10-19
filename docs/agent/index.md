@@ -9,6 +9,7 @@ Read individual topics on demand via `resources/read`.
 |-----|----------------------|
 | `emulator://docs/error_handling` | How to read a failed tool response: which errors mean "not executed, safe to retry" (`Emulator busy: ...`), "partially executed" or a real failure; request timing, the 10 s queue timeout and the ~20 s limit for a started command. |
 | `emulator://docs/run_control` | Run control: start a run and wait until it stops (`emu_wait_stop`, `run_seq`, events `paused` / `resumed` with reason, PC, who started the run), deadlines in emulated time (`deadline_frames` / `deadline_ms`), `emu_pause(if_run_seq)` so as not to stop the user's run, `completed` of steps, 20 s limit of stepping loops, SHA-256 of memory and of the screen (`want_data=false`, `emu_frame_hash`). |
+| `emulator://docs/replay` | Record a run once and repeat it exactly: `emu_replay_record_start` / `_stop`, `emu_replay_play` (also in a new process, any speed), `emu_replay_status`; what is recorded, writes only at frame boundaries, refused tools, `deviated`, first differing frame (`replay_desync`, `desync_parts`), `inputs.jsonl` format, CI check `--replay-verify` (exit code 4). |
 | `emulator://docs/memory_layout` | Z80 64 KB address space layout per platform (MZ-700 / MZ-800 native / MZ-800 700-compat / MZ-1500). Banking ports `0xE0..0xE6`. Memory expansion (Memext) replacing the RAM, memory files inside a `.mzs` snapshot. Key ROM entry points, IRQ vectors, text/color VRAM regions. |
 | `emulator://docs/bp_dsl` | Breakpoint condition expression language: registers, memory deref `[addr]`, port read `port[N]`, operators, built-in functions, `$user_vars`, examples. Same language is used by Watch expressions and Action DSL arguments. |
 | `emulator://docs/smart_vars` | `$name` user variables: how to create / read / write from BP action DSL, persistence rules (`.bpt` + `.vars`), lifecycle, reading via `emulator://vars`. |
@@ -23,7 +24,7 @@ Read individual topics on demand via `resources/read`.
 | `emulator://docs/ramlog` | Who wrote a byte: RAM write log `emu_ramlog_start` / `_who_wrote` / `_writers` / `_stop`, channel `ramlog` of `emu_trace_read` - recipe, record fields (`pc` of the writing instruction, physical cell, old / new, source), banking and VRAM planes, hidden unchanged writes, last-writer map after ring wrap. |
 | `emulator://docs/memsearch_workflow` | Find a variable (lives, score, timer) without disassembling: `emu_memsearch_start` / `_filter` / `_list` (cheat search over User RAM, VRAM, MemExt, RAM disks; u8-s32, BCD, digits in display code), which filter for which situation (irregular timers: `le` previous + `lt` first), then `emu_watch_add`, `emu_bp_create_with_init` with `bp_hint`, `emu_freeze_add`. |
 | `emulator://docs/audio_capture_read` | Analysing sound without hearing it: audio capture memory read via MCP - `emu_audio_capture_summary` (silence, PSG notes, speaker tone or PCM estimate, reference vs output path delay and difference), `emu_trace_read` channels `audio_psg_writes` / `audio_levels` / `audio_frames`, `emu_audio_capture_pcm` (short WAV window, exact 44100 Hz copy); recipe, memory limits, what is heuristic. |
-| `emulator://docs/unattended_runs` | Unattended runs for CI without an MCP client: `--headless` with `--exit-on-pc` / `--fail-on-pc` / `--exit-on-write` / `--exit-on-out` / `--exit-after-frames` / `--timeout-*` / `--bpt`, exit codes 0-3, `result.json` (reason, time, registers, SHA-256 hashes, artifacts); the breakpoint action `exit` in an MCP session only pauses (`stopped_by: "exit"`). |
+| `emulator://docs/unattended_runs` | Unattended runs for CI without an MCP client: `--headless` with `--exit-on-pc` / `--fail-on-pc` / `--exit-on-write` / `--exit-on-out` / `--exit-after-frames` / `--timeout-*` / `--bpt`, exit codes 0-4 (4 = a replay differs, `--replay-verify`), `result.json` (reason, time, registers, SHA-256 hashes, artifacts); the breakpoint action `exit` in an MCP session only pauses (`stopped_by: "exit"`). |
 | `emulator://docs/screenshot_workflow` | Saving and comparing pictures of the screen: `emu_screenshot_save_to_file` with `area` (full / canvas), `scale` (framebuffer / native dots / window 1-4) and `crop`, picture sizes per build, recipes (what the program drew, a part of the screen, a picture for a person); frame series `emu_screenshot_series_*` - every changed emulated frame as PNG for finding animation bugs. |
 
 ## When to read what
@@ -32,6 +33,9 @@ Read individual topics on demand via `resources/read`.
   `error_handling`.
 - Running the emulator and waiting for it to stop, limiting a run in
   emulated time, comparing memory or the screen by hash -> `run_control`.
+- Repeating a run exactly (a bug with other breakpoints, trace, ramlog),
+  finding the first frame where two runs differ, CI check of a recorded
+  run -> `replay`.
 - Setting up a breakpoint with a non-trivial condition -> `bp_dsl`.
 - Writing the action that runs when a BP fires (log, poke, set,
   conditional) -> `action_dsl`.

@@ -39,7 +39,7 @@
  * | 1 | selhání testu (`--fail-on-pc`, `exit 1`) |
  * | 2 | timeout |
  * | 3 | chyba emulátoru nebo voleb (jen při zadané automatizační volbě; jinak neplatná volba dál vrací 1) |
- * | 4 | rezerva: rozjetí přehrávaného záznamu |
+ * | 4 | rozjetí přehrávaného záznamu (`--exit-at-replay-end`, replay.h) |
  * | 5-63 | rezerva |
  * | 64-255 | volné pro `exit` z programu |
  *
@@ -64,7 +64,7 @@ extern "C"
 #define AUTOMATION_EXIT_FAILURE 1       /**< Selhání testu. */
 #define AUTOMATION_EXIT_TIMEOUT 2       /**< Vypršel `--timeout-*`. */
 #define AUTOMATION_EXIT_ERROR 3         /**< Chyba emulátoru nebo voleb. */
-#define AUTOMATION_EXIT_REPLAY_DESYNC 4 /**< Rezerva pro přehrávání záznamu. */
+#define AUTOMATION_EXIT_REPLAY_DESYNC 4 /**< Přehrávání záznamu se rozjelo (`--exit-at-replay-end`, replay.h). */
 /** @} */
 
     /**
@@ -77,7 +77,9 @@ extern "C"
         AUTOMATION_REASON_TIMEOUT,     /**< `timeout`: vypršel `--timeout-*`. */
         AUTOMATION_REASON_EXIT_ACTION, /**< `exit_action`: akce `exit` breakpointu. */
         AUTOMATION_REASON_ERROR,       /**< `error`: chyba voleb, souboru nebo havárie. */
-        AUTOMATION_REASON_QUIT         /**< `quit`: konec zvenku (SIGINT, okno, MCP) nebo po --record-frames. */
+        AUTOMATION_REASON_QUIT,        /**< `quit`: konec zvenku (SIGINT, okno, MCP) nebo po --record-frames. */
+        AUTOMATION_REASON_REPLAY_END,  /**< `replay_end`: přehrávání záznamu došlo na konec (`--exit-at-replay-end`). */
+        AUTOMATION_REASON_REPLAY_DESYNC /**< `replay_desync`: přehrávání se rozjelo (kód AUTOMATION_EXIT_REPLAY_DESYNC). */
     } en_AUTOMATION_REASON;
 
     /**

@@ -25,6 +25,7 @@
 
 #include "CmtGlyphRenderer.h"
 #include "imgui_cmt.h"
+#include "emulator/replay.h"
 #include "ImGuiCmt.hpp"
 
 extern "C"
@@ -771,6 +772,22 @@ void imgui_cmt_row5_buttons_layout()
     }
 }
 
+bool imgui_cmt_replay_lock_begin(void)
+{
+    if (!replay_is_active())
+        return false;
+    ImGui::TextColored(ImVec4(1.0f, 0.7f, 0.2f, 1.0f), "%s",
+                       _("Tape control is not available while a replay is recorded or played."));
+    ImGui::BeginDisabled(true);
+    return true;
+}
+
+void imgui_cmt_replay_lock_end(bool locked)
+{
+    if (locked)
+        ImGui::EndDisabled();
+}
+
 void imgui_cmt(bool *p_open)
 {
     /* Focus-on-open: detekce false -> true transition okna. Při otevření
@@ -805,6 +822,8 @@ void imgui_cmt(bool *p_open)
             auto_layout_first_use_portrait(title, 400.0f, 500.0f);
             ImGui::Begin(title, p_open, flags);
         }
+        /* Záznam vstupů: kazetu (ani CMT hack) teď nejde ovládat. */
+        const bool replay_lock = imgui_cmt_replay_lock_begin();
 
         // CMT Hack checkbox vpravo nahoře - umožní vypnutí v hack-active
         // variantě okna (= bez restrikcí, CMT v hack modu nemá normální
@@ -849,6 +868,7 @@ void imgui_cmt(bool *p_open)
             *p_open = false;
         };
 
+        imgui_cmt_replay_lock_end(replay_lock);
         ImGui::End();
         return;
     };
@@ -914,6 +934,7 @@ void imgui_cmt(bool *p_open)
     const char *cmt_title = _L("Virtual CMT");
     auto_layout_first_use_portrait(cmt_title, 500.0f, 300.0f);
     ImGui::Begin(cmt_title, p_open, flags);
+    const bool replay_lock = imgui_cmt_replay_lock_begin();
 
     imgui_cmt_row0_time_label_and_boost_switch();
     imgui_cmt_row1_time_display();
@@ -965,5 +986,6 @@ void imgui_cmt(bool *p_open)
         *p_open = false;
     };
 
+    imgui_cmt_replay_lock_end(replay_lock);
     ImGui::End();
 }

@@ -85,6 +85,11 @@ dokumentu [Resources overview](resources-overview.md).
 | `emu_videorec_status` | ne | Stav nahrávání videa (stav, snímky, segment, velikost, cesta, poslední událost) |
 | `emu_videorec_timebase` | ne | Časová základna nahrávání: emulační čas nebo podle reality |
 | `emu_frame_hash` | ne | SHA-256 obrazu a VRAM, pozice paprsku (bez dat) |
+| `emu_replay_record_start` | ano (vytvoří / přepíše soubor) | Start záznamu vstupů do souboru (startovní snapshot, vstupy na hranici snímku, hashe stavu) |
+| `emu_replay_record_stop` | ne | Konec záznamu a uložení souboru |
+| `emu_replay_play` | ano (nahradí stav emulátoru) | Přehrání záznamu od startovního snapshotu, zastavení na prvním rozdílném hashi |
+| `emu_replay_play_stop` | ne | Ukončení běžícího přehrávání |
+| `emu_replay_status` | ne | Stav záznamu / přehrávání a výsledek posledního |
 | `emu_screenshot_save_to_file` | ano (vytvoří / přepíše soubor) | PNG obrazovky do souboru: oblast (full / canvas), měřítko (framebuffer / nativní body / okno 1-4), ořez |
 | `emu_screenshot_series_start` | ano (vytváří soubory) | Série snímků: PNG každého změněného emulovaného snímku (oblast, měřítko, ořez, only_changed, frames, max_files) |
 | `emu_screenshot_series_stop` | ne | Ukončí sérii snímků, standardně počká na zápis všech snímků |
@@ -202,6 +207,8 @@ Mezi sensitive tools patří:
   `emu_irq_inject`, `emu_nmi_inject`
 - **Snapshot operace** - `emu_snapshot_save` (přepíše soubor),
   `emu_snapshot_load` a `emu_snapshot_load_buffer` (přepíší stav emu)
+- **Záznam vstupů** - `emu_replay_record_start` (přepíše soubor),
+  `emu_replay_play` (nahradí stav emulátoru)
 - **Media operace** - `emu_media_load_binary` (raw zápis do paměti),
   `emu_media_insert` (auto-eject přepíše mountnuté médium)
 - **Konfigurace** - `emu_settings_set` (mutuje globální stav),
@@ -320,7 +327,8 @@ které běh spouštějí, a `emu_pause`, `emu_get_state`). Argumenty:
 Vrací `{"done": true, "run_seq", "record": {...}}`, nebo po timeoutu
 `{"done": false, "running": true, ...}` - zavolat znovu. Záznam:
 `reason` (`run_to`, `breakpoint`, `deadline`, `frames`, `step`,
-`manual`, `exit`, `bp_action_saturation`, `event_trigger`), `pc`,
+`manual`, `exit`, `bp_action_saturation`, `event_trigger`, `replay`,
+`replay_end`, `replay_desync`), `pc`,
 `bp_id`, `started_by` / `start_cmd` (`mcp` = agent, `user` = GUI),
 `stopped_by` (u `manual`), `start_ticks` / `stop_ticks` (takty GDG od
 resetu), `elapsed_ticks`, `frame`, `step`; u `exit` navíc `exit_code`,
@@ -1267,6 +1275,81 @@ pauza podle `realtime_pause`). Bez zvukového zařízení (`--headless`,
 `--mcp-pipe`, nebo když se v okně nepodaří otevřít zvukové zařízení) se
 zvuk vyrobí stejnou cestou, jen se nepřehraje. Vrací
 stav a navíc `timebase_requested`; neplatná hodnota je chyba parametrů.
+
+## Nástroje záznamu a přehrání vstupů
+
+Vstupy jednoho běhu se jednou nahrají a pak přesně přehrají - v témže
+nebo novém procesu, při libovolné rychlosti - a chybu jde opakovat
+s jinými breakpointy, trace nebo záznamem zápisů do paměti, případně
+ověřit běh v CI. Celý návod je v [../replay.md](../replay.md)
+a v dokumentu MCP `emulator://docs/replay`.
+
+Soubor záznamu (`.mzr`) obsahuje kompletní startovní snapshot (vždy
+s RAMdiskem), každou změnu klávesnicové matice a stavu joysticku na
+hranici snímku, resety, autotype, zápisy debuggeru a každých N snímků
+SHA-256 částí `cpu` (registry a skrytý stav Z80), `ram`, `memext`,
+`vram` a `pcg` spolu s emulovaným časem. Přehrávání hashe porovnává
+a zastaví se na prvním snímku, který se liší.
+
+### `emu_replay_record_start` (sensitive - vytvoří / přepíše soubor)
+
+Argumenty: `path` (string, povinný), `hash_interval` (int 1..100000,
+výchozí 50 snímků), `description` (string, volitelný). Když emulace
+běží, pozastaví se na nejbližší hranici snímku, záznam začne a emulace
+běží dál; v pauze zůstane v pauze.
+
+Během záznamu se klávesnice z GUI převezme na nejbližší hranici snímku.
+Zápisy debuggeru (`emu_mem_write`, `emu_mem_write_force`, zápis do
+regionu, `emu_set_register`, příznaky CPU, `emu_io_write`,
+`emu_irq_inject`, `emu_nmi_inject`) a vstupní nástroje se zaznamenají
+za běhu (převzaté na hranici snímku) a v pauze **na** hranici snímku (po
+`emu_run(frames=N)` nebo `deadline`, nebo po pauze poslané za běhu).
+V pauze **mezi** hranicemi snímků (po kroku nebo breakpointu) se odmítnou
+s vysvětlením. Nástroje, které stroj mění tak, že to záznam nezopakuje,
+se odmítnou: načtení snapshotu, média, ovládání kazety, nastavení,
+platforma, periferie, mapa paměti, `emu_io_read` (vedlejší efekty),
+`emu_freeze_add`. Start se odmítne při běžícím autotype nebo aktivních
+Freeze Bytes. Zapisující akce breakpointů (`poke`, `set`) se
+nezaznamenají: manifest dostane varování.
+
+Vrací stav (viz `emu_replay_status`).
+
+### `emu_replay_record_stop`
+
+Ukončí záznam a zapíše soubor. Na hranici snímku končí záznam hashem
+konečného stavu; v pauze mezi hranicemi končí na poslední hranici. Vrací
+stav s `outcome: "recorded"` a `outcome_message` (snímky, události,
+soubor), nebo chybu (`no recording is running`, chyba zápisu).
+
+### `emu_replay_play` (sensitive - nahradí stav emulátoru)
+
+Argumenty: `path` (string, povinný), `pause_after_load` (bool, výchozí
+false). Načte startovní snapshot a přehraje zaznamenané vstupy;
+`pause_after_load: true` po načtení zůstane v pauze (nastavit
+breakpointy, pak `emu_resume`). Živý vstup (klávesnice GUI, virtuální
+klávesnice, klávesy z MCP) se ignoruje. Konec pozastaví emulaci
+s důvodem `replay_end` (`outcome: "ended"`), první rozdílný hash
+s důvodem `replay_desync` (`outcome: "desync"`, `outcome_frame`,
+`desync_parts`: `cpu`, `ram`, `memext`, `vram`, `pcg`, `time`). Zápis do
+stroje během přehrávání (zápis debuggeru, akce breakpointu `poke` /
+`set`, Freeze Bytes, reset, načtení snapshotu) přehrávání označí jako
+`deviated`: pokračuje, ale hashe se dál neověřují. Chyby: nečitelný
+soubor, jiná platforma nebo TV norma, záznam s událostmi debuggeru
+v buildu bez debuggeru.
+
+### `emu_replay_play_stop`
+
+Ukončí běžící přehrávání (`outcome: "stopped"`). Chyba: `no playback is
+running`.
+
+### `emu_replay_status`
+
+Bez argumentů. Vrací `{"mode": "off" | "recording" | "playing",
+"frame", "frames" (délka při přehrávání), "events", "hashes",
+"hash_interval", "warnings", "deviated", "deviation", "path", "outcome":
+"none" | "recorded" | "ended" | "desync" | "stopped" | "error",
+"outcome_frame", "outcome_message", "desync_parts": [...]}`. Členy
+`outcome*` popisují poslední skončený záznam nebo přehrávání.
 
 ## Nástroje screenshotu
 

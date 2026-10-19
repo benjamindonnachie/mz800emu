@@ -833,6 +833,25 @@ if(Python3_FOUND)
                    "(Python ${Python3_VERSION})")
 
     # -----------------------------------------------------------
+    # Záznam a přehrání vstupů (pipe + headless CLI)
+    # -----------------------------------------------------------
+    # Záznam kláves a zápisů debuggeru, odmítnutí zásahu mimo hranici
+    # snímku, přehrání v novém procesu se shodným stavem, --replay-verify
+    # (kód 0, upravený záznam kód 4 na správném snímku), odchýlení.
+    add_test(
+        NAME    mcp_replay
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_replay.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_replay PROPERTIES
+        LABELS  "e2e;mcp;pipe;debugger;replay"
+        TIMEOUT 180
+    )
+    message(STATUS "  tests/mcp: registered mcp_replay "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
     # Regiony plné sestavy MZ-800 přes MCP (pipe)
     # -----------------------------------------------------------
     # MemExt Luftner + RAMdisk STD 16 MB + PEZIK 68h = 532 regionů:

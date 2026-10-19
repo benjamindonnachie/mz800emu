@@ -11,6 +11,8 @@
 #include "hw-generic/memory/memory.h"
 #include "hw-generic/memory/memext.h"
 #include "hw-generic/gdg/framebuffer.h"
+#include "mzarch/mzarch.h"
+#include "libs/cpu-z80/z80.h"
 
 
 void state_hash_buffer(const void *data, size_t len, char *out_hex)
@@ -35,6 +37,7 @@ const char *state_hash_part_name(en_STATE_HASH_PART part)
         case STATE_HASH_VRAM: return "vram";
         case STATE_HASH_PCG: return "pcg";
         case STATE_HASH_SCREEN: return "screen";
+        case STATE_HASH_CPU: return "cpu";
         default: break;
     };
     return "unknown";
@@ -82,8 +85,48 @@ bool state_hash_part(en_STATE_HASH_PART part, char *out_hex)
             state_hash_buffer(g_framebuffer.pixels, GDG_FRAMEBUFFER_PIXBUF_SIZE, out_hex);
             return true;
 
+        case STATE_HASH_CPU:
+        {
+            if (!g_mzarch_main.cpu) return false;
+            unsigned char bytes[STATE_HASH_CPU_BYTES];
+            state_hash_cpu_bytes(bytes);
+            state_hash_buffer(bytes, sizeof(bytes), out_hex);
+            return true;
+        };
+
         default:
             break;
     };
     return false;
+}
+
+
+void state_hash_cpu_bytes(unsigned char *out)
+{
+    static const z80_reg_t pairs[] = {
+        Z80_REG_AF, Z80_REG_BC, Z80_REG_DE, Z80_REG_HL,
+        Z80_REG_AF2, Z80_REG_BC2, Z80_REG_DE2, Z80_REG_HL2,
+        Z80_REG_IX, Z80_REG_IY, Z80_REG_SP, Z80_REG_PC, Z80_REG_WZ,
+    };
+    z80_t *cpu = g_mzarch_main.cpu;
+    size_t n = 0;
+    for (size_t i = 0; i < G_N_ELEMENTS(pairs); i++)
+    {
+        uint16_t v = z80_get_reg(cpu, pairs[i]);
+        out[n++] = (unsigned char)(v & 0xFF);
+        out[n++] = (unsigned char)(v >> 8);
+    };
+    out[n++] = cpu->i;
+    out[n++] = cpu->r;
+    out[n++] = cpu->iff1;
+    out[n++] = cpu->iff2;
+    out[n++] = cpu->im;
+    out[n++] = cpu->halted ? 1 : 0;
+    out[n++] = cpu->int_pending ? 1 : 0;
+    out[n++] = cpu->nmi_pending ? 1 : 0;
+    out[n++] = cpu->ei_delay ? 1 : 0;
+    out[n++] = cpu->ld_a_ir ? 1 : 0;
+    out[n++] = cpu->int_vector;
+    out[n++] = cpu->q;
+    g_assert(n == STATE_HASH_CPU_BYTES);
 }

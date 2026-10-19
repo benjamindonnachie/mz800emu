@@ -85,6 +85,11 @@ documented separately in [Resources overview](resources-overview.md).
 | `emu_videorec_status` | no | Video recording status (state, frames, segment, size, path, last event) |
 | `emu_videorec_timebase` | no | Recording timebase: emulated time or real time |
 | `emu_frame_hash` | no | SHA-256 of the screen picture and of the VRAM, beam position (no data) |
+| `emu_replay_record_start` | yes (creates / overwrites a file) | Start recording inputs into a replay file (start snapshot, inputs at frame boundaries, state hashes) |
+| `emu_replay_record_stop` | no | Stop recording and save the replay file |
+| `emu_replay_play` | yes (replaces the emulator state) | Play a replay back from its start snapshot, stop at the first differing hash |
+| `emu_replay_play_stop` | no | Stop a running playback |
+| `emu_replay_status` | no | Recording / playback status and the result of the last one |
 | `emu_screenshot_save_to_file` | yes (creates / overwrites a file) | PNG of the screen to a file: area (full / canvas), scale (framebuffer / native dots / window 1-4), crop |
 | `emu_screenshot_series_start` | yes (creates files) | Frame series: a PNG of every changed emulated frame (area, scale, crop, only_changed, frames, max_files) |
 | `emu_screenshot_series_stop` | no | Stop the frame series, by default wait until all frames are written |
@@ -203,6 +208,8 @@ Sensitive tools include:
 - **Snapshot operations** - `emu_snapshot_save` (overwrites a file),
   `emu_snapshot_load` and `emu_snapshot_load_buffer` (replace emu
   state)
+- **Replay** - `emu_replay_record_start` (overwrites a file),
+  `emu_replay_play` (replaces emu state)
 - **Media operations** - `emu_media_load_binary` (raw RAM write),
   `emu_media_insert` (auto-eject overwrites mounted image)
 - **Configuration** - `emu_settings_set` (mutates global state),
@@ -326,7 +333,8 @@ between leaving a pause and the next pause; every run has a number
 Returns `{"done": true, "run_seq", "record": {...}}` or, after the
 timeout, `{"done": false, "running": true, ...}` - call again. The
 record: `reason` (`run_to`, `breakpoint`, `deadline`, `frames`, `step`,
-`manual`, `exit`, `bp_action_saturation`, `event_trigger`), `pc`,
+`manual`, `exit`, `bp_action_saturation`, `event_trigger`, `replay`,
+`replay_end`, `replay_desync`), `pc`,
 `bp_id`, `started_by` / `start_cmd` (`mcp` = an agent, `user` = the
 GUI), `stopped_by` (for `manual`), `start_ticks` / `stop_ticks` (GDG
 ticks since reset), `elapsed_ticks`, `frame`, `step`; for `exit` also
@@ -1300,6 +1308,82 @@ Without an audio device (`--headless`, `--mcp-pipe`, or when the windowed
 emulator cannot open an audio device) the sound is rendered by the same
 path without being played. Returns the status plus
 `timebase_requested`; an invalid value is a parameter error.
+
+## Replay tools
+
+Record the inputs of a run once and play them back exactly - in the same
+or a new process, at any speed - to repeat a bug with other breakpoints,
+trace or the RAM write log, or to check a run in CI. The full guide is
+in [../replay.md](../replay.md) and in the MCP document
+`emulator://docs/replay`.
+
+A replay file (`.mzr`) holds a complete start snapshot (always with the
+RAM disk), every change of the keyboard matrix and joystick state at a
+frame boundary, resets, autotype, debugger writes, and SHA-256 hashes of
+the `cpu` (registers and hidden Z80 state), `ram`, `memext`, `vram` and
+`pcg` every N frames together with the emulated time. Playback compares
+the hashes and stops at the first frame that differs.
+
+### `emu_replay_record_start` (sensitive - creates / overwrites a file)
+
+Arguments: `path` (string, required), `hash_interval` (int 1..100000,
+default 50 frames), `description` (string, optional). If the emulation
+runs, it pauses at the next frame boundary, the recording starts and the
+emulation runs on; if it is paused, it stays paused.
+
+While recording, keyboard input from the GUI is taken at the next frame
+boundary. Debugger writes (`emu_mem_write`, `emu_mem_write_force`,
+region writes, `emu_set_register`, CPU flags, `emu_io_write`,
+`emu_irq_inject`, `emu_nmi_inject`) and input tools are recorded while
+running (taken at the frame boundary) and while paused **at** a frame
+boundary (after `emu_run(frames=N)` or a `deadline`, or a pause sent
+while running). In a pause **between** frame boundaries (after a step or
+a breakpoint) they are refused with an explanation. Tools that change
+the machine in a way the replay cannot repeat are refused: snapshot
+load, media, tape control, settings, platform, peripherals, memory map,
+`emu_io_read` (side effects), `emu_freeze_add`. Starting is refused
+while autotype runs or Freeze Bytes are active. Breakpoint actions that
+write (`poke`, `set`) are not recorded: the manifest gets a warning.
+
+Returns the status (see `emu_replay_status`).
+
+### `emu_replay_record_stop`
+
+Stops the recording and writes the file. Stopped at a frame boundary,
+the replay ends with a hash of the final state; stopped in a pause
+between boundaries, it ends at the last boundary. Returns the status
+with `outcome: "recorded"` and `outcome_message` (frames, events, file),
+or an error (`no recording is running`, write error).
+
+### `emu_replay_play` (sensitive - replaces the emulator state)
+
+Arguments: `path` (string, required), `pause_after_load` (bool, default
+false). Loads the start snapshot and plays the recorded inputs back;
+`pause_after_load: true` stays paused after the load (set breakpoints,
+then `emu_resume`). Live input (GUI keyboard, virtual keyboard, MCP
+keys) is ignored. The end pauses the emulation with reason `replay_end`
+(`outcome: "ended"`), the first differing hash with `replay_desync`
+(`outcome: "desync"`, `outcome_frame`, `desync_parts`: `cpu`, `ram`,
+`memext`, `vram`, `pcg`, `time`). A write into the machine during
+playback (debugger write, breakpoint `poke` / `set` action, Freeze
+Bytes, reset, snapshot load) marks the playback `deviated`: it goes on,
+but the hashes are no longer checked. Errors: unreadable file, other
+platform or TV system, a replay with debugger events in a build without
+the debugger.
+
+### `emu_replay_play_stop`
+
+Stops a running playback (`outcome: "stopped"`). Error: `no playback is
+running`.
+
+### `emu_replay_status`
+
+No arguments. Returns `{"mode": "off" | "recording" | "playing",
+"frame", "frames" (length while playing), "events", "hashes",
+"hash_interval", "warnings", "deviated", "deviation", "path", "outcome":
+"none" | "recorded" | "ended" | "desync" | "stopped" | "error",
+"outcome_frame", "outcome_message", "desync_parts": [...]}`. The
+`outcome*` members describe the last finished recording or playback.
 
 ## Screenshot tools
 
