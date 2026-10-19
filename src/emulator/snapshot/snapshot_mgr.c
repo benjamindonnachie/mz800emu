@@ -276,6 +276,7 @@ const char *snapshot_result_to_string(en_SNAPSHOT_RESULT result)
         case SNAPSHOT_ERR_ALLOC:        return "Memory allocation error";
         case SNAPSHOT_ERR_EXTERNAL_REF: return "Missing external reference";
         case SNAPSHOT_ERR_NOT_PAUSED:   return "Emulator is not paused";
+        case SNAPSHOT_ERR_REPLAY_ACTIVE: return "Not allowed while recording or playing a replay";
         default:                        return "Unknown error";
     }
 }

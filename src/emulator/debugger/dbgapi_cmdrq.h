@@ -742,6 +742,16 @@ typedef enum en_DBGAPI_CMD
     DBGAPI_CMD_RUN_DEADLINE,         /* Nastavit / zrušit deadline běhu - data_ptr: st_DBGAPI_RUN_DEADLINE_PARAM* */
     DBGAPI_CMD_FRAME_HASH,           /* SHA-256 obrazu (INDEX8 + paleta) a VRAM, pozice paprsku - data_ptr: st_DBGAPI_FRAME_HASH_PARAM* */
 
+    /* ui-thread-rest (M7 debug-gaps) - Test Eval editačního panelu BP
+     *
+     * Panel dřív vyhodnocoval výraz v UI vlákně (registry, paměť a porty
+     * souběžně s emu vláknem, `[addr]!` spouštělo MEM_R BP z UI vlákna).
+     * Nově výraz vyhodnotí emu vlákno v drainu fronty s kontextem
+     * breakpoints_fill_global_ctx() a příznakem no_side_effects (znak `!`
+     * se ignoruje). Přidáno na KONEC enumu kvůli stabilitě číselných
+     * hodnot. */
+    DBGAPI_CMD_BP_TEST_EVAL,         /* Test Eval výrazu BP bez vedlejších efektů - data_ptr: st_DBGAPI_BP_TEST_EVAL_PARAM* */
+
 } en_DBGAPI_CMD;
 
 /* ============================================================================
@@ -2744,6 +2754,36 @@ typedef struct st_DBGAPI_WATCH_EVAL_PARAM
     char       *out_value_str;
     char       *out_error;          /**< Heap chybová hláška (NULL pokud OK). */
 } st_DBGAPI_WATCH_EVAL_PARAM;
+
+
+/** @brief Velikost bufferu chybové hlášky Test Eval (včetně nuly). */
+#define DBGAPI_BP_TEST_EVAL_ERR_MAX 128
+
+/**
+ * @brief Parametr pro DBGAPI_CMD_BP_TEST_EVAL (Test Eval editačního panelu BP).
+ *
+ * Emu vlákno výraz rozparsuje a vyhodnotí s kontextem
+ * breakpoints_fill_global_ctx() (registry, InsnPC, Cycle, Frame, FrameCycle,
+ * Scanline, BankPC), `self_id = -1` a `no_side_effects = true`: `[addr]!`
+ * čte jako `[addr]` (bez MEM_R BP), `port[N]!` jako `port[N]` (sonda bez
+ * vedlejšího efektu). Kontext zásahu (`Address`, `Value`, `Is*`) zůstává
+ * nulový.
+ *
+ * Vlastnictví: `expr_text` patří volajícímu a musí žít do dokončení
+ * příkazu (synchronní submit). Výstupy jsou přímo ve struktuře, nic se
+ * nealokuje.
+ *
+ * @invariant Po dokončení příkazu: `out_ok == true` => `out_error` je
+ *            prázdný řetězec; `out_ok == false` => `out_error` nese hlášku
+ *            parseru (anglicky) a `out_value` je 0.
+ */
+typedef struct st_DBGAPI_BP_TEST_EVAL_PARAM
+{
+    const char *expr_text;                          /**< Vstup: výraz (NULL nebo "" = chyba parseru). */
+    bool        out_ok;                             /**< Výstup: výraz rozparsován a vyhodnocen. */
+    int32_t     out_value;                          /**< Výstup: výsledek (0 při chybě). */
+    char        out_error[DBGAPI_BP_TEST_EVAL_ERR_MAX]; /**< Výstup: hláška parseru, při úspěchu "". */
+} st_DBGAPI_BP_TEST_EVAL_PARAM;
 
 
 /**

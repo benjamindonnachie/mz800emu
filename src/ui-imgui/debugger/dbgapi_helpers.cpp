@@ -359,6 +359,19 @@ bool dbg_ui_bp_reset_hits(int id)
 }
 
 
+bool dbg_ui_bp_test_eval(st_DBGAPI_BP_TEST_EVAL_PARAM *p)
+{
+    /* Param i výraz žijí u volajícího; synchronní submit je po dokončení
+     * příkazu už nepoužívá. */
+    if (!p)
+        return false;
+    return dbgapi_ui_submit_cmd_sync(&g_dbgapi_cmdrq_queue,
+                                     DBGAPI_CMD_BP_TEST_EVAL,
+                                     p, NULL,
+                                     DBG_UI_BP_BULK_CMD_TIMEOUT_MS);
+}
+
+
 bool dbg_ui_mhmap_set_mode(int mode)
 {
     /* Vzor CPU Instruction History: flag zapíše UI (int zápis), swap

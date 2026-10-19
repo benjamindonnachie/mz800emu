@@ -154,6 +154,15 @@ mz_add_test(bpt_window_queue
     LABELS   "emu;debugger;ui-breakpoints"
 )
 
+# Test Eval v editačním panelu BP: výraz vyhodnotí emu vlákno přes CMDRQ
+# frontu (dbg_ui_bp_test_eval), znak `!` se ignoruje (bez spuštění MEM_R BP).
+mz_add_test(bp_test_eval_queue
+    TYPE     EMU
+    SOURCES  test_bp_test_eval_queue.c
+             ${CMAKE_SOURCE_DIR}/src/ui-imgui/debugger/dbgapi_helpers.cpp
+    LABELS   "emu;debugger;ui-breakpoints"
+)
+
 # Okno Memory Heatmap a menu CDL: přepnutí režimu (swap callbacků), reset,
 # reset regionu a Add / Sub importu jdou přes CMDRQ frontu (UI helpery
 # v dbgapi_helpers.cpp), ne přímo z UI vlákna.

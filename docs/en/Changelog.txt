@@ -1,3 +1,9 @@
+	- BUGFIX: Snapshots - Load Snapshot, Save Snapshot, Quick Load and Quick Save from the menu are carried out by the emulator in a pause, not by the window. Before, a snapshot could be saved or loaded while the emulation was still running (in particular in builds without the debugger), so the saved state could be inconsistent. A load is refused while an input replay is being recorded or played.
+
+	- BUGFIX: Debugger - Test Eval in the breakpoint edit panel is evaluated by the emulator, so all registers and memory of one expression come from the same moment (while running at the end of a frame). As the documentation says, the ! in [addr]! and port[N]! is ignored there: a MEM_R breakpoint no longer fires and the port is only probed.
+
+	- BUGFIX: the standard RAM disk is named MZ-1R18 (it was MR-1R18) in HW & Devices -> Memory Disk, in the Memory Disk State window and in the names of the JSS ROMs.
+
 	- New feature: Screenshot Control window (Tools -> Screenshot -> Screenshot Control..., Alt+G) and Audio Capture Control window (Tools -> Audio Capture -> Audio Capture Control..., Alt+Shift+Q), like the remote control of video recording: the state, the last result and all controls with their keys in a window that can stay open. See screenshots.md and audio-capture.md.
 
 	- BUGFIX: Z80 - PUSH, CALL, RST and accepting an interrupt or NMI wrote the low byte of the stored value first. The high byte is now written first (to SP-1), then the low byte, as the Zilog Z80 manual specifies. The memory contents after the instruction are unchanged; the order is visible in write breakpoints on the stack and in writes to memory-mapped I/O.

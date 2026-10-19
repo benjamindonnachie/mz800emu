@@ -130,16 +130,16 @@ msgid "JSS ROMs"
 msgstr "JSS ROM"
 
 #: src/emulator/mzarch/mz800/memory/mz800_rom.c:44
-msgid "JSS v1.05C - for MR-1R18 (devel)"
-msgstr "JSS v1.05C - for MR-1R18 (devel)"
+msgid "JSS v1.05C - for MZ-1R18 (devel)"
+msgstr "JSS v1.05C - for MZ-1R18 (devel)"
 
 #: src/emulator/mzarch/mz800/memory/mz800_rom.c:45
 msgid "JSS v1.03 - for Pezik (devel)"
 msgstr "JSS v1.03 - for Pezik (devel)"
 
 #: src/emulator/mzarch/mz800/memory/mz800_rom.c:47
-msgid "JSS v1.08C - for MR-1R18"
-msgstr "JSS v1.08C - for MR-1R18"
+msgid "JSS v1.08C - for MZ-1R18"
+msgstr "JSS v1.08C - for MZ-1R18"
 
 #: src/emulator/mzarch/mz800/memory/mz800_rom.c:48
 msgid "JSS v1.06A - for Pezik"
@@ -7771,8 +7771,8 @@ msgid "Memory Disk State"
 msgstr "Stav pamäťového disku"
 
 #: src/ui-imgui/debugger/ramdisk_window.cpp:146
-msgid "MR-1R18 (Standard)"
-msgstr "MR-1R18 (Štandard)"
+msgid "MZ-1R18 (Standard)"
+msgstr "MZ-1R18 (Štandard)"
 
 #: src/ui-imgui/debugger/ramdisk_window.cpp:153
 #: src/ui-imgui/topmenu/devices/menu_ramdisk.cpp:96
@@ -12290,16 +12290,16 @@ msgid "Memory Disk"
 msgstr "Pamäťový disk"
 
 #: src/ui-imgui/topmenu/devices/menu_ramdisk.cpp:77
-msgid "MR-1R18 Compatible"
-msgstr "MR-1R18 kompatibilný"
+msgid "MZ-1R18 Compatible"
+msgstr "MZ-1R18 kompatibilný"
 
 #: src/ui-imgui/topmenu/devices/menu_ramdisk.cpp:116
 msgid "Pezik Settings..."
 msgstr "Nastavenia Pezik..."
 
 #: src/ui-imgui/topmenu/devices/menu_ramdisk.cpp:121
-msgid "MR-1R18 Options"
-msgstr "Nastavenia MR-1R18"
+msgid "MZ-1R18 Options"
+msgstr "Nastavenia MZ-1R18"
 
 #: src/ui-imgui/topmenu/devices/menu_ramdisk.cpp:125
 msgid "64 KB"

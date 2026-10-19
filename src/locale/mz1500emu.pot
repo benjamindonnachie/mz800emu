@@ -7437,7 +7437,7 @@ msgid "Memory Disk State"
 msgstr ""
 
 #: src/ui-imgui/debugger/ramdisk_window.cpp:146
-msgid "MR-1R18 (Standard)"
+msgid "MZ-1R18 (Standard)"
 msgstr ""
 
 #: src/ui-imgui/debugger/ramdisk_window.cpp:153
@@ -11777,7 +11777,7 @@ msgid "Memory Disk"
 msgstr ""
 
 #: src/ui-imgui/topmenu/devices/menu_ramdisk.cpp:77
-msgid "MR-1R18 Compatible"
+msgid "MZ-1R18 Compatible"
 msgstr ""
 
 #: src/ui-imgui/topmenu/devices/menu_ramdisk.cpp:116
@@ -11785,7 +11785,7 @@ msgid "Pezik Settings..."
 msgstr ""
 
 #: src/ui-imgui/topmenu/devices/menu_ramdisk.cpp:121
-msgid "MR-1R18 Options"
+msgid "MZ-1R18 Options"
 msgstr ""
 
 #: src/ui-imgui/topmenu/devices/menu_ramdisk.cpp:125

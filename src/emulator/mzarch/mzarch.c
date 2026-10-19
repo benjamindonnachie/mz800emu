@@ -70,6 +70,7 @@
 #endif
 
 #include "replay.h"
+#include "snapshot/snapshot_request.h"
 #include "replay_cli.h"
 
 // TODO: tohle volame v mz800_main_do_emulator_paused()
@@ -1150,6 +1151,11 @@ static inline void mzzarch_main_do_emulator_paused(void)
          * (replay.h). Bez záznamu a požadavku jen dvě čtení. */
         replay_on_paused();
 
+        /* Snapshot z GUI (Load / Save / Quick Load / Quick Save) vyřídí
+         * emu vlákno v pauze (snapshot_request.h). Bez požadavku jedno
+         * atomické čtení. */
+        snapshot_request_poll();
+
         if (iface_video_get_redraw_full_screen_request())
         {
             framebuffer_screen_done();
@@ -1239,6 +1245,11 @@ static inline void mzzarch_main_do_emulator_paused(void)
         /* Záznam a přehrání vstupů: start, stop, reset a autotype v pauze
          * (replay.h). Bez záznamu a požadavku jen dvě čtení. */
         replay_on_paused();
+
+        /* Snapshot z GUI (Load / Save / Quick Load / Quick Save) vyřídí
+         * emu vlákno v pauze (snapshot_request.h). Bez požadavku jedno
+         * atomické čtení. */
+        snapshot_request_poll();
 
         mzarch_main_queue_next_event();
 

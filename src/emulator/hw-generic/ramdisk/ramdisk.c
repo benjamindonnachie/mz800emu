@@ -382,7 +382,7 @@ void ramdisk_init ( void ) {
 
     CFGELM *elm;
 
-    /* MR1R18 */
+    /* MZ-1R18 */
     elm = cfgmodule_register_new_element ( cmod, "mr1r18_pluged", CFGENTYPE_BOOL, RAMDISK_CONNECTED );
     cfgelement_set_handlers ( elm, NULL, (void*) &g_ramdisk.std.connected );
 

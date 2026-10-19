@@ -27,6 +27,9 @@ mz_add_test(ui-functional
              ${CMAKE_SOURCE_DIR}/src/ui-imgui/topmenu/replay_window.cpp
              ${CMAKE_SOURCE_DIR}/src/ui-imgui/screenshot/screenshot_ui.cpp
              ${CMAKE_SOURCE_DIR}/src/ui-imgui/audiocap/audio_capture_ui.cpp
+             ${CMAKE_SOURCE_DIR}/src/ui-imgui/topmenu/menu_snapshot.cpp
+             ${CMAKE_SOURCE_DIR}/src/ui-imgui/snapshot/snapshot_quicksave_handler.cpp
+             ${CMAKE_SOURCE_DIR}/src/ui-imgui/snapshot/snapshot_request_ui.cpp
              ${CMAKE_SOURCE_DIR}/src/ui-imgui/filechooser/igfd_ToggleButton.cpp
     LIBS     mzlib_imgui mzlib_igfd mzlib_imwidgets
     LABELS   "ui;videorec"

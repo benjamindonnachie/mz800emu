@@ -129,6 +129,11 @@ extern "C" {
          * (= test, eval bez self-reference); disable_self pak loguje
          * warning a no-op. */
         int      self_id;
+        /* true = znak `!` se ignoruje: `[addr]!` / `{addr}!` čte jako
+         * `[addr]` (bez MEM_R BP), `port[N]!` jako sonda `port[N]`. Pro
+         * Test Eval editačního panelu BP (DBGAPI_CMD_BP_TEST_EVAL);
+         * bp_expr_ctx_zero() nastaví false (= `!` platí). */
+        bool     no_side_effects;
     } bp_expr_ctx_t;
 
 

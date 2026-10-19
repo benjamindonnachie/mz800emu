@@ -855,6 +855,7 @@ const char *dbgapi_cmd_to_str(en_DBGAPI_CMD cmd)
         case DBGAPI_CMD_RUN_TO:                    return "run_to";
         case DBGAPI_CMD_RUN_DEADLINE:              return "run_deadline";
         case DBGAPI_CMD_FRAME_HASH:                return "frame_hash";
+        case DBGAPI_CMD_BP_TEST_EVAL:              return "bp_test_eval";
         case DBGAPI_CMD_RESET:                     return "reset";
         case DBGAPI_CMD_GET_REG:                   return "get_reg";
         case DBGAPI_CMD_SET_REG:                   return "set_reg";
@@ -4804,6 +4805,37 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
                 break;
             };
             breakpoints_reset_hits ( *p_id );
+            rq->success = true;
+            break;
+        }
+
+        /* --- Test Eval editačního panelu BP (M7 ui-thread-rest) ---
+         * Výraz čte registry, paměť a porty, proto ho vyhodnotí emu vlákno
+         * (drain fronty = mezi instrukcemi nebo v pauze). Kontext jako
+         * u vyhodnocení BP mimo zásah: breakpoints_fill_global_ctx(),
+         * self_id -1; no_side_effects = znak `!` se ignoruje (Test Eval
+         * nesmí spustit MEM_R BP ani číst port se skutečným efektem).
+         * Chyba parseru je úspěšně vyřízený příkaz s out_ok false. */
+        case DBGAPI_CMD_BP_TEST_EVAL:
+        {
+            st_DBGAPI_BP_TEST_EVAL_PARAM *p =
+                (st_DBGAPI_BP_TEST_EVAL_PARAM *) rq->data_ptr;
+            if ( !p )
+            {
+                rq->success = false;
+                break;
+            };
+            bp_expr_ctx_t ctx;
+            bp_expr_ctx_zero ( &ctx );
+            breakpoints_fill_global_ctx ( &ctx );
+            ctx.self_id = -1;
+            ctx.no_side_effects = true;
+            p->out_value = 0;
+            p->out_error[ 0 ] = '\0';
+            p->out_ok = bp_expr_parse_eval ( p->expr_text ? p->expr_text : "",
+                                             &ctx, &p->out_value,
+                                             p->out_error, sizeof ( p->out_error ) );
+            if ( !p->out_ok ) p->out_value = 0;
             rq->success = true;
             break;
         }

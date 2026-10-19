@@ -83,9 +83,10 @@ void mzarch_platform_load_prepare_body_map(uint16_t fstrt)
 {
     /* Pokud cílová adresa programu je v rozsahu prvních 4 KB, odmapujeme
      * ROM 0x0000-0x0FFF aby se tělo MZF korektně uložilo do RAM. Pozn.:
-     * reálná ROM toto chování dělá jen když fstrt == 0x0000, ale naše
-     * bootstrap je víc vanilkové (= mapping musí odpovídat skutečné
-     * cílové RAM). */
+     * ROM MZ-800 (]GOPGM, OUT (0E0h) na 0ED1Eh) dolní ROM odmapuje jen
+     * tehdy, když jsou zaváděcí i spouštěcí adresa obě 0000h (Owner's
+     * Manual MZ-800 a výpis ROM); bootstrap odmapuje šířeji, protože
+     * mapování musí odpovídat skutečné cílové RAM. */
     if (fstrt < 0x1000)
     {
         g_memory.map &= ~MEMORY_MZ800_MAP_FLAG_ROM_0000;

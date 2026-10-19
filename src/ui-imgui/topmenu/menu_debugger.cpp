@@ -593,7 +593,7 @@ void imgui_menu_debugger(en_DBG_MENU_CALLER caller)
 
         /*
          * Submenu "Storage" - state okna ulozistovych radicu/zarizeni:
-         * FDC (WD279x), QDisk (MZ-1F11), Memory Disk (ramdisky MR-1R18 +
+         * FDC (WD279x), QDisk (MZ-1F11), Memory Disk (ramdisky MZ-1R18 +
          * Pezik), IDE8 (HDD radic). Tyto MenuItems jsou duplicitni k polozkam
          * v sekci HW (menu_fdcontroller.cpp, menu_qdisk.cpp, menu_ramdisk.cpp,
          * menu_ide8.cpp); zamer je mit je dostupne i z Debugger menu vedle

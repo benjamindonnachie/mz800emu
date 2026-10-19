@@ -130,16 +130,16 @@ msgid "JSS ROMs"
 msgstr "JSS ROMs"
 
 #: src/emulator/mzarch/mz800/memory/mz800_rom.c:44
-msgid "JSS v1.05C - for MR-1R18 (devel)"
-msgstr "JSS v1.05C - for MR-1R18 (devel)"
+msgid "JSS v1.05C - for MZ-1R18 (devel)"
+msgstr "JSS v1.05C - for MZ-1R18 (devel)"
 
 #: src/emulator/mzarch/mz800/memory/mz800_rom.c:45
 msgid "JSS v1.03 - for Pezik (devel)"
 msgstr "JSS v1.03 - for Pezik (devel)"
 
 #: src/emulator/mzarch/mz800/memory/mz800_rom.c:47
-msgid "JSS v1.08C - for MR-1R18"
-msgstr "JSS v1.08C - for MR-1R18"
+msgid "JSS v1.08C - for MZ-1R18"
+msgstr "JSS v1.08C - for MZ-1R18"
 
 #: src/emulator/mzarch/mz800/memory/mz800_rom.c:48
 msgid "JSS v1.06A - for Pezik"
@@ -7794,8 +7794,8 @@ msgid "Memory Disk State"
 msgstr "Memory Disk State"
 
 #: src/ui-imgui/debugger/ramdisk_window.cpp:146
-msgid "MR-1R18 (Standard)"
-msgstr "MR-1R18 (Standaard)"
+msgid "MZ-1R18 (Standard)"
+msgstr "MZ-1R18 (Standaard)"
 
 #: src/ui-imgui/debugger/ramdisk_window.cpp:153
 #: src/ui-imgui/topmenu/devices/menu_ramdisk.cpp:96
@@ -12326,16 +12326,16 @@ msgid "Memory Disk"
 msgstr "Geheugenschijf"
 
 #: src/ui-imgui/topmenu/devices/menu_ramdisk.cpp:77
-msgid "MR-1R18 Compatible"
-msgstr "MR-1R18-compatibel"
+msgid "MZ-1R18 Compatible"
+msgstr "MZ-1R18-compatibel"
 
 #: src/ui-imgui/topmenu/devices/menu_ramdisk.cpp:116
 msgid "Pezik Settings..."
 msgstr "Pezik-instellingen..."
 
 #: src/ui-imgui/topmenu/devices/menu_ramdisk.cpp:121
-msgid "MR-1R18 Options"
-msgstr "MR-1R18-opties"
+msgid "MZ-1R18 Options"
+msgstr "MZ-1R18-opties"
 
 #: src/ui-imgui/topmenu/devices/menu_ramdisk.cpp:125
 msgid "64 KB"

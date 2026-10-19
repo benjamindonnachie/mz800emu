@@ -44,6 +44,7 @@ typedef enum en_SNAPSHOT_RESULT {
     SNAPSHOT_ERR_ALLOC,           /* Chyba alokace paměti */
     SNAPSHOT_ERR_EXTERNAL_REF,    /* Chybí referenční externí soubor */
     SNAPSHOT_ERR_NOT_PAUSED,      /* Emulátor není v pauze */
+    SNAPSHOT_ERR_REPLAY_ACTIVE,   /* Načtení odmítnuto: běží záznam nebo přehrávání vstupů (replay) */
 } en_SNAPSHOT_RESULT;
 
 

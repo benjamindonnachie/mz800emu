@@ -22,6 +22,14 @@ mz_add_test(snapshot-buffer
     LABELS   "emu;snapshot"
 )
 
+# Fronta požadavků na snapshot z GUI: zařazení nic neprovede, vyřídí až
+# snapshot_request_poll() (emu vlákno v pauze), výsledky v pořadí zařazení.
+mz_add_test(snapshot-request
+    TYPE     EMU
+    SOURCES  test_snapshot_request.c
+    LABELS   "emu;snapshot"
+)
+
 # INI sekce [SNAPSHOT] se načte a propaguje do g_snapshot_settings.
 mz_add_test(snapshot-config
     TYPE     EMU

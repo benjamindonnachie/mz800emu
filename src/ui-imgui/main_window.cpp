@@ -75,6 +75,7 @@ extern "C"
     void snapshot_notification_show(const char *message, bool is_error);
     bool snapshot_notification_error_active(void);
     void imgui_snapshot_quicksave_handler(void);
+    void imgui_snapshot_request_results(void);
 
     /* Jazyk */
     void imgui_language_window(void);
@@ -351,7 +352,7 @@ void imgui_main_window(GLuint texture)
 #if CFG_HWEXT_HAVE_RAMDISK
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
     /* memory-disk-state: Memory Disk State debugger okno - stav vsech
-     * ramdisku (MR-1R18 STD + Pezik E8/68). Side-effect free, per frame. */
+     * ramdisku (MZ-1R18 STD + Pezik E8/68). Side-effect free, per frame. */
     if (g_gui->showRamdiskStateWindow)
         imgui_ramdisk_state_window(&g_gui->showRamdiskStateWindow);
 #endif
@@ -406,6 +407,8 @@ void imgui_main_window(GLuint texture)
     imgui_snapshot_load_dialog();
     imgui_snapshot_setup_dialog();
     imgui_snapshot_quicksave_handler();
+    /* Výsledky snapshotů vyřízených emu vláknem: oznámení, obnovení běhu. */
+    imgui_snapshot_request_results();
 
     /* Záznam a přehrání vstupů: dialogy nabídky Replay a oznámení výsledku */
     imgui_replay_dialogs();

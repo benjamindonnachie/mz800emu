@@ -49,6 +49,16 @@ extern "C" {
 #include "ui-imgui/audiocap/audio_capture_ui.h"
 #include "i18n.h"
 
+extern "C" {
+#include "snapshot/snapshot.h"
+#include "snapshot/snapshot_request.h"
+/* Z menu_snapshot.cpp a snapshot_quicksave_handler.cpp (bez hlavičky). */
+void snapshot_ui_request_quicksave(void);
+void snapshot_ui_request_quickload(void);
+void imgui_snapshot_quicksave_handler(void);
+}
+#include "ui-imgui/snapshot/snapshot_request_ui.h"
+
 /* UI globál, který jinak vytváří sdlapp_imgui_video.cpp. */
 static MyImGui s_gui;
 MyImGui *g_gui = &s_gui;
@@ -207,6 +217,7 @@ void tearDown(void)
     g_emulator.paused = false;
     imgui_videorec_poll_events();
     clean_out_dir();
+    snapshot_request_clear(); /* nevyřízené požadavky snapshotu předchozího testu */
 }
 
 /* ================================================================
@@ -899,6 +910,120 @@ static void test_tool_windows_render(void)
     frame_end();
 }
 
+/* ================================================================
+ * Snapshot z GUI (Quick Save) ukládá emu vlákno, ne UI vlákno
+ * ================================================================ */
+
+static const char *SNAP_DIR = "tests/data/tmp/ui_snapshot";
+
+/* Stuby pauzy a běhu z dbgapi_helpers.cpp (test ho nelinkuje): jen přepnou
+ * příznak pauzy jako synchronní pauza s debuggerem. */
+static int s_pause_calls = 0;
+static int s_run_calls = 0;
+extern "C" bool dbg_ui_pause(void) { s_pause_calls++; g_emulator.paused = true; return true; }
+extern "C" bool dbg_ui_run(void) { s_run_calls++; g_emulator.paused = false; return true; }
+
+/** Počet souborů .mzs v SNAP_DIR. */
+static int count_snap_files(void)
+{
+    int n = 0;
+    GDir *d = g_dir_open(SNAP_DIR, 0, NULL);
+    if (!d) return 0;
+    const char *name;
+    while ((name = g_dir_read_name(d)) != NULL) {
+        if (g_str_has_suffix(name, ".mzs")) n++;
+    }
+    g_dir_close(d);
+    return n;
+}
+
+/** Smaže soubory v SNAP_DIR. */
+static void clean_snap_dir(void)
+{
+    GDir *d = g_dir_open(SNAP_DIR, 0, NULL);
+    if (!d) return;
+    const char *n;
+    while ((n = g_dir_read_name(d)) != NULL) {
+        char *p = g_build_filename(SNAP_DIR, n, NULL);
+        g_remove(p);
+        g_free(p);
+    }
+    g_dir_close(d);
+}
+
+/* Quick Save z menu (Ctrl+F5 / Snapshot -> Quick Save) dřív v témže snímku
+ * UI zavolal snapshot_quicksave() přímo v UI vlákně, tedy četl stav stroje
+ * souběžně s emu vláknem (bez debuggeru pauza jen nastaví příznak, emu
+ * vlákno může být uprostřed snímku). Teď UI jen zařadí požadavek; soubor
+ * zapíše až emu vlákno v paused smyčce (snapshot_request_poll()) a UI pak
+ * ukáže výsledek. */
+static void test_quicksave_saved_by_emu_thread(void)
+{
+    g_mkdir_with_parents(SNAP_DIR, 0755);
+    clean_snap_dir();
+    g_strlcpy(g_snapshot_settings.default_directory, SNAP_DIR,
+              sizeof(g_snapshot_settings.default_directory));
+    g_strlcpy(g_snapshot_settings.quicksave_filename, "uiquick",
+              sizeof(g_snapshot_settings.quicksave_filename));
+    g_snapshot_settings.quicksave_mode = 0; /* Basic */
+    g_emulator.paused = true; /* jako po pauze z menu, pauza se pak nežádá */
+
+    snapshot_ui_request_quicksave();
+    imgui_snapshot_quicksave_handler();
+
+    /* UI vlákno samo neuložilo a výsledek zatím nehlásí. */
+    TEST_ASSERT_EQUAL_INT(0, count_snap_files());
+    TEST_ASSERT_EQUAL_INT(0, s_note_count);
+    TEST_ASSERT_EQUAL_INT(1, snapshot_request_pending());
+
+    /* Výsledky se ukazují až po vyřízení. */
+    imgui_snapshot_request_results();
+    TEST_ASSERT_EQUAL_INT(0, s_note_count);
+
+    /* Emu vlákno v paused smyčce požadavek vyřídí. */
+    snapshot_request_poll();
+    TEST_ASSERT_EQUAL_INT(0, snapshot_request_pending());
+    TEST_ASSERT_EQUAL_INT(1, count_snap_files());
+
+    /* UI ohlásí úspěch; emulace před pauzou neběžela, pauza zůstává. */
+    s_run_calls = 0;
+    imgui_snapshot_request_results();
+    TEST_ASSERT_EQUAL_INT(1, s_note_count);
+    TEST_ASSERT_FALSE(s_note_error);
+    TEST_ASSERT_EQUAL_INT(0, s_run_calls);
+    TEST_ASSERT_TRUE(g_emulator.paused);
+
+    clean_snap_dir();
+}
+
+/* Quick Load za běhu emulace: UI emulaci pozastaví, načtení nechá emu
+ * vláknu. Bez souboru quicksave výsledek ohlásí chybu a pauza zůstane. */
+static void test_quickload_pauses_and_reports_error(void)
+{
+    g_mkdir_with_parents(SNAP_DIR, 0755);
+    clean_snap_dir();
+    g_strlcpy(g_snapshot_settings.default_directory, SNAP_DIR,
+              sizeof(g_snapshot_settings.default_directory));
+    g_strlcpy(g_snapshot_settings.quicksave_filename, "uiquick",
+              sizeof(g_snapshot_settings.quicksave_filename));
+    g_snapshot_settings.quicksave_mode = 0;
+    g_emulator.paused = false;
+    s_pause_calls = 0;
+    s_run_calls = 0;
+
+    snapshot_ui_request_quickload();
+    imgui_snapshot_quicksave_handler();
+    TEST_ASSERT_TRUE(s_pause_calls >= 1);
+    TEST_ASSERT_TRUE(g_emulator.paused);
+    TEST_ASSERT_EQUAL_INT(1, snapshot_request_pending());
+
+    snapshot_request_poll();
+    imgui_snapshot_request_results();
+    TEST_ASSERT_EQUAL_INT(1, s_note_count);
+    TEST_ASSERT_TRUE(s_note_error);
+    TEST_ASSERT_EQUAL_INT(0, s_run_calls); /* po chybě zůstává pauza */
+}
+
 int main(int argc, char *argv[])
 {
     mztest_parse_args(argc, argv);
@@ -935,6 +1060,8 @@ int main(int argc, char *argv[])
     RUN_TEST(test_replay_window_renders);
     RUN_TEST(test_tool_window_shortcuts);
     RUN_TEST(test_tool_windows_render);
+    RUN_TEST(test_quicksave_saved_by_emu_thread);
+    RUN_TEST(test_quickload_pauses_and_reports_error);
     int result = UNITY_END();
 
     ui_teardown();

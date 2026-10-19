@@ -419,6 +419,24 @@ bool dbg_ui_bp_load_from_file(const char *filepath);
  */
 bool dbg_ui_bp_reset_hits(int id);
 
+/**
+ * @brief Test Eval výrazu BP přes DBGAPI_CMD_BP_TEST_EVAL.
+ *
+ * Výraz čte registry, paměť a porty, které mění emu vlákno; vyhodnocení
+ * proto provede emu vlákno (bez vedlejších efektů, znak `!` se ignoruje,
+ * viz st_DBGAPI_BP_TEST_EVAL_PARAM). Timeout DBG_UI_BP_BULK_CMD_TIMEOUT_MS
+ * (jednorázová akce uživatele, v pauze vyřídí paused smyčka do ~20 ms).
+ *
+ * @param p Parametr: vstup `expr_text`, výstupy vyplní emu vlákno. Musí žít
+ *          do návratu (synchronní submit).
+ * @return true pokud emu vlákno příkaz vyřídilo (výsledek nebo chyba parseru
+ *         v `p`); false při timeoutu, plné frontě nebo ukončování emulátoru
+ *         (výstupy v `p` beze změny).
+ *
+ * @pre Volat z UI vlákna; blokuje až do dokončení příkazu.
+ */
+bool dbg_ui_bp_test_eval(st_DBGAPI_BP_TEST_EVAL_PARAM *p);
+
 /* ============================================================================
  * Memory Heatmap / CDL (okno Memory Heatmap, menu Debugger -> Settings -> CDL)
  *

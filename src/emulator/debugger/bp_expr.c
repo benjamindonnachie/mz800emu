@@ -1270,17 +1270,22 @@ static int32_t eval_node ( const bp_node_t *n, const bp_expr_ctx_t *ctx ) {
             int32_t r = eval_node ( n->logical.r, ctx );
             return r ? 1 : 0;
         };
+        /* ctx->no_side_effects (Test Eval) potlačí `!`: čtení jde cestou
+         * bez vedlejšího efektu. */
         case NODE_MEM: {
             int32_t addr = eval_node ( n->mem.addr, ctx );
-            return bp_read_byte ( (uint16_t) addr, n->mem.side_effect );
+            return bp_read_byte ( (uint16_t) addr,
+                                  n->mem.side_effect && !ctx->no_side_effects );
         };
         case NODE_MEM_W: {
             int32_t addr = eval_node ( n->mem.addr, ctx );
-            return bp_read_word ( (uint16_t) addr, n->mem.side_effect );
+            return bp_read_word ( (uint16_t) addr,
+                                  n->mem.side_effect && !ctx->no_side_effects );
         };
         case NODE_PORT: {
             int32_t port = eval_node ( n->port.port, ctx );
-            return bp_read_port ( (uint16_t) port, n->port.side_effect );
+            return bp_read_port ( (uint16_t) port,
+                                  n->port.side_effect && !ctx->no_side_effects );
         };
         case NODE_FNCALL: return eval_fncall ( n, ctx );
     };
