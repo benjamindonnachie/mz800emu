@@ -10,6 +10,20 @@ This fork develops MZ-700 SUC 80-column, KC-Club GIDE/RTC, configurable
 expansion boot ROM and banked ZP/M support. See the
 [MZ-700 system and BIOS guide](docs/en/devices/mz700-zpm3.md).
 
+## A project thirty years in the making
+
+This is the culmination of a project I started over thirty years ago. My
+thanks go to the Sharp Users Club, Maurice Hawes and John Edwards for their
+work and inspiration. I was particularly pleased to discover that Peroutka
+and Hučík had already realised my ambition for bank-switched RAM.
+
+The emulator is fantastic. Special thanks to its author, Michal Hučík, for
+making it available and providing the foundation for this development work.
+
+The next step is to get the GIDE board in my junk collection running, then
+implement RAM expansion and HDMI video using a Raspberry Pi RP2350B, taking
+inspiration from the SUC 80-column modification. But first, I need to replace
+the ageing capacitors in the Sharp's power supply!
 
 ## Project has moved to GitHub
 
