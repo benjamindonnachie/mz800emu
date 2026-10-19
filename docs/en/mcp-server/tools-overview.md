@@ -89,6 +89,8 @@ documented separately in [Resources overview](resources-overview.md).
 | `emu_replay_record_stop` | no | Stop recording and save the replay file |
 | `emu_replay_play` | yes (replaces the emulator state) | Play a replay back from its start snapshot, stop at the first differing hash |
 | `emu_replay_play_stop` | no | Stop a running playback |
+| `emu_replay_rewind` | yes (replaces the emulator state) | Go back to a checkpoint: while recording drop the inputs after it and record on, while playing jump back |
+| `emu_replay_seek` | yes (replaces the emulator state) | Jump the playback to a frame (back via a checkpoint or from the start, forward at MAX SPEED) |
 | `emu_replay_status` | no | Recording / playback status and the result of the last one |
 | `emu_screenshot_save_to_file` | yes (creates / overwrites a file) | PNG of the screen to a file: area (full / canvas), scale (framebuffer / native dots / window 1-4), crop |
 | `emu_screenshot_series_start` | yes (creates files) | Frame series: a PNG of every changed emulated frame (area, scale, crop, only_changed, frames, max_files) |
@@ -1331,9 +1333,16 @@ compares the hashes and stops at the first frame that differs.
 ### `emu_replay_record_start` (sensitive - creates / overwrites a file)
 
 Arguments: `path` (string, required), `hash_interval` (int 1..100000,
-default 50 frames), `description` (string, optional). If the emulation
-runs, it pauses at the next frame boundary, the recording starts and the
-emulation runs on; if it is paused, it stays paused.
+default 50 frames), `description` (string, optional),
+`checkpoint_interval` (int 0..100000 frames, 0 = no checkpoints, default
+from the `[REPLAY]` INI section: 250), `checkpoint_count` (int 1..1000,
+default from the INI: 60). If the emulation runs, it pauses at the next
+frame boundary, the recording starts and the emulation runs on; if it is
+paused, it stays paused.
+
+Every `checkpoint_interval` frames a checkpoint (a snapshot in memory,
+tens of kB) is kept, the last `checkpoint_count` of them; see
+`emu_replay_rewind`.
 
 While recording, keyboard input from the GUI is taken at the next frame
 boundary. Debugger writes (`emu_mem_write`, `emu_mem_write_force`,
@@ -1366,7 +1375,9 @@ or an error (`no recording is running`, write error).
 ### `emu_replay_play` (sensitive - replaces the emulator state)
 
 Arguments: `path` (string, required), `pause_after_load` (bool, default
-false). Loads the start snapshot and plays the recorded inputs back;
+false), `checkpoint_interval` and `checkpoint_count` (as for
+`emu_replay_record_start`; checkpoints of the playback make a seek back
+fast). Loads the start snapshot and plays the recorded inputs back;
 `pause_after_load: true` stays paused after the load (set breakpoints,
 then `emu_resume`). Live input (GUI keyboard, virtual keyboard, MCP
 keys) is ignored. The end pauses the emulation with reason `replay_end`
@@ -1388,14 +1399,51 @@ replay and differs from the mounted one.
 Stops a running playback (`outcome: "stopped"`). Error: `no playback is
 running`.
 
+### `emu_replay_rewind` (sensitive - replaces the emulator state)
+
+Argument: `frames` (int >= 0, default 0). 0 = one checkpoint back (the
+newest one before the current frame; call again to go further), N = the
+newest checkpoint at least N frames back. While recording the machine
+returns to the checkpoint, the inputs and hashes after it are dropped,
+`rerecord_count` grows by one and the recording goes on from there; the
+emulation stays paused at the frame boundary of the checkpoint. While
+playing it is a seek back to that checkpoint (see `emu_replay_seek`).
+
+Checkpoints do not hold the contents of the media. A checkpoint after
+which a disk (FDC, Quick Disk, IDE8) or the tape was written, or the tape
+was ejected, cannot be used: while recording the rewind is refused,
+while playing the playback starts again from the beginning. No
+checkpoint is taken while autotype runs or the tape records. Errors:
+`checkpoints are off`, `no checkpoint at or before frame N (the oldest
+kept is frame M)`, `a disk or the tape was written or ejected after frame
+N; rewinding past a media change is not possible`, `nothing is recording
+or playing`. Returns the status.
+
+### `emu_replay_seek` (sensitive - replaces the emulator state)
+
+Argument: `frame` (int >= 0, required; past the end limited to the end).
+Forward: the playback runs on at MAX SPEED and stops at the frame
+boundary of `frame` with pause reason `replay_seek` (event `paused`,
+`emu_wait_stop`); the speed before the seek returns. Back: the newest
+usable checkpoint at or before `frame` is loaded (otherwise the playback
+starts again from the beginning with clean copies of the media) and the
+rest is played at MAX SPEED. Hashes are checked all the way; breakpoints
+stay active and may stop the seek early. The reply comes right after the
+start: `seeking: true` = running to `seek_target`, `false` = already
+standing at the frame. Error: `seek works only during playback`.
+Returns the status.
+
 ### `emu_replay_status`
 
 No arguments. Returns `{"mode": "off" | "recording" | "playing",
 "frame", "frames" (length while playing), "events", "hashes",
 "hash_interval", "warnings", "deviated", "deviation", "path", "outcome":
 "none" | "recorded" | "ended" | "desync" | "stopped" | "error",
-"outcome_frame", "outcome_message", "desync_parts": [...]}`. The
-`outcome*` members describe the last finished recording or playback.
+"outcome_frame", "outcome_message", "desync_parts": [...],
+"rerecord_count", "seeking", "seek_target", "checkpoints": {"interval",
+"capacity", "count", "first_frame", "last_frame", "bytes"}}`. The
+`outcome*` members describe the last finished recording or playback;
+`first_frame` and `last_frame` are present only with `count` > 0.
 
 ## Screenshot tools
 

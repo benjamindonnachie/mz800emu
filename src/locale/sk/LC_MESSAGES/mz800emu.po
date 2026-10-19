@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mz800emu 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-19 08:43+0200\n"
+"POT-Creation-Date: 2026-10-19 12:44+0200\n"
 "PO-Revision-Date: 2026-03-11 22:00+0100\n"
 "Last-Translator: Claude Code\n"
 "Language-Team: Slovenčina\n"
@@ -80,23 +80,23 @@ msgstr "Vlastná rýchlosť"
 msgid "Normal speed"
 msgstr "Normálna rýchlosť"
 
-#: src/emulator/hw-generic/cmt/cmt.c:584
+#: src/emulator/hw-generic/cmt/cmt.c:592
 msgid "Create a new WAV file"
 msgstr "Vytvoriť nový WAV súbor"
 
-#: src/emulator/hw-generic/cmt/cmt.c:584
+#: src/emulator/hw-generic/cmt/cmt.c:592
 msgid "newfile.wav"
 msgstr "newfile.wav"
 
-#: src/emulator/hw-generic/cmt/cmt.c:1131
+#: src/emulator/hw-generic/cmt/cmt.c:1139
 msgid "All Supported CMT Files"
 msgstr "Všetky podporované CMT súbory"
 
-#: src/emulator/hw-generic/cmt/cmt.c:1132
+#: src/emulator/hw-generic/cmt/cmt.c:1140
 msgid "Tape Files"
 msgstr "Súbory pások"
 
-#: src/emulator/hw-generic/cmt/cmt.c:1209
+#: src/emulator/hw-generic/cmt/cmt.c:1217
 msgid "Select CMT file to open"
 msgstr "Vyberte CMT súbor na otvorenie"
 
@@ -109,11 +109,11 @@ msgstr "Vyberte MZF súbor"
 msgid "Select DSK image file for FDC%u drive FD%d"
 msgstr "Vyberte súbor obrazu DSK pre FDC%u mechaniku FD%d"
 
-#: src/emulator/hw-generic/qdisk/qdisk.c:816
+#: src/emulator/hw-generic/qdisk/qdisk.c:817
 msgid "Select existing .MZQ file or create new QD image"
 msgstr "Vyberte existujúci .MZQ súbor alebo vytvorte nový QD obraz"
 
-#: src/emulator/hw-generic/qdisk/qdisk.c:818
+#: src/emulator/hw-generic/qdisk/qdisk.c:819
 msgid "Select directory to mount as virtual Quick Disk"
 msgstr "Vyberte adresár na pripojenie ako virtuálny Quick Disk"
 
@@ -541,6 +541,7 @@ msgstr "OK"
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:176
 #: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:99
 #: src/ui-imgui/topmenu/devices/menu_qdisk.cpp:93
+#: src/ui-imgui/topmenu/menu_replay.cpp:217
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:343
 msgid "Cancel"
 msgstr "Zrušiť"
@@ -780,10 +781,12 @@ msgstr "Nie je vložená páska"
 
 #: src/ui-imgui/cmt/cmt_window.cpp:836
 #: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:363
+#: src/ui-imgui/topmenu/replay_window.cpp:205
 msgid "Recording"
 msgstr "Nahrávanie"
 
 #: src/ui-imgui/cmt/cmt_window.cpp:846
+#: src/ui-imgui/topmenu/replay_window.cpp:213
 msgid "Playing"
 msgstr "Prehrávanie"
 
@@ -2563,6 +2566,7 @@ msgid "syms in range"
 msgstr "symboly v rozsahu"
 
 #: src/ui-imgui/debugger/dasm_window/dasm_window.cpp:556
+#: src/ui-imgui/topmenu/replay_window.cpp:252
 msgid "off"
 msgstr "vypnuté"
 
@@ -3144,6 +3148,8 @@ msgstr "Žiadne"
 #: src/ui-imgui/debugger/eventview/event_viewer_window.cpp:2845
 #: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3160
 #: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:312
+#: src/ui-imgui/topmenu/menu_replay.cpp:208
+#: src/ui-imgui/topmenu/replay_window.cpp:245
 msgid "Frame"
 msgstr "Frame"
 
@@ -6367,6 +6373,7 @@ msgid "Z80"
 msgstr "Z80"
 
 #: src/ui-imgui/debugger/memsearch_window/memsearch_window.cpp:487
+#: src/ui-imgui/topmenu/replay_window.cpp:344
 msgid "Current"
 msgstr "Aktuálna"
 
@@ -6651,6 +6658,8 @@ msgstr "Hľadanie v pamäti###memsearch_window"
 #: src/ui-imgui/memext/memext_load_dialog.cpp:107
 #: src/ui-imgui/snapshot/snapshot_save_dialog.cpp:101
 #: src/ui-imgui/topmenu/devices/menu_qdisk.cpp:259
+#: src/ui-imgui/topmenu/replay_window.cpp:223
+#: src/ui-imgui/topmenu/replay_window.cpp:229
 msgid "File"
 msgstr "Súbor"
 
@@ -6711,6 +6720,7 @@ msgstr "Vyberte výstupný adresár trace-suite"
 #: src/ui-imgui/debugger/menu/dbg_topmenu.cpp:348
 #: src/ui-imgui/debugger/menu/dbg_topmenu.cpp:391
 #: src/ui-imgui/debugger/menu/dbg_topmenu.cpp:488
+#: src/ui-imgui/topmenu/replay_window.cpp:217
 #: src/ui-imgui/videorec/videorec_menu.cpp:96
 msgid "Off"
 msgstr "Vypnuté"
@@ -12717,6 +12727,7 @@ msgid "I/O Ports"
 msgstr "I/O porty"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:536
+#: src/ui-imgui/topmenu/replay_window.cpp:248
 msgid "Events"
 msgstr "Udalosti"
 
@@ -12748,15 +12759,17 @@ msgstr "Vývojársky režim"
 msgid "ImGui Demo"
 msgstr "ImGui Demo"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:47
+#: src/ui-imgui/topmenu/menu_replay.cpp:93
 msgid "Replay"
 msgstr "Záznam vstupov"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:55
+#: src/ui-imgui/topmenu/menu_replay.cpp:101
+#: src/ui-imgui/topmenu/replay_window.cpp:309
+#: src/ui-imgui/topmenu/replay_window.cpp:320
 msgid "Record Inputs..."
 msgstr "Nahrať vstupy..."
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:59
+#: src/ui-imgui/topmenu/menu_replay.cpp:105
 msgid ""
 "Record keyboard, joystick, resets and debugger writes from a start snapshot, "
 "to repeat the run exactly later."
@@ -12764,84 +12777,159 @@ msgstr ""
 "Nahrať klávesnicu, joystick, resety a zápisy debuggera od štartovacieho "
 "snapshotu, aby sa beh dal neskôr presne zopakovať."
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:61
+#: src/ui-imgui/topmenu/menu_replay.cpp:107
+#: src/ui-imgui/topmenu/replay_window.cpp:309
+#: src/ui-imgui/topmenu/replay_window.cpp:321
 msgid "Play Replay..."
 msgstr "Prehrať záznam..."
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:65
+#: src/ui-imgui/topmenu/menu_replay.cpp:111
+#: src/ui-imgui/topmenu/replay_window.cpp:309
+#: src/ui-imgui/topmenu/replay_window.cpp:322
 msgid "Stop Replay"
 msgstr "Zastaviť záznam / prehrávanie"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:73
+#: src/ui-imgui/topmenu/menu_replay.cpp:117
+#: src/ui-imgui/topmenu/replay_window.cpp:309
+#: src/ui-imgui/topmenu/replay_window.cpp:323
+msgid "Rewind"
+msgstr "Späť na checkpoint"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:121
+msgid ""
+"Go back to the previous checkpoint (again = further back). While recording, "
+"the inputs after the checkpoint are dropped and the recording goes on from "
+"there. Not possible past a write to a disk or the tape."
+msgstr ""
+"Návrat na predchádzajúci checkpoint (znova = ďalej späť). Pri zázname sa "
+"vstupy po checkpointe zahodia a záznam pokračuje odtiaľ. Nejde cez zápis na "
+"disk alebo na kazetu."
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:124
+msgid "Seek..."
+msgstr "Prejsť na snímku..."
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:129
+msgid ""
+"Jump the playback to a frame: back via a checkpoint, forward at maximum "
+"speed."
+msgstr ""
+"Skok prehrávania na snímku: späť cez checkpoint, dopredu maximálnou "
+"rýchlosťou."
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:130
+msgid "Replay Control..."
+msgstr "Ovládanie záznamu..."
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:138
 #, c-format
 msgid "Recording: frame %u, %u events"
 msgstr "Záznam: snímka %u, %u udalostí"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:77
+#: src/ui-imgui/topmenu/menu_replay.cpp:141
+#, c-format
+msgid "Rewinds: %u"
+msgstr "Návratov späť: %u"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:146
 #, c-format
 msgid "Playing: frame %u / %u"
 msgstr "Prehrávanie: snímka %u / %u"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:80
+#: src/ui-imgui/topmenu/menu_replay.cpp:149
+#, c-format
+msgid "Seeking to frame %u"
+msgstr "Prechod na snímku %u"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:153
 #, c-format
 msgid "Deviated: %s"
 msgstr "Odchýlené: %s"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:85
+#: src/ui-imgui/topmenu/menu_replay.cpp:158
 #, c-format
 msgid "Last: %s"
 msgstr "Posledný: %s"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:89
+#: src/ui-imgui/topmenu/menu_replay.cpp:162
 msgid "No replay"
 msgstr "Žiadny záznam"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:115
+#: src/ui-imgui/topmenu/menu_replay.cpp:168
+msgid "Checkpoints: off"
+msgstr "Checkpointy: vypnuté"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:172
+#, c-format
+msgid "Checkpoints: %u (frames %u - %u, %u kB)"
+msgstr "Checkpointy: %u (snímky %u - %u, %u kB)"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:188
+msgid "Seek Replay"
+msgstr "Prejsť na snímku záznamu"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:206
+#, c-format
+msgid "Current frame %u of %u"
+msgstr "Aktuálna snímka %u z %u"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:211
+#: src/ui-imgui/topmenu/replay_window.cpp:332
+#: src/ui-imgui/topmenu/replay_window.cpp:339
+msgid "Seek"
+msgstr "Prejsť"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:245
 msgid "Record Inputs"
 msgstr "Nahrať vstupy"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:115
+#: src/ui-imgui/topmenu/menu_replay.cpp:245
 msgid "Play Replay"
 msgstr "Prehrať záznam"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:131
-#: src/ui-imgui/topmenu/menu_replay.cpp:160
+#: src/ui-imgui/topmenu/menu_replay.cpp:261
+#: src/ui-imgui/topmenu/menu_replay.cpp:290
 msgid "Replay failed"
 msgstr "Záznam vstupov zlyhal"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:132
-#: src/ui-imgui/topmenu/menu_replay.cpp:161
+#: src/ui-imgui/topmenu/menu_replay.cpp:262
+#: src/ui-imgui/topmenu/menu_replay.cpp:291
 msgid "Replay Error"
 msgstr "Chyba záznamu vstupov"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:147
+#: src/ui-imgui/topmenu/menu_replay.cpp:277
 msgid "Replay recorded"
 msgstr "Záznam vstupov uložený"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:151
+#: src/ui-imgui/topmenu/menu_replay.cpp:281
 msgid "Replay ended"
 msgstr "Prehrávanie skončilo"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:155
+#: src/ui-imgui/topmenu/menu_replay.cpp:285
 #, c-format
 msgid "Replay differs from the recording at frame %u (%s)"
 msgstr "Prehrávanie sa líši od záznamu na snímke %u (%s)"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:157
+#: src/ui-imgui/topmenu/menu_replay.cpp:287
 msgid "Replay Desync"
 msgstr "Rozbehnutie prehrávania"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:213
+#: src/ui-imgui/topmenu/menu_replay.cpp:344
 #, c-format
 msgid "REPLAY REC %u"
 msgstr "ZÁZNAM %u"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:217
+#: src/ui-imgui/topmenu/menu_replay.cpp:348
+#, c-format
+msgid "REPLAY SEEK %u -> %u"
+msgstr "PRECHOD %u -> %u"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:352
 #, c-format
 msgid "REPLAY PLAY %u / %u%s"
 msgstr "PREHRÁVANIE %u / %u%s"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:218
+#: src/ui-imgui/topmenu/menu_replay.cpp:353
 msgid " (deviated)"
 msgstr " (odchýlené)"
 
@@ -12928,6 +13016,75 @@ msgstr "Nastavenia kontroly verzie"
 #: src/ui-imgui/topmenu/menu_tools.cpp:72
 msgid "MCP Activity##menu_mcp_activity"
 msgstr "MCP Activity##menu_mcp_activity"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:169
+msgid "Replay Control"
+msgstr "Ovládanie záznamu"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:201
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:171
+msgid "State"
+msgstr "Stav"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:209
+msgid "Seeking"
+msgstr "Prechod"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:239
+#, c-format
+msgid "%u / %u (%s / %s)"
+msgstr "%u / %u (%s / %s)"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:256
+#, c-format
+msgid "%u (frames %u - %u, %u kB)"
+msgstr "%u (snímky %u - %u, %u kB)"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:263
+msgid "Checkpoints"
+msgstr "Checkpointy"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:268
+msgid "Rewinds"
+msgstr "Návraty späť"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:273
+msgid "Seek target"
+msgstr "Cieľová snímka"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:279
+msgid "Deviated"
+msgstr "Odchýlené"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:290
+msgid "Last result"
+msgstr "Posledný výsledok"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:307
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:227
+msgid "Controls"
+msgstr "Ovládanie"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:329
+msgid ""
+"Rewind goes back to the previous checkpoint; while recording the inputs "
+"after it are dropped."
+msgstr "Rewind sa vráti na predchádzajúci checkpoint; pri zázname sa vstupy po ňom zahodia."
+
+#: src/ui-imgui/topmenu/replay_window.cpp:353
+#, c-format
+msgid "Frame %d = %s; back via a checkpoint, forward at maximum speed."
+msgstr "Snímka %d = %s; späť cez checkpoint, dopredu maximálnou rýchlosťou."
+
+#: src/ui-imgui/topmenu/replay_window.cpp:357
+msgid "Available while playing a replay."
+msgstr "Dostupné pri prehrávaní záznamu."
+
+#: src/ui-imgui/topmenu/replay_window.cpp:361
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:320
+#, c-format
+msgid "Show or hide this window: %s"
+msgstr "Zobraziť/skryť toto okno: %s"
 
 #: src/ui-imgui/topmenu/topmenu.cpp:38
 msgid ""
@@ -13235,10 +13392,6 @@ msgstr "Šev v nahrávke (načítaný snímok)"
 msgid "Recording Remote Control"
 msgstr "Diaľkové ovládanie nahrávania"
 
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:171
-msgid "State"
-msgstr "Stav"
-
 #: src/ui-imgui/videorec/videorec_remote_window.cpp:177
 msgid "Time"
 msgstr "Čas"
@@ -13271,10 +13424,6 @@ msgstr "Časová základňa"
 msgid "Last event"
 msgstr "Posledná udalosť"
 
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:227
-msgid "Controls"
-msgstr "Ovládanie"
-
 #: src/ui-imgui/videorec/videorec_remote_window.cpp:268
 msgid "Marker label (empty = Marker N)"
 msgstr "Popis značky (prázdny = Marker N)"
@@ -13296,11 +13445,6 @@ msgstr "Platí od ďalšieho nahrávania."
 #, c-format
 msgid "Current recording: %s"
 msgstr "Aktuálna nahrávka: %s"
-
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:320
-#, c-format
-msgid "Show or hide this window: %s"
-msgstr "Zobraziť/skryť toto okno: %s"
 
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:58
 msgid "Cut"

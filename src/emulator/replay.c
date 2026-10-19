@@ -15,9 +15,12 @@
  * | 5 | hash každých N snímků | porovnání hashe (mimo poslední snímek se závěrečným hashem) |
  * | 6 | (v pauze: zásahy `p`) | události `p`, pak konec, je-li to poslední snímek |
  *
- * Stav záznamu a přehrávání (s_rec, s_play, kurzory) patří emu vláknu.
- * Pod zámkem s_lock jsou jen fronta požadavků, kopie stavu pro čtenáře
- * a vstupy předávané z UI vlákna.
+ * Za krokem 5 (záznam) nebo 6 (přehrávání) se každých N snímků uloží
+ * checkpoint (replay_ckpt.h); rewind a seek ho načtou v paused smyčce.
+ *
+ * Stav záznamu a přehrávání (s_rec, s_play, kurzory, checkpointy) patří emu
+ * vláknu. Pod zámkem s_lock jsou jen fronta požadavků, kopie stavu pro
+ * čtenáře a vstupy předávané z UI vlákna.
  */
 
 #include <stdio.h>
@@ -27,6 +30,8 @@
 #include "replay.h"
 #include "replay_format.h"
 #include "replay_media.h"
+#include "replay_ckpt.h"
+#include "media_writes.h"
 #include "state_hash.h"
 #include "emulator.h"
 #include "cfgmain.h"
@@ -38,6 +43,9 @@
 #include "snapshot/snapshot.h"
 #include "hw-generic/unicard/unicard.h"
 #include "hw-generic/cmt/cmt.h"
+#include "hw-generic/cmt/cmtext.h"
+#include "hw-generic/cmt/cmtext_block.h"
+#include "hw-generic/cmt/cmtext_container.h"
 #include "automation.h"
 
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
@@ -63,7 +71,9 @@ typedef enum en_REPLAY_REQ_KIND
 {
     REPLAY_REQ_RECORD = 0, /**< Start záznamu. */
     REPLAY_REQ_PLAY,       /**< Start přehrávání. */
-    REPLAY_REQ_STOP        /**< Konec záznamu nebo přehrávání. */
+    REPLAY_REQ_STOP,       /**< Konec záznamu nebo přehrávání. */
+    REPLAY_REQ_REWIND,     /**< Návrat na checkpoint (záznam i přehrávání). */
+    REPLAY_REQ_SEEK        /**< Skok přehrávání na snímek. */
 } en_REPLAY_REQ_KIND;
 
 /**
@@ -77,6 +87,8 @@ typedef struct st_REPLAY_REQ
     char *description;        /**< Popis záznamu nebo NULL. */
     uint32_t hash_interval;   /**< Interval hashů (0 = výchozí). */
     bool pause_after_load;    /**< Přehrání: zůstat po načtení v pauze. */
+    uint32_t frames;          /**< Rewind: o kolik snímků (0 = jeden checkpoint); seek: cílový snímek. */
+    st_REPLAY_CKPT_CFG ckpt;  /**< Záznam, přehrání: nastavení checkpointů (< 0 = z INI). */
 } st_REPLAY_REQ;
 
 
@@ -129,6 +141,16 @@ static GDateTime *s_rtc_base = NULL;     /**< Základ RTC (složky místního č
 static guint s_cmthack_cursor = 0;       /**< Přehrávání: další událost `cmthack` (podle pořadí, ne snímku). */
 static int s_cmthack_count = 0;          /**< Záznam: počet výběrů CMT hacku (index slotu `cmthack.K`). */
 static int s_record_count = 0;           /**< Přehrávání: počet nahrávání na kazetu (jméno dočasného souboru). */
+static st_REPLAY_CKPT_RING s_ckpt;       /**< Checkpointy běžícího záznamu / přehrávání (capacity 0 = žádné). */
+static uint32_t s_ckpt_interval = 0;     /**< Interval checkpointů ve snímcích, 0 = vypnuto. */
+static bool s_seeking = false;           /**< Přehrávání dohrává na cíl seeku. */
+static uint32_t s_seek_target = 0;       /**< Cílový snímek seeku. */
+static bool s_seek_saved_max = false;    /**< MAX SPEED před seekem (po seeku vrátit). */
+
+/* ---- konfigurace (INI [REPLAY]) ---- */
+static unsigned s_cfg_ckpt_interval = REPLAY_CKPT_DEFAULT_INTERVAL; /**< `checkpoint_interval`. */
+static unsigned s_cfg_ckpt_count = REPLAY_CKPT_DEFAULT_COUNT;       /**< `checkpoint_count`. */
+static bool s_cfg_registered = false;    /**< Sekce [REPLAY] je zaregistrovaná. */
 
 
 const char *replay_outcome_name(en_REPLAY_OUTCOME outcome)
@@ -199,11 +221,34 @@ bool replay_is_active(void)
 }
 
 
+/**
+ * @brief Zaregistruje sekci INI `[REPLAY]` (checkpointy), jen jednou.
+ *
+ * `checkpoint_interval` (snímky, 0 = vypnuto) a `checkpoint_count`
+ * (1 .. REPLAY_CKPT_MAX_COUNT); čísla v INI jsou hex jako všude v cfgfile.
+ */
+static void replay_cfg_init(void)
+{
+    if (s_cfg_registered || !g_cfgmain) return;
+    s_cfg_registered = true;
+    CFGMOD *cmod = cfgroot_register_new_module(g_cfgmain, "REPLAY");
+    CFGELM *elm = cfgmodule_register_new_element(cmod, "checkpoint_interval", CFGENTYPE_UNSIGNED,
+                                                 REPLAY_CKPT_DEFAULT_INTERVAL, 0, 0xFFFFFF);
+    cfgelement_set_handlers(elm, (void *)&s_cfg_ckpt_interval, (void *)&s_cfg_ckpt_interval);
+    elm = cfgmodule_register_new_element(cmod, "checkpoint_count", CFGENTYPE_UNSIGNED,
+                                         REPLAY_CKPT_DEFAULT_COUNT, 1, REPLAY_CKPT_MAX_COUNT);
+    cfgelement_set_handlers(elm, (void *)&s_cfg_ckpt_count, (void *)&s_cfg_ckpt_count);
+    cfgmodule_parse(cmod);
+    cfgmodule_propagate(cmod);
+}
+
+
 void replay_init(void)
 {
     memset(&s_status, 0, sizeof(s_status));
     memset(s_ui_vkbd, 0xFF, sizeof(s_ui_vkbd));
     memset(s_host_kbd, 0xFF, sizeof(s_host_kbd));
+    replay_cfg_init();
 }
 
 
@@ -299,6 +344,18 @@ static void replay_publish(void)
     s_status.hash_interval = d ? d->hash_interval : 0;
     s_status.warnings = d ? d->warnings->len : 0;
     s_status.deviated = s_play ? s_deviated : false;
+    s_status.checkpoint_interval = (s_rec || s_play) ? s_ckpt_interval : 0;
+    s_status.checkpoint_capacity = s_ckpt.capacity;
+    s_status.checkpoints = s_ckpt.count;
+    const st_REPLAY_CKPT *first = replay_ckpt_ring_get(&s_ckpt, 0);
+    const st_REPLAY_CKPT *last = s_ckpt.count ? replay_ckpt_ring_get(&s_ckpt, s_ckpt.count - 1) : NULL;
+    s_status.checkpoint_first = first ? first->frame : 0;
+    s_status.checkpoint_last = last ? last->frame : 0;
+    s_status.checkpoint_bytes = s_ckpt.bytes;
+    if (s_rec) s_status.rerecord_count = s_rec->rerecord_count;
+    else if (s_play) s_status.rerecord_count = s_play->rerecord_count;
+    s_status.seeking = s_seeking;
+    s_status.seek_target = s_seeking ? s_seek_target : 0;
     g_mutex_unlock(&s_lock);
 }
 
@@ -355,23 +412,64 @@ static uint32_t replay_enqueue(st_REPLAY_REQ *r)
 }
 
 
-uint32_t replay_request_record(const char *path, uint32_t hash_interval, const char *description)
+/** @brief Nastavení checkpointů do požadavku (NULL = vše z INI). */
+static void replay_req_set_ckpt(st_REPLAY_REQ *r, const st_REPLAY_CKPT_CFG *ckpt)
+{
+    r->ckpt.interval = ckpt ? ckpt->interval : -1;
+    r->ckpt.count = ckpt ? ckpt->count : -1;
+}
+
+
+uint32_t replay_request_record_ex(const char *path, uint32_t hash_interval, const char *description,
+                                  const st_REPLAY_CKPT_CFG *ckpt)
 {
     st_REPLAY_REQ *r = g_new0(st_REPLAY_REQ, 1);
     r->kind = REPLAY_REQ_RECORD;
     r->path = g_strdup(path);
     r->description = g_strdup(description);
     r->hash_interval = hash_interval;
+    replay_req_set_ckpt(r, ckpt);
+    return replay_enqueue(r);
+}
+
+
+uint32_t replay_request_record(const char *path, uint32_t hash_interval, const char *description)
+{
+    return replay_request_record_ex(path, hash_interval, description, NULL);
+}
+
+
+uint32_t replay_request_play_ex(const char *path, bool pause_after_load, const st_REPLAY_CKPT_CFG *ckpt)
+{
+    st_REPLAY_REQ *r = g_new0(st_REPLAY_REQ, 1);
+    r->kind = REPLAY_REQ_PLAY;
+    r->path = g_strdup(path);
+    r->pause_after_load = pause_after_load;
+    replay_req_set_ckpt(r, ckpt);
     return replay_enqueue(r);
 }
 
 
 uint32_t replay_request_play(const char *path, bool pause_after_load)
 {
+    return replay_request_play_ex(path, pause_after_load, NULL);
+}
+
+
+uint32_t replay_request_rewind(uint32_t frames)
+{
     st_REPLAY_REQ *r = g_new0(st_REPLAY_REQ, 1);
-    r->kind = REPLAY_REQ_PLAY;
-    r->path = g_strdup(path);
-    r->pause_after_load = pause_after_load;
+    r->kind = REPLAY_REQ_REWIND;
+    r->frames = frames;
+    return replay_enqueue(r);
+}
+
+
+uint32_t replay_request_seek(uint32_t frame)
+{
+    st_REPLAY_REQ *r = g_new0(st_REPLAY_REQ, 1);
+    r->kind = REPLAY_REQ_SEEK;
+    r->frames = frame;
     return replay_enqueue(r);
 }
 
@@ -546,6 +644,166 @@ static void replay_effective_kbd(uint8_t *out)
     {
         out[i] = g_pio8255.keyboard_matrix[i] & g_pio8255.vkbd_matrix[i];
     };
+}
+
+
+/* ================================================================
+ * Checkpointy (emu vlákno)
+ * ================================================================ */
+
+/**
+ * @brief Založí buffer checkpointů podle požadavku (záporné hodnoty z INI).
+ * @post `s_ckpt` je prázdný a inicializovaný, `s_ckpt_interval` nastavený.
+ */
+static void replay_ckpt_begin(const st_REPLAY_CKPT_CFG *cfg)
+{
+    replay_ckpt_ring_free(&s_ckpt);
+    int interval = (cfg && cfg->interval >= 0) ? cfg->interval : (int)s_cfg_ckpt_interval;
+    int count = (cfg && cfg->count >= 0) ? cfg->count : (int)s_cfg_ckpt_count;
+    s_ckpt_interval = (uint32_t)(interval > 0 ? interval : 0);
+    replay_ckpt_ring_init(&s_ckpt, (guint)(count > 0 ? count : 1));
+}
+
+
+/** @brief Uvolní checkpointy (konec záznamu / přehrávání). */
+static void replay_ckpt_end(void)
+{
+    replay_ckpt_ring_free(&s_ckpt);
+    s_ckpt_interval = 0;
+}
+
+
+/** @brief Číslo aktuálního bloku vložené pásky, -1 = žádná páska nebo blok. */
+static int replay_tape_block(void)
+{
+    if (!CMT_TEST_FILLED || !g_cmt.ext->block) return -1;
+    return cmtext_block_get_block_id(g_cmt.ext->block);
+}
+
+
+/**
+ * @brief Uloží checkpoint aktuálního stavu (bod B_f nebo start v pauze).
+ *
+ * Vynechá ho, když jsou checkpointy vypnuté, běží autotype (jeho průběh
+ * snapshot nenese) nebo se nahrává na kazetu (rozpracované nahrávání
+ * vrátit nejde). Snapshot je i s RAMdiskem jako start záznamu; za běhu
+ * emulace se ukládá v snapshot safe-pointu (emu vlákno mezi instrukcemi).
+ */
+static void replay_ckpt_take(void)
+{
+    if (!s_ckpt.capacity || !s_ckpt_interval) return;
+    if (g_pio8255.vkbd_autotype || CMT_TEST_RECORD) return;
+
+    bool saved_ramdisk = g_snapshot_settings.include_ramdisk;
+    bool saved_sp = g_emulator.snapshot_safepoint;
+    g_snapshot_settings.include_ramdisk = true;
+    g_emulator.snapshot_safepoint = true;
+    uint8_t *snap = NULL;
+    size_t size = 0;
+    en_SNAPSHOT_RESULT sr = snapshot_save_to_buffer("replay checkpoint", &snap, &size);
+    g_emulator.snapshot_safepoint = saved_sp;
+    g_snapshot_settings.include_ramdisk = saved_ramdisk;
+    if (sr != SNAPSHOT_OK)
+    {
+        fprintf(stderr, "[REPLAY] checkpoint at frame %u failed: %s\n", replay_current_frame(),
+                snapshot_result_to_string(sr));
+        return;
+    };
+
+    st_REPLAY_CKPT c;
+    memset(&c, 0, sizeof(c));
+    c.frame = replay_current_frame();
+    c.ticks = gdg_get_total_ticks();
+    c.snap = snap;
+    c.snap_size = size;
+    c.media_writes = g_media_writes;
+    c.tape_block = replay_tape_block();
+    if (s_rec)
+    {
+        c.events_len = s_rec->events->len;
+        c.hashes_len = s_rec->hashes->len;
+        c.media_len = s_rec->media->len;
+        c.cmthack_count = s_cmthack_count;
+        memcpy(c.last_kbd, s_last_kbd, sizeof(c.last_kbd));
+        memcpy(c.last_joy, s_last_joy, sizeof(c.last_joy));
+    }
+    else if (s_play)
+    {
+        c.ev_cursor = s_ev_cursor;
+        c.hash_cursor = s_hash_cursor;
+        c.cmthack_cursor = s_cmthack_cursor;
+        c.record_count = s_record_count;
+        memcpy(c.play_kbd, s_play_kbd, sizeof(c.play_kbd));
+        memcpy(c.play_joy, s_play_joy, sizeof(c.play_joy));
+        c.deviated = s_deviated;
+    };
+    replay_ckpt_ring_push(&s_ckpt, &c);
+}
+
+
+/** @brief Bod B_f: checkpoint, je-li tento snímek na řadě. */
+static void replay_ckpt_on_boundary(void)
+{
+    uint32_t f = replay_current_frame();
+    if (s_ckpt_interval && f > 0 && (f % s_ckpt_interval) == 0) replay_ckpt_take();
+}
+
+
+/**
+ * @brief Načte stav stroje z checkpointu (paused smyčka).
+ *
+ * Blok pásky se otevře před snapshotem (jako replay_media_prepare());
+ * snapshot nenese průběh autotype ani matici VKBD, ty se vynulují (checkpoint
+ * vzniká jen bez běžícího autotype).
+ *
+ * @return NULL = načteno, jinak chyba anglicky (stav stroje pak nemusí
+ *         odpovídat žádnému snímku).
+ * @post `s_frame` = snímek checkpointu, emulace stojí na hranici snímku.
+ */
+static const char *replay_ckpt_load(const st_REPLAY_CKPT *c, char *errbuf, size_t errsize)
+{
+    if (c->tape_block >= 0 && CMT_TEST_FILLED && replay_tape_block() != c->tape_block)
+    {
+        st_CMTEXT_CONTAINER *ct = cmtext_get_container(g_cmt.ext);
+        if (!ct || !ct->cb_open_block || ct->cb_open_block(c->tape_block) != EXIT_SUCCESS)
+        {
+            return "cannot reopen the tape block of the checkpoint";
+        };
+    };
+    en_SNAPSHOT_RESULT sr = snapshot_load_from_buffer(c->snap, c->snap_size);
+    if (sr != SNAPSHOT_OK)
+    {
+        g_snprintf(errbuf, errsize, "checkpoint load failed: %s", snapshot_result_to_string(sr));
+        return errbuf;
+    };
+    pio8255_set_autotype(NULL);
+    memset(g_pio8255.vkbd_matrix, 0xFF, sizeof(g_pio8255.vkbd_matrix));
+    s_frame = c->frame;
+    s_boundary_ticks = gdg_get_total_ticks();
+    return NULL;
+}
+
+
+/** @brief Text odmítnutí podle výsledku hledání checkpointu. */
+static const char *replay_ckpt_refusal(en_REPLAY_CKPT_FIND r, guint idx, uint32_t max_frame, char *errbuf,
+                                       size_t errsize)
+{
+    if (r == REPLAY_CKPT_MEDIA_WRITTEN)
+    {
+        g_snprintf(errbuf, errsize, "a disk or the tape was written or ejected after frame %u; "
+                   "rewinding past a media change is not possible",
+                   replay_ckpt_ring_get(&s_ckpt, idx)->frame);
+        return errbuf;
+    };
+    if (!s_ckpt_interval) return "checkpoints are off";
+    if (!s_ckpt.count)
+    {
+        g_snprintf(errbuf, errsize, "no checkpoint at or before frame %u", max_frame);
+        return errbuf;
+    };
+    g_snprintf(errbuf, errsize, "no checkpoint at or before frame %u (the oldest kept is frame %u)", max_frame,
+               replay_ckpt_ring_get(&s_ckpt, 0)->frame);
+    return errbuf;
 }
 
 
@@ -827,6 +1085,8 @@ static const char *replay_rec_start(const st_REPLAY_REQ *r, char *errbuf, size_t
     replay_rec_sample_host_joystick();
     replay_rec_sample(REPLAY_AT_BOUNDARY, true);
     replay_rec_hash();
+    replay_ckpt_begin(&r->ckpt);
+    replay_ckpt_take();
     replay_publish();
     fprintf(stderr, "[REPLAY] recording to '%s' (hash interval %u frames)\n", r->path, s_rec->hash_interval);
     return NULL;
@@ -857,6 +1117,7 @@ static const char *replay_rec_stop(bool at_boundary, char *errbuf, size_t errsiz
     guint events = s_rec->events->len;
     replay_data_free(s_rec);
     s_rec = NULL;
+    replay_ckpt_end();
     replay_joy_latch(false);
     replay_set_mode(REPLAY_MODE_OFF);
     replay_publish();
@@ -870,6 +1131,48 @@ static const char *replay_rec_stop(bool at_boundary, char *errbuf, size_t errsiz
     char msg[REPLAY_STATUS_TEXT_MAX];
     g_snprintf(msg, sizeof(msg), "%u frames, %u events, saved to '%s'", frames, events, path);
     replay_publish_outcome(REPLAY_OUTCOME_RECORDED, frames, msg, NULL);
+    return NULL;
+}
+
+
+/**
+ * @brief Rewind při záznamu (paused smyčka): checkpoint, zkrácení záznamu.
+ *
+ * @param frames 0 = nejnovější checkpoint se snímkem menším než aktuální;
+ *               jinak nejnovější aspoň o @p frames snímků zpět.
+ * @return NULL = hotovo (emulace stojí na hranici snímku checkpointu),
+ *         jinak důvod odmítnutí anglicky (záznam beze změny).
+ */
+static const char *replay_rec_rewind(uint32_t frames, char *errbuf, size_t errsize)
+{
+    uint32_t cur = replay_current_frame();
+    if (frames == 0 && cur == 0) return "already at the start of the recording";
+    uint32_t max_frame = (frames == 0) ? cur - 1 : (cur > frames ? cur - frames : 0);
+    guint idx = 0;
+    en_REPLAY_CKPT_FIND fr = replay_ckpt_ring_find(&s_ckpt, max_frame, g_media_writes, &idx);
+    if (fr != REPLAY_CKPT_FOUND) return replay_ckpt_refusal(fr, idx, max_frame, errbuf, errsize);
+
+    const st_REPLAY_CKPT *c = replay_ckpt_ring_get(&s_ckpt, idx);
+    const char *e = replay_ckpt_load(c, errbuf, errsize);
+    if (e) return e;
+    replay_data_truncate(s_rec, c->events_len, c->hashes_len, c->media_len);
+    s_cmthack_count = c->cmthack_count;
+    memcpy(s_last_kbd, c->last_kbd, sizeof(s_last_kbd));
+    memcpy(s_last_joy, c->last_joy, sizeof(s_last_joy));
+    s_rec->rerecord_count++;
+    uint32_t frame = c->frame;
+    replay_ckpt_ring_truncate_after(&s_ckpt, idx);
+
+    /* Čekající vstupy z UI patřily zahozené části. */
+    g_mutex_lock(&s_lock);
+    s_pending_reset = false;
+    s_pending_autotype = false;
+    g_free(s_pending_autotype_text);
+    s_pending_autotype_text = NULL;
+    g_mutex_unlock(&s_lock);
+
+    replay_publish();
+    fprintf(stderr, "[REPLAY] rewound the recording to frame %u (rerecord %u)\n", frame, s_rec->rerecord_count);
     return NULL;
 }
 
@@ -1022,11 +1325,43 @@ static void replay_play_events_at(en_REPLAY_EV_AT at)
 
 
 /** @brief Konec přehrávání: výsledek, pauza nebo žádost o konec procesu. */
+/**
+ * @brief Konec dohrávání seeku: vrátí rychlost před seekem.
+ * @param pause true = zastavit na cíli (pauza s důvodem replay_seek).
+ */
+static void replay_seek_done(bool pause)
+{
+    if (!s_seeking) return;
+    s_seeking = false;
+    if (!s_seek_saved_max) emulator_max_speed(false);
+    /* Hrající páska s cpu_boost si MAX SPEED drží sama. */
+    cmt_cpu_boost_apply();
+    if (pause)
+    {
+        g_emulator.pause_reason = EMU_PAUSE_REASON_REPLAY_SEEK;
+        emulator_pause(true);
+        fprintf(stderr, "[REPLAY] seek reached frame %u\n", replay_current_frame());
+    };
+}
+
+
+/** @brief Začátek dohrávání na cíl seeku v MAX SPEED. */
+static void replay_seek_begin(uint32_t target)
+{
+    if (!s_seeking) s_seek_saved_max = g_emulator.max_speed;
+    s_seeking = true;
+    s_seek_target = target;
+    if (!g_emulator.max_speed) emulator_max_speed(true);
+}
+
+
 static void replay_play_finish(en_REPLAY_OUTCOME outcome, const char *message, const char *parts)
 {
     uint32_t f = replay_current_frame();
+    replay_seek_done(false);
     replay_data_free(s_play);
     s_play = NULL;
+    replay_ckpt_end();
     replay_media_restore();
     replay_joy_latch(false);
     replay_set_mode(REPLAY_MODE_OFF);
@@ -1152,6 +1487,42 @@ static void replay_play_step(void)
 }
 
 
+/**
+ * @brief Nasadí média záznamu, načte startovní snapshot a vynuluje kurzory.
+ *
+ * Společné pro start přehrávání a restart při seeku zpět.
+ *
+ * @return NULL = načteno; jinak chyba (média jsou pak vrácená podle INI).
+ * @post Snímek 0, emulace stojí na hranici snímku.
+ */
+static const char *replay_play_load_start(const st_REPLAY_DATA *d, char *errbuf, size_t errsize)
+{
+    /* Obrazy médií před snapshotem: snapshot obnoví stav řadičů nad nimi. */
+    const char *merr = replay_media_prepare(d, errbuf, errsize);
+    if (merr) return merr;
+    en_SNAPSHOT_RESULT sr = snapshot_load_from_buffer(d->start_snapshot, d->start_snapshot_size);
+    if (sr != SNAPSHOT_OK)
+    {
+        replay_media_restore();
+        g_snprintf(errbuf, errsize, "start snapshot load failed: %s", snapshot_result_to_string(sr));
+        return errbuf;
+    };
+    pio8255_set_autotype(NULL);
+    s_ev_cursor = 0;
+    s_hash_cursor = 0;
+    s_cmthack_cursor = 0;
+    s_record_count = 0;
+    s_deviated = false;
+    memset(s_play_kbd, 0xFF, sizeof(s_play_kbd));
+    memset(s_play_joy, 0xFF, sizeof(s_play_joy));
+    s_start_screens = (uint64_t)g_gdg.total_elapsed.screens;
+    s_frame = 0;
+    s_boundary_ticks = gdg_get_total_ticks();
+    s_start_ticks = s_boundary_ticks;
+    return NULL;
+}
+
+
 /** @brief Start přehrávání (paused smyčka). @return NULL = v pořádku, jinak chyba. */
 static const char *replay_play_start(const st_REPLAY_REQ *r, char *errbuf, size_t errsize)
 {
@@ -1203,34 +1574,13 @@ static const char *replay_play_start(const st_REPLAY_REQ *r, char *errbuf, size_
         };
     };
 #endif
-    /* Obrazy médií před snapshotem: snapshot obnoví stav řadičů nad nimi. */
-    const char *merr = replay_media_prepare(d, errbuf, errsize);
-    if (merr)
+    const char *lerr = replay_play_load_start(d, errbuf, errsize);
+    if (lerr)
     {
         replay_data_free(d);
-        return merr;
+        return lerr;
     };
-    en_SNAPSHOT_RESULT sr = snapshot_load_from_buffer(d->start_snapshot, d->start_snapshot_size);
-    if (sr != SNAPSHOT_OK)
-    {
-        replay_media_restore();
-        g_snprintf(errbuf, errsize, "start snapshot load failed: %s", snapshot_result_to_string(sr));
-        replay_data_free(d);
-        return errbuf;
-    };
-
     s_play = d;
-    s_ev_cursor = 0;
-    s_hash_cursor = 0;
-    s_cmthack_cursor = 0;
-    s_record_count = 0;
-    s_deviated = false;
-    memset(s_play_kbd, 0xFF, sizeof(s_play_kbd));
-    memset(s_play_joy, 0xFF, sizeof(s_play_joy));
-    s_start_screens = (uint64_t)g_gdg.total_elapsed.screens;
-    s_frame = 0;
-    s_boundary_ticks = gdg_get_total_ticks();
-    s_start_ticks = s_boundary_ticks;
     replay_rtc_set_base(d->rtc_base);
 
     g_mutex_lock(&s_lock);
@@ -1248,8 +1598,126 @@ static const char *replay_play_start(const st_REPLAY_REQ *r, char *errbuf, size_
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
     if (freeze_count() > 0) replay_deviate("Freeze Bytes are active");
 #endif
+    replay_ckpt_begin(&r->ckpt);
     replay_play_step();
+    if (s_play) replay_ckpt_take();
+    replay_publish();
     return NULL;
+}
+
+
+/** @brief Obnoví stav přehrávače z checkpointu (kurzory, vstupy, odchýlení). */
+static void replay_play_restore_cursors(const st_REPLAY_CKPT *c)
+{
+    s_ev_cursor = c->ev_cursor;
+    s_hash_cursor = c->hash_cursor;
+    s_cmthack_cursor = c->cmthack_cursor;
+    s_record_count = c->record_count;
+    memcpy(s_play_kbd, c->play_kbd, sizeof(s_play_kbd));
+    memcpy(s_play_joy, c->play_joy, sizeof(s_play_joy));
+    s_deviated = c->deviated;
+    g_mutex_lock(&s_lock);
+    s_status.deviated = s_deviated;
+    if (!s_deviated) s_status.deviation[0] = '\0';
+    g_mutex_unlock(&s_lock);
+    replay_play_apply_inputs();
+}
+
+
+/**
+ * @brief Přehrávání znovu od začátku (seek zpět bez použitelného checkpointu).
+ *
+ * Vrátí média podle INI a znovu nasadí čisté kopie ze záznamu, načte
+ * startovní snapshot a provede snímek 0. Checkpointy se zahodí (patřily
+ * obsahu médií, který už neplatí) a vznikne nový checkpoint snímku 0.
+ *
+ * @return NULL = hotovo; jinak chyba (přehrávání pak skončí s chybou).
+ */
+static const char *replay_play_restart(char *errbuf, size_t errsize)
+{
+    replay_media_restore();
+    const char *e = replay_play_load_start(s_play, errbuf, errsize);
+    if (e) return e;
+    replay_ckpt_ring_clear(&s_ckpt);
+    g_mutex_lock(&s_lock);
+    s_status.deviated = false;
+    s_status.deviation[0] = '\0';
+    g_mutex_unlock(&s_lock);
+    replay_play_step();
+    if (s_play) replay_ckpt_take();
+    fprintf(stderr, "[REPLAY] playback restarted from the beginning\n");
+    return NULL;
+}
+
+
+/**
+ * @brief Seek přehrávání (paused smyčka).
+ *
+ * @param target  Cílový snímek (za koncem se omezí na konec záznamu).
+ * @param[out] out_run true = dohrávání běží (emulaci rozběhnout), false = už
+ *                 stojí na cíli.
+ * @return NULL = v pořádku, jinak chyba anglicky.
+ */
+static const char *replay_play_seek(uint32_t target, bool *out_run, char *errbuf, size_t errsize)
+{
+    *out_run = false;
+    if (target > s_play->frames) target = s_play->frames;
+    uint32_t cur = replay_current_frame();
+    bool at_boundary = replay_paused_at_boundary();
+    if (target < cur || (target == cur && !at_boundary))
+    {
+        guint idx = 0;
+        if (replay_ckpt_ring_find(&s_ckpt, target, g_media_writes, &idx) == REPLAY_CKPT_FOUND)
+        {
+            const st_REPLAY_CKPT *c = replay_ckpt_ring_get(&s_ckpt, idx);
+            const char *e = replay_ckpt_load(c, errbuf, errsize);
+            if (e)
+            {
+                /* Stav stroje už neodpovídá záznamu - přehrávání ukončit. */
+                replay_play_finish(REPLAY_OUTCOME_ERROR, e, NULL);
+                return e;
+            };
+            replay_play_restore_cursors(c);
+            fprintf(stderr, "[REPLAY] playback back at checkpoint frame %u\n", c->frame);
+        }
+        else
+        {
+            const char *e = replay_play_restart(errbuf, errsize);
+            if (e)
+            {
+                replay_play_finish(REPLAY_OUTCOME_ERROR, e, NULL);
+                return e;
+            };
+            if (!s_play) return NULL; /* skončilo hned na snímku 0 */
+        };
+    };
+    if (replay_current_frame() < target)
+    {
+        replay_seek_begin(target);
+        *out_run = true;
+    };
+    replay_publish();
+    return NULL;
+}
+
+
+/**
+ * @brief Rewind při přehrávání = seek na checkpoint před aktuálním snímkem.
+ * @param frames 0 = o jeden checkpoint zpět, jinak aspoň o tolik snímků.
+ */
+static const char *replay_play_rewind(uint32_t frames, bool *out_run, char *errbuf, size_t errsize)
+{
+    uint32_t cur = replay_current_frame();
+    if (frames != 0) return replay_play_seek(cur > frames ? cur - frames : 0, out_run, errbuf, errsize);
+    if (cur == 0)
+    {
+        *out_run = false;
+        return "already at the start of the replay";
+    };
+    guint idx = 0;
+    en_REPLAY_CKPT_FIND fr = replay_ckpt_ring_find(&s_ckpt, cur - 1, g_media_writes, &idx);
+    uint32_t target = (fr == REPLAY_CKPT_NONE) ? 0 : replay_ckpt_ring_get(&s_ckpt, idx)->frame;
+    return replay_play_seek(target, out_run, errbuf, errsize);
 }
 
 
@@ -1286,6 +1754,7 @@ void replay_on_frame_boundary(void)
     {
         s_frame = replay_current_frame();
         replay_rec_boundary();
+        replay_ckpt_on_boundary();
         s_boundary_ticks = gdg_get_total_ticks();
         replay_publish();
     }
@@ -1294,7 +1763,13 @@ void replay_on_frame_boundary(void)
         replay_play_check_live_reset();
         s_frame = replay_current_frame();
         replay_play_step();
+        if (s_play) replay_ckpt_on_boundary();
         s_boundary_ticks = gdg_get_total_ticks();
+        if (s_play && s_seeking && s_frame >= s_seek_target)
+        {
+            replay_seek_done(true);
+            replay_publish();
+        };
     };
 
     if (!replay_have_request()) return;
@@ -1379,6 +1854,21 @@ void replay_on_paused(void)
                 else if (s_play) replay_play_finish(REPLAY_OUTCOME_STOPPED, "stopped by request", NULL);
                 else e = "nothing to stop";
                 break;
+            case REPLAY_REQ_REWIND:
+            case REPLAY_REQ_SEEK:
+            {
+                bool run = false;
+                if (r->kind == REPLAY_REQ_REWIND && s_rec) e = replay_rec_rewind(r->frames, errbuf, sizeof(errbuf));
+                else if (!s_play) e = (r->kind == REPLAY_REQ_SEEK) ? "seek works only during playback"
+                                                                    : "nothing is recording or playing";
+                else if (r->kind == REPLAY_REQ_REWIND) e = replay_play_rewind(r->frames, &run, errbuf, sizeof(errbuf));
+                else e = replay_play_seek(r->frames, &run, errbuf, sizeof(errbuf));
+                /* Úspěch: dohrávání seeku běží, jinak emulace zůstane stát
+                 * na hranici snímku checkpointu. Odmítnutí stav nemění. */
+                if (!e && run) start_running = true;
+                else if (!e) stay_paused = true;
+                break;
+            };
         };
         replay_request_done(r->seq, e == NULL, e);
         replay_req_free(r);
@@ -1416,10 +1906,12 @@ void replay_shutdown(void)
     };
     if (s_play)
     {
+        replay_seek_done(false);
         replay_data_free(s_play);
         s_play = NULL;
         replay_media_restore();
     };
+    replay_ckpt_end();
     replay_joy_latch(false);
     replay_set_mode(REPLAY_MODE_OFF);
     g_mutex_lock(&s_lock);

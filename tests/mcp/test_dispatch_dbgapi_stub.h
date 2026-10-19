@@ -862,10 +862,12 @@ extern st_DISPATCH_STUB_STATE g_stub_state;
  */
 typedef struct st_DISPATCH_STUB_REPLAY {
     int calls;                  /**< Počet požadavků od resetu. */
-    int last_kind;              /**< 1 = record, 2 = play, 3 = stop. */
+    int last_kind;              /**< 1 = record, 2 = play, 3 = stop, 4 = rewind, 5 = seek. */
     char last_path[512];        /**< Cesta posledního požadavku ("" = žádná). */
     uint32_t last_interval;     /**< hash_interval posledního záznamu (0 = výchozí). */
     bool last_pause_after_load; /**< pause_after_load posledního přehrání. */
+    uint32_t last_frames;       /**< frames rewindu / frame seeku. */
+    st_REPLAY_CKPT_CFG last_ckpt; /**< Nastavení checkpointů posledního záznamu / přehrání (-1 = z INI). */
     bool fail;                  /**< true = požadavek skončí chybou "stub failure". */
     st_REPLAY_STATUS status;    /**< Stav vracený replay_get_status(). */
 } st_DISPATCH_STUB_REPLAY;

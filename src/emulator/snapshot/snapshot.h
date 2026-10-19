@@ -129,9 +129,12 @@ en_SNAPSHOT_RESULT snapshot_load(const char *filepath);
  * @param out_size Výstupní velikost dat v bajtech. Při chybě bude
  *                 *out_size = 0.
  * @return SNAPSHOT_OK při úspěchu; jinak některý z @ref en_SNAPSHOT_RESULT
- *         (mimo jiné SNAPSHOT_ERR_NOT_PAUSED pokud emulátor neběží v pauze).
+ *         (mimo jiné SNAPSHOT_ERR_NOT_PAUSED pokud emulátor nestojí v pauze
+ *         ani v snapshot safe-pointu).
  *
- * @note Vyžaduje, aby byl emulátor v pauze (stejně jako @ref snapshot_save).
+ * @note Vyžaduje pauzu nebo `g_emulator.snapshot_safepoint` (emu vlákno mezi
+ *       instrukcemi, stejně jako @ref snapshot_save) - checkpointy záznamu
+ *       vstupů ho nastaví na dobu volání v bodě hranice snímku.
  * @note Vyprodukovaný buffer je bit-identický s .mzs souborem, který by
  *       vznikl voláním @ref snapshot_save - lze jej následně načíst přes
  *       @ref snapshot_load (po zapsání na disk) i přes

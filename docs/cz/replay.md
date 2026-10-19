@@ -7,7 +7,10 @@ nebo v novém procesu emulátoru, při libovolné rychlosti. Typické použití:
   běh opakuji, kolikrát potřebuji, s jinými breakpointy, trace nebo
   záznamem zápisů do paměti;
 - nahraný běh slouží jako regresní test: `--replay-verify` v CI ověří,
-  že ho nový build pořád odehraje stejně.
+  že ho nový build pořád odehraje stejně;
+- při záznamu se vrátím o pár sekund a zkusím jinou cestu, při
+  přehrávání skočím na libovolný snímek (viz [Checkpointy, návrat
+  a skok](#checkpointy-návrat-a-skok)).
 
 Všechny platformy (MZ-800, MZ-700 PAL i NTSC, MZ-1500). Záznam jde
 přehrát jen v binárce téže platformy a TV normy.
@@ -45,9 +48,9 @@ a k němu emulovaný čas, takže program vidí při přehrání stejné hodiny.
 
 | Způsob | Jak |
 |--------|-----|
-| Menu | **Replay -> Record Inputs...** se zeptá na soubor (`.mzr`) a začne. **Replay -> Stop Replay** ho uloží. |
+| Menu | **Replay -> Record Inputs...** se zeptá na soubor (`.mzr`) a začne. **Replay -> Stop Replay** ho uloží. Stejná tlačítka má i okno **Replay Control** (viz níže). |
 | Příkazová řádka | `--replay-record <soubor>` nahrává od prvního snímku; soubor se zapíše při ukončení emulátoru. `--replay-hash-interval <N>` nastaví počet snímků mezi hashi (1-100000). |
-| MCP | `emu_replay_record_start`, `emu_replay_record_stop`, `emu_replay_status` (viz [`mcp-server/tools-overview.md`](mcp-server/tools-overview.md)). |
+| MCP | `emu_replay_record_start`, `emu_replay_record_stop`, `emu_replay_rewind`, `emu_replay_status` (viz [`mcp-server/tools-overview.md`](mcp-server/tools-overview.md)). |
 
 Když emulace běží, pozastaví se na nejbližší hranici snímku, záznam začne
 a emulace běží dál. Během záznamu je v levém dolním rohu obrazu
@@ -81,7 +84,7 @@ Během záznamu:
 |--------|-----|
 | Menu | **Replay -> Play Replay...** se zeptá na soubor, načte startovní snapshot a rozběhne emulaci. **Replay -> Stop Replay** přehrávání ukončí. |
 | Příkazová řádka | `--replay <soubor>` přehraje záznam po startu. `--exit-at-replay-end` ukončí běh na konci přehrávání, `--replay-verify` totéž v MAX SPEED (viz níže). |
-| MCP | `emu_replay_play` (`pause_after_load` pro nastavení breakpointů před rozběhem), `emu_replay_play_stop`, `emu_replay_status`; konec je pauza s důvodem `replay_end` nebo `replay_desync` (`emu_wait_stop`). |
+| MCP | `emu_replay_play` (`pause_after_load` pro nastavení breakpointů před rozběhem), `emu_replay_seek`, `emu_replay_play_stop`, `emu_replay_status`; konec je pauza s důvodem `replay_end` nebo `replay_desync` (`emu_wait_stop`). |
 
 Při přehrávání je v obraze **REPLAY PLAY** se snímkem a délkou záznamu.
 Živý vstup (klávesnice, virtuální klávesnice, joystick hostitele, klávesy
@@ -104,6 +107,68 @@ níže).
 Přehrání nezačne, když je port joysticku v záznamu připojený a tady ne
 (nebo naopak), nebo když je CMT hack v jednom z nich zapnutý a ve druhém
 vypnutý: nastavení změnit a přehrát znovu.
+
+## Checkpointy, návrat a skok
+
+Při záznamu i přehrávání si emulátor drží checkpointy: každých 250
+snímků (na PAL 5 sekund) snapshot stroje v paměti, posledních 60 (5
+minut). Checkpoint zabere desítky kB; nabídka **Replay** ukazuje, kolik
+jich je a pro které snímky.
+
+| Akce | Menu / klávesa | MCP |
+|------|----------------|-----|
+| Návrat při záznamu | **Replay -> Rewind**, `Alt + Shift + J` | `emu_replay_rewind` |
+| Návrat při přehrávání | **Replay -> Rewind**, `Alt + Shift + J` | `emu_replay_rewind` |
+| Skok na snímek při přehrávání | **Replay -> Seek...** | `emu_replay_seek` |
+
+**Návrat při záznamu** vrátí stroj na předchozí checkpoint a zahodí vše,
+co se po něm nahrálo; další volba Rewind jde o checkpoint dál. Emulace
+tam zůstane stát a záznam pokračuje od toho místa, jakmile se znovu
+rozběhne - stačí zkusit jinou cestu, uložený záznam obsahuje jen tu
+poslední. Soubor záznamu počítá návraty (`rerecord_count`).
+
+**Skok při přehrávání** přejde na snímek: dopředu přehrávání běží
+maximální rychlostí a na tom snímku se pozastaví; zpět začne od
+nejbližšího checkpointu (nebo od začátku záznamu) a doběhne na snímek.
+Rychlost se pak vrátí na předchozí nastavení. Hashe se ověřují celou
+dobu, breakpointy zůstávají aktivní. Během skoku je v obraze **REPLAY
+SEEK** a cílový snímek. Návrat při přehrávání skočí na předchozí
+checkpoint.
+
+Checkpoint nenese obsah médií. Když emulovaný program zapíše na disketu,
+Quick Disk nebo disk IDE8, nahraje na kazetu nebo se páska vysune,
+checkpointy před tím už použít nejde: návrat přes takový zápis se při
+záznamu odmítne (soubory disků uživatele se nikdy nepřepisují), skok přes
+něj při přehrávání začne přehrávání od začátku s čistými kopiemi médií.
+Při běžícím autotype ani při nahrávání na kazetu checkpoint nevznikne.
+
+Checkpointy jsou jen v paměti, ne v souboru záznamu. Záznam přehrávaný
+v novém procesu si během přehrávání sbírá vlastní; skok před první z nich
+začne od začátku.
+
+Interval a počet jsou v sekci `[REPLAY]` konfigurace (čísla jsou tam
+šestnáctková jako všude v konfiguračním souboru):
+
+```
+[REPLAY]
+checkpoint_interval = 0xFA
+checkpoint_count = 0x3C
+```
+
+`checkpoint_interval = 0` checkpointy vypne. Přes MCP jdou obě hodnoty
+nastavit pro jeden záznam nebo přehrávání (`checkpoint_interval`,
+`checkpoint_count` u `emu_replay_record_start` a `emu_replay_play`).
+
+## Okno Replay Control
+
+**Replay -> Replay Control...** (`Alt + J`) otevře plovoucí okno, které
+může zůstat otevřené i při hraní: stav (vypnuto, záznam, přehrávání,
+skok), soubor, snímek a čas (při přehrávání i s délkou záznamu), počet
+událostí a checkpointů, návraty, odchýlení a poslední výsledek. Jeho
+tlačítka spustí záznam nebo přehrávání, ukončí ho a vrátí na checkpoint;
+pole Seek přesune přehrávání na snímek. Klávesy jsou vypsané vedle
+tlačítek. Okno, které bylo otevřené, se po novém spuštění emulátoru
+otevře znovu.
 
 ## Média
 
@@ -162,7 +227,7 @@ Soubor `.mzr` je ZIP archiv:
 
 | Soubor | Obsah |
 |--------|-------|
-| `manifest.json` | formát, verze, platforma, délka snímku TV normy (`screen_ticks`), délka záznamu, interval hashů, varování, seznam médií (`media`: slot, soubor, velikost, SHA-256, zda je uložené), stav kazety (`cmt`), čas startu hodin Unicardu (`rtc_base`), typy joysticků (`joystick_types`) |
+| `manifest.json` | formát, verze, platforma, délka snímku TV normy (`screen_ticks`), délka záznamu, interval hashů, počet návratů při záznamu (`rerecord_count`), varování, seznam médií (`media`: slot, soubor, velikost, SHA-256, zda je uložené), stav kazety (`cmt`), čas startu hodin Unicardu (`rtc_base`), typy joysticků (`joystick_types`) |
 | `start.mzs` | startovní snapshot |
 | `inputs.jsonl` | jedna událost na řádek: snímek `f`, poloha `at` (`b` hranice snímku, `d` zápis debuggeru za běhu, `p` pauza na hranici snímku), druh `k` (`kbd`, `joy`, `autotype`, `reset`, `cmt`, `cmthack`, `dbg`) a jeho data; poslední řádek je `end` |
 | `hashes.csv` | `frame,ticks,cpu,ram,memext,vram,pcg,periph` |

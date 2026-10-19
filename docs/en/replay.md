@@ -7,7 +7,10 @@ same or a new emulator process, at any speed. Typical uses:
   same run as many times as needed with other breakpoints, trace or the
   RAM Write Log switched on;
 - keep a recorded run as a regression test: `--replay-verify` checks in
-  CI that a new build still runs it the same way.
+  CI that a new build still runs it the same way;
+- while recording, go back a few seconds and try another way; while
+  playing back, jump to any frame (see [Checkpoints, rewind and
+  seek](#checkpoints-rewind-and-seek)).
 
 All platforms (MZ-800, MZ-700 PAL and NTSC, MZ-1500). A replay plays back
 only in the binary of the same platform and TV system.
@@ -49,9 +52,9 @@ the same clock in the playback.
 
 | Way | How |
 |-----|-----|
-| Menu | **Replay -> Record Inputs...** asks for the file (`.mzr`) and starts. **Replay -> Stop Replay** saves it. |
+| Menu | **Replay -> Record Inputs...** asks for the file (`.mzr`) and starts. **Replay -> Stop Replay** saves it. The same buttons are in the **Replay Control** window (see below). |
 | Command line | `--replay-record <file>` records from the first frame; the file is written when the emulator exits. `--replay-hash-interval <N>` sets the frames between hashes (1-100000). |
-| MCP | `emu_replay_record_start`, `emu_replay_record_stop`, `emu_replay_status` (see [`mcp-server/tools-overview.md`](mcp-server/tools-overview.md)). |
+| MCP | `emu_replay_record_start`, `emu_replay_record_stop`, `emu_replay_rewind`, `emu_replay_status` (see [`mcp-server/tools-overview.md`](mcp-server/tools-overview.md)). |
 
 If the emulation runs, it pauses at the next frame boundary, the
 recording starts and the emulation runs on. While recording, the lower
@@ -87,7 +90,7 @@ While recording:
 |-----|-----|
 | Menu | **Replay -> Play Replay...** asks for the file, loads the start snapshot and runs. **Replay -> Stop Replay** ends it. |
 | Command line | `--replay <file>` plays it back after startup. `--exit-at-replay-end` ends the run at the end of the playback, `--replay-verify` does the same at MAX SPEED (see below). |
-| MCP | `emu_replay_play` (`pause_after_load` to set breakpoints before it runs), `emu_replay_play_stop`, `emu_replay_status`; the end is a pause with reason `replay_end` or `replay_desync` (`emu_wait_stop`). |
+| MCP | `emu_replay_play` (`pause_after_load` to set breakpoints before it runs), `emu_replay_seek`, `emu_replay_play_stop`, `emu_replay_status`; the end is a pause with reason `replay_end` or `replay_desync` (`emu_wait_stop`). |
 
 While playing back, the picture shows **REPLAY PLAY** with the frame and
 the length of the replay. Live input (keyboard, virtual keyboard, host
@@ -112,6 +115,71 @@ Playback does not start when a joystick port is connected in the
 recording and not here (or the other way round), or when the CMT hack is
 switched on in one of them and off in the other: change the setting and
 play it again.
+
+## Checkpoints, rewind and seek
+
+While recording and while playing back the emulator keeps checkpoints:
+every 250 frames (5 seconds on PAL) a snapshot of the machine in memory,
+the last 60 of them (5 minutes). A checkpoint takes tens of kB; the
+**Replay** menu shows how many are kept and for which frames.
+
+| Action | Menu / key | MCP |
+|--------|------------|-----|
+| Rewind while recording | **Replay -> Rewind**, `Alt + Shift + J` | `emu_replay_rewind` |
+| Rewind while playing back | **Replay -> Rewind**, `Alt + Shift + J` | `emu_replay_rewind` |
+| Jump to a frame while playing back | **Replay -> Seek...** | `emu_replay_seek` |
+
+**Rewind while recording** returns the machine to the previous
+checkpoint and drops everything recorded after it; choosing Rewind again
+goes one more checkpoint back. The emulation stays paused there and the
+recording goes on from that point when it runs again - try another way,
+the saved replay contains only the final path. The replay file counts the
+rewinds (`rerecord_count`).
+
+**Seek while playing back** jumps to a frame: forward the playback runs
+at maximum speed and pauses at that frame; back it starts from the
+nearest checkpoint (or from the beginning of the replay) and runs to the
+frame. The speed returns to the previous setting afterwards. The hashes
+are checked all the way, breakpoints stay active. While seeking, the
+picture shows **REPLAY SEEK** and the target frame. Rewind while playing
+back jumps to the previous checkpoint.
+
+A checkpoint does not hold the contents of the media. When the emulated
+program writes to a floppy disk, Quick Disk or IDE8 disk, records to tape
+or the tape is ejected, the checkpoints before that can no longer be
+used: a rewind past it while recording is refused (the disk files of the
+user are never overwritten), a seek past it while playing back starts
+the playback from its beginning with clean copies of the media. No
+checkpoint is taken while autotype runs or the tape records.
+
+Checkpoints exist only in memory, not in the replay file. A replay
+played in a new process collects its own checkpoints as it runs; a seek
+back before the first one starts from the beginning.
+
+The interval and the number are in the `[REPLAY]` section of the
+configuration (numbers are hexadecimal there, like everywhere in the
+configuration file):
+
+```
+[REPLAY]
+checkpoint_interval = 0xFA
+checkpoint_count = 0x3C
+```
+
+`checkpoint_interval = 0` switches the checkpoints off. Over MCP both can
+be set for one recording or playback (`checkpoint_interval`,
+`checkpoint_count` of `emu_replay_record_start` and `emu_replay_play`).
+
+## Replay Control window
+
+**Replay -> Replay Control...** (`Alt + J`) opens a floating window that
+can stay open while you play: the state (off, recording, playing,
+seeking), the file, the frame and time (with the length of the replay
+while playing back), the number of events and checkpoints, the rewinds,
+a deviation and the last result. Its buttons start a recording or a
+playback, stop it and rewind; the Seek field jumps the playback to a
+frame. The keys are shown next to the buttons. The window stays open
+after a restart of the emulator if it was open.
 
 ## Media
 
@@ -173,7 +241,7 @@ A `.mzr` file is a ZIP archive:
 
 | File | Content |
 |------|---------|
-| `manifest.json` | format, version, platform, frame length of the TV system (`screen_ticks`), length, hash interval, warnings, list of media (`media`: slot, file, size, SHA-256, whether it is stored), tape state (`cmt`), start time of the Unicard clock (`rtc_base`), joystick types (`joystick_types`) |
+| `manifest.json` | format, version, platform, frame length of the TV system (`screen_ticks`), length, hash interval, number of rewinds while recording (`rerecord_count`), warnings, list of media (`media`: slot, file, size, SHA-256, whether it is stored), tape state (`cmt`), start time of the Unicard clock (`rtc_base`), joystick types (`joystick_types`) |
 | `start.mzs` | the start snapshot |
 | `inputs.jsonl` | one event per line: frame `f`, position `at` (`b` frame boundary, `d` debugger write while running, `p` pause at a frame boundary), kind `k` (`kbd`, `joy`, `autotype`, `reset`, `cmt`, `cmthack`, `dbg`) and its data; the last line is `end` |
 | `hashes.csv` | `frame,ticks,cpu,ram,memext,vram,pcg,periph` |

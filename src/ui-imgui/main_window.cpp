@@ -409,6 +409,7 @@ void imgui_main_window(GLuint texture)
 
     /* Záznam a přehrání vstupů: dialogy nabídky Replay a oznámení výsledku */
     imgui_replay_dialogs();
+    imgui_replay_window();
 
     /* Video záznam: dialog nastavení, okno dálkového ovládání + notifikace událostí (před vykreslením notifikace) */
     imgui_videorec_setup_dialog();

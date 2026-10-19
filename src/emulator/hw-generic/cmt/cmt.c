@@ -64,6 +64,7 @@
 #include "libs/mzf/mzf.h"
 #include "emulator.h"
 #include "replay.h"
+#include "media_writes.h"
 
 st_CMT g_cmt;
 char *g_ui_cmt_filters = NULL;
@@ -306,6 +307,9 @@ void cmt_eject(void)
     };
     if (!CMT_TEST_STOP)
         cmt_stop();
+    /* Vysunutá páska = změna média (media_writes.h): checkpoint záznamu
+     * vstupů ji zpět vložit neumí. */
+    MEDIA_WRITES_NOTE();
     if (g_cmt.ext->cb_eject)
         g_cmt.ext->cb_eject();
     g_cmt.ext = NULL;
@@ -461,6 +465,10 @@ void cmt_play_paused(void)
 
 static void cmt_record(void)
 {
+    /* Nahrávání změní obsah pásky (media_writes.h): checkpointy záznamu
+     * vstupů z doby před ním už nejdou načíst. */
+    MEDIA_WRITES_NOTE();
+
     // implicitne zacneme v pauze
     g_cmt.paused = 1;
 

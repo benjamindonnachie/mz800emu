@@ -489,8 +489,9 @@ en_SNAPSHOT_RESULT snapshot_save_to_buffer(const char *description,
 
     if (!out_data || !out_size) return SNAPSHOT_ERR_IO;
 
-    /* 1. Ověřit, že je emulátor v pauze */
-    if (!EMULATOR_TEST_PAUSED) return SNAPSHOT_ERR_NOT_PAUSED;
+    /* 1. Ověřit safe-point: pauza NEBO dedikovaný snapshot safe-point
+     * (jako snapshot_save; checkpoint záznamu vstupů v bodě hranice snímku). */
+    if (!EMULATOR_TEST_PAUSED && !EMULATOR_TEST_SNAPSHOT_SAFEPOINT) return SNAPSHOT_ERR_NOT_PAUSED;
 
     /* 2. Otevřít ZIP archiv pro zápis do paměti */
     snapshot_io_t *io = snapshot_io_open_write_buffer(

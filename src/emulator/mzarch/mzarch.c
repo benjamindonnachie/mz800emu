@@ -614,6 +614,21 @@ static const uint8_t mz800_vram_wait_tw_ww[ 80 ] = {
 };
 #endif /* MZARCH == 800 */
 
+/**
+ * @brief Synchronizace GDG uvnitř instrukce (přístup do I/O, VRAM, PSG).
+ *
+ * Dorovná čas GDG k aktuálnímu T-stavu instrukce (s čekacími stavy podle
+ * druhu přístupu) a zpracuje události, které do té chvíle nastaly (i konec
+ * snímku). Per-event blok hlavní smyčky pak vynutí hned za instrukcí
+ * (událost s takty 0), když čeká přerušení, pauza nebo krok debuggeru,
+ * nebo bod B_f záznamu vstupů (s_mzarch_replay_due). Bez vynucení by B_f
+ * proběhl až s další naplánovanou událostí a pauza vzniklá v callbacku
+ * konce snímku (např. --exit-after-frames) by ho posunula jen při záznamu,
+ * ne při přehrávání: rozdílný stav v posledním hashi (změřeno).
+ *
+ * @param insideop Druh přístupu (určuje čekací stavy).
+ * @pre Emu vlákno uvnitř instrukce (callback přístupu CPU).
+ */
 static inline void mzarch_main_insideop(const en_INSIDEOP insideop)
 {
 
@@ -773,13 +788,16 @@ static inline void mzarch_main_insideop(const en_INSIDEOP insideop)
         MZ800_MAIN_SET_EVENT(MZEVENT_BREAK_MZARCH_INTERRUPT, 0);
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
     }
-    else if ((EMULATOR_TEST_PAUSED) || (TEST_DEBUGGER_STEP_CALL))
+    else if ((EMULATOR_TEST_PAUSED) || (TEST_DEBUGGER_STEP_CALL) || (s_mzarch_replay_due))
     {
 #else
     }
-    else if (EMULATOR_TEST_PAUSED)
+    else if ((EMULATOR_TEST_PAUSED) || (s_mzarch_replay_due))
     {
 #endif
+        /* Bod B_f záznamu vstupů hned za touto instrukcí, nezávisle na
+         * pauze (viz Doxygen výše). Bez záznamu je s_mzarch_replay_due
+         * vždy false. */
         MZ800_MAIN_SET_EVENT(MZEVENT_BREAK_EMULATION_PAUSED, 0);
     };
 }

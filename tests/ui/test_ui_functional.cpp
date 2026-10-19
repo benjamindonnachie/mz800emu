@@ -43,6 +43,8 @@ extern "C" {
 
 #include "ui-imgui/bootstrap/myimgui.h"
 #include "ui-imgui/videorec/videorec_menu.h"
+#include "ui-imgui/topmenu/topmenu.h"
+#include "emulator/replay.h"
 #include "i18n.h"
 
 /* UI globál, který jinak vytváří sdlapp_imgui_video.cpp. */
@@ -442,8 +444,11 @@ static void test_shortcut_labels_match_keys(void)
     TEST_ASSERT_EQUAL_STRING("Alt+U", videorec_ui_shortcut_label(VIDEOREC_SHORTCUT_TOGGLE_TIMEBASE));
 }
 
-/** Jeden ImGui snímek se stiskem Alt (+ Shift) + klávesy, během kterého běží obsluha zkratek. */
-static void press_alt_key(ImGuiKey key, bool shift)
+/**
+ * Jeden ImGui snímek se stiskem Alt (+ Shift) + klávesy, během kterého běží
+ * obsluha zkratek @p handler (výchozí obsluha video záznamu).
+ */
+static void press_alt_key(ImGuiKey key, bool shift, void (*handler)(void) = imgui_videorec_shortcuts)
 {
     ImGuiIO &io = ImGui::GetIO();
     io.AddKeyEvent(ImGuiMod_Alt, true);
@@ -454,7 +459,7 @@ static void press_alt_key(ImGuiKey key, bool shift)
     }
     io.AddKeyEvent(key, true);
     frame_begin();
-    imgui_videorec_shortcuts();
+    handler();
     frame_end();
     io.AddKeyEvent(key, false);
     io.AddKeyEvent(ImGuiKey_LeftShift, false);
@@ -758,6 +763,92 @@ static void test_realtime_ui_renders(void)
     TEST_ASSERT_EQUAL_INT(VIDEOREC_TIMEBASE_REALTIME, g_videorec_settings.timebase); /* Cancel nic nezmění */
 }
 
+/* Záznam vstupů: Alt+J přepíná okno Replay Control, Alt+Shift+J bez záznamu
+ * nic nevyžádá (rewind jen při záznamu / přehrávání). */
+static void test_replay_shortcuts(void)
+{
+    if (!s_ui_ok) TEST_IGNORE_MESSAGE("SDL/GL not available");
+    g_gui->showReplayWindow = false;
+    press_alt_key(ImGuiKey_J, false, imgui_replay_shortcuts);
+    TEST_ASSERT_TRUE(g_gui->showReplayWindow);
+    press_alt_key(ImGuiKey_J, false, imgui_replay_shortcuts);
+    TEST_ASSERT_FALSE(g_gui->showReplayWindow);
+    st_REPLAY_STATUS before;
+    replay_get_status(&before);
+    press_alt_key(ImGuiKey_J, true, imgui_replay_shortcuts);
+    st_REPLAY_STATUS after;
+    replay_get_status(&after);
+    TEST_ASSERT_EQUAL_UINT32(before.request_done, after.request_done);
+    TEST_ASSERT_FALSE(g_gui->showReplayWindow);
+}
+
+/* Okno Replay Control se vykreslí bez záznamu, při záznamu a při přehrávání
+ * (bez assertu ImGui); rewind tlačítkem vyřídí paused smyčka. */
+static void test_replay_window_renders(void)
+{
+    if (!s_ui_ok) TEST_IGNORE_MESSAGE("SDL/GL not available");
+    char *dir = g_dir_make_tmp("ui_replay_XXXXXX", NULL);
+    TEST_ASSERT_NOT_NULL(dir);
+    char *mzr = g_build_filename(dir, "ui_replay.mzr", NULL);
+    g_emulator.paused = true;
+    g_gui->showReplayWindow = true;
+    for (int i = 0; i < 2; i++) {
+        frame_begin();
+        imgui_replay_window();
+        frame_end();
+    }
+
+    replay_request_record(mzr, 0, NULL);
+    replay_on_paused();
+    st_REPLAY_STATUS st;
+    replay_get_status(&st);
+    TEST_ASSERT_TRUE_MESSAGE(st.request_ok, st.request_message);
+    for (int f = 0; f < 3; f++) {
+        g_gdg.total_elapsed.screens++;
+        replay_on_frame_boundary();
+    }
+    for (int i = 0; i < 2; i++) {
+        frame_begin();
+        imgui_replay_window();
+        frame_end();
+    }
+    imgui_replay_rewind();
+    replay_on_paused();
+    replay_get_status(&st);
+    TEST_ASSERT_TRUE_MESSAGE(st.request_ok, st.request_message);
+    TEST_ASSERT_EQUAL_UINT32(1, st.rerecord_count);
+    for (int f = 0; f < 3; f++) { /* po rewindu (snímek 0) dál, aby přehrávání mělo délku */
+        g_gdg.total_elapsed.screens++;
+        replay_on_frame_boundary();
+    }
+    replay_request_stop();
+    replay_on_paused();
+    replay_get_status(&st);
+    TEST_ASSERT_EQUAL_INT_MESSAGE(REPLAY_OUTCOME_RECORDED, st.outcome, st.outcome_message);
+
+    replay_request_play(mzr, true);
+    replay_on_paused();
+    replay_get_status(&st);
+    TEST_ASSERT_EQUAL_INT_MESSAGE(REPLAY_MODE_PLAYING, st.mode, st.outcome_message);
+    for (int i = 0; i < 2; i++) {
+        frame_begin();
+        imgui_replay_window();
+        frame_end();
+    }
+    replay_request_stop();
+    replay_on_paused();
+    for (int i = 0; i < 2; i++) {
+        frame_begin();
+        imgui_replay_window(); /* poslední výsledek */
+        frame_end();
+    }
+    g_gui->showReplayWindow = false;
+    g_remove(mzr);
+    g_rmdir(dir);
+    g_free(mzr);
+    g_free(dir);
+}
+
 int main(int argc, char *argv[])
 {
     mztest_parse_args(argc, argv);
@@ -790,6 +881,8 @@ int main(int argc, char *argv[])
     RUN_TEST(test_settings_apply_keeps_runtime_timebase);
     RUN_TEST(test_setup_dialog_follows_runtime_timebase);
     RUN_TEST(test_realtime_ui_renders);
+    RUN_TEST(test_replay_shortcuts);
+    RUN_TEST(test_replay_window_renders);
     int result = UNITY_END();
 
     ui_teardown();

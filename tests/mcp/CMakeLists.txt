@@ -872,6 +872,45 @@ if(Python3_FOUND)
                    "(Python ${Python3_VERSION})")
 
     # -----------------------------------------------------------
+    # Checkpointy záznamu vstupů: rewind a seek přes MCP (pipe)
+    # -----------------------------------------------------------
+    # Záznam v ROM monitoru s rewindem: zápis po checkpointu zmizí, soubor
+    # má rerecord_count 1; --replay-verify v novém procesu kód 0; seek
+    # dopředu / zpět / znovu dopředu dá stejný stav, rewind při přehrávání,
+    # přehrávání doběhne bez rozjetí.
+    add_test(
+        NAME    mcp_replay_rewind
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_replay_rewind.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_replay_rewind PROPERTIES
+        LABELS  "e2e;mcp;pipe;debugger;replay"
+        TIMEOUT 180
+    )
+    message(STATUS "  tests/mcp: registered mcp_replay_rewind "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
+    # Záznam vstupů ukončený --exit-after-frames (CLI)
+    # -----------------------------------------------------------
+    # Smyčka IN = konec snímku uvnitř instrukce; pauza z callbacku konce
+    # snímku nesmí posunout poslední bod hranice snímku: --replay-verify
+    # záznamů různé délky v novém procesu kód 0.
+    add_test(
+        NAME    mcp_replay_exit_boundary
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_replay_exit_boundary.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_replay_exit_boundary PROPERTIES
+        LABELS  "e2e;replay"
+        TIMEOUT 180
+    )
+    message(STATUS "  tests/mcp: registered mcp_replay_exit_boundary "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
     # Regiony plné sestavy MZ-800 přes MCP (pipe)
     # -----------------------------------------------------------
     # MemExt Luftner + RAMdisk STD 16 MB + PEZIK 68h = 532 regionů:

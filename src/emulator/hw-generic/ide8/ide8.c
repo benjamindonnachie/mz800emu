@@ -54,6 +54,7 @@
 #include "cfgmain.h"
 #include "ide8.h"
 #include "baseui/baseui.h"
+#include "media_writes.h"
 
 st_IDE8 g_ide8;
 
@@ -593,6 +594,8 @@ static void ide8_drive_write_data(st_IDE8_DRIVE *drive, uint8_t value)
     if (drive->data_pos < IDE8_SECTOR_SIZE)
         return;
 
+    /* Zápis na médium (checkpoint záznamu vstupů, media_writes.h). */
+    MEDIA_WRITES_NOTE();
     if (EXIT_SUCCESS != ide8_drive_sector_write(drive))
     {
         drive->cmd = IDE8_CMD_NONE;

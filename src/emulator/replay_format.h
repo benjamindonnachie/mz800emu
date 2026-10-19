@@ -183,7 +183,7 @@ extern "C"
         char *description;        /**< Popis od uživatele (může být NULL). */
         uint32_t frames;          /**< Délka záznamu ve snímcích (= snímek konce). */
         uint32_t hash_interval;   /**< Interval hashů ve snímcích (aspoň 1). */
-        uint32_t rerecord_count;  /**< Počet přepisů (v1 vždy 0). */
+        uint32_t rerecord_count;  /**< Počet rewindů během záznamu (návrat na checkpoint a nahrávání dál). */
         bool has_debugger_events; /**< Záznam obsahuje události `dbg` (přehrání jen s debuggerem). */
         bool final_hash;          /**< Poslední řádek hashů (snímek `frames`) je stav na konci záznamu, po událostech `p` posledního snímku; jinak je to obyčejný periodický řádek. */
         GPtrArray *warnings;      /**< Varování záznamu (char *, bez duplicit). */
@@ -246,6 +246,19 @@ extern "C"
      * @brief Připojí řádek hashů na konec záznamu (kopie).
      */
     void replay_data_add_hash(st_REPLAY_DATA *d, const st_REPLAY_HASH_ROW *row);
+
+    /**
+     * @brief Zkrátí záznam na prvních N událostí, řádků hashů a médií (rewind).
+     *
+     * @param d          Záznam.
+     * @param events_len Počet ponechaných událostí (větší než počet = beze změny).
+     * @param hashes_len Počet ponechaných řádků hashů.
+     * @param media_len  Počet ponechaných médií (média přidaná později, např.
+     *                   soubory CMT hacku, se uvolní).
+     * @post Odebrané události a média jsou uvolněné; `has_debugger_events`
+     *       odpovídá zbylým událostem. Varování, snapshot a manifest beze změny.
+     */
+    void replay_data_truncate(st_REPLAY_DATA *d, guint events_len, guint hashes_len, guint media_len);
 
     /**
      * @brief Přidá varování, pokud tam ještě není (porovnání textu).

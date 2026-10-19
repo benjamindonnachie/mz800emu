@@ -1311,7 +1311,8 @@ async def emu_wait_stop(run_seq: int | None = None,
     ``timeout_ms``; then call the tool again. The record has ``reason``
     (``"run_to"``, ``"breakpoint"``, ``"deadline"``, ``"frames"``,
     ``"step"``, ``"manual"``, ``"exit"``, ``"bp_action_saturation"``,
-    ``"event_trigger"``, ``"replay"``, ``"replay_end"``, ``"replay_desync"``),
+    ``"event_trigger"``, ``"replay"``, ``"replay_end"``, ``"replay_desync"``,
+    ``"replay_seek"``),
     ``pc``, ``bp_id`` (breakpoint), ``started_by`` /
     ``start_cmd`` (who started the run: ``"mcp"`` or ``"user"`` in the
     GUI), ``stopped_by`` (who paused it, for ``"manual"``),
@@ -7758,7 +7759,9 @@ _REPLAY_TIMEOUT_S = 20.0
 
 @mcp.tool()
 async def emu_replay_record_start(path: str, hash_interval: int = 50,
-                                  description: Optional[str] = None) -> str:
+                                  description: Optional[str] = None,
+                                  checkpoint_interval: Optional[int] = None,
+                                  checkpoint_count: Optional[int] = None) -> str:
     """Start recording the emulator inputs into a replay file (``.mzr``).
 
     The recording starts from a complete snapshot of the machine (always
@@ -7791,10 +7794,18 @@ async def emu_replay_record_start(path: str, hash_interval: int = 50,
     recording starts and the emulation runs on; when paused it stays
     paused.
 
+    Every ``checkpoint_interval`` frames a checkpoint (a snapshot in
+    memory) is kept, the last ``checkpoint_count`` of them; go back to one
+    with ``emu_replay_rewind`` and record a different path from there.
+
     Args:
         path: Replay file on the emulator host (overwritten on stop).
         hash_interval: Frames between state hashes (1..100000).
         description: Optional text stored in the manifest.
+        checkpoint_interval: Frames between checkpoints (0..100000, 0 = no
+            checkpoints); default from the ``[REPLAY]`` INI section (250).
+        checkpoint_count: Checkpoints kept (1..1000); default from the INI
+            (60).
 
     Returns:
         JSON with the replay status (see ``emu_replay_status``), or an
@@ -7805,6 +7816,10 @@ async def emu_replay_record_start(path: str, hash_interval: int = 50,
     data: dict[str, Any] = {"path": path, "hash_interval": hash_interval}
     if description is not None:
         data["description"] = description
+    if checkpoint_interval is not None:
+        data["checkpoint_interval"] = checkpoint_interval
+    if checkpoint_count is not None:
+        data["checkpoint_count"] = checkpoint_count
     resp = await _send_request("replay_record_start", data, timeout_s=_REPLAY_TIMEOUT_S)
     return json.dumps(_data_or_error(resp))
 
@@ -7827,7 +7842,9 @@ async def emu_replay_record_stop() -> str:
 
 
 @mcp.tool()
-async def emu_replay_play(path: str, pause_after_load: bool = False) -> str:
+async def emu_replay_play(path: str, pause_after_load: bool = False,
+                          checkpoint_interval: Optional[int] = None,
+                          checkpoint_count: Optional[int] = None) -> str:
     """Play a replay file back from its start snapshot.
 
     Live input (GUI keyboard, virtual keyboard, MCP keys) is ignored
@@ -7846,10 +7863,18 @@ async def emu_replay_play(path: str, pause_after_load: bool = False) -> str:
     the playback as ``deviated``: it goes on, but hashes are no longer
     checked.
 
+    Jump to any frame with ``emu_replay_seek`` (back via the checkpoints
+    kept during this playback).
+
     Args:
         path: Replay file on the emulator host.
         pause_after_load: True = stay paused after loading the start
             snapshot (set breakpoints, then ``emu_resume``); False = run.
+        checkpoint_interval: Frames between checkpoints of this playback
+            (0..100000, 0 = none: every seek back starts from the
+            beginning); default from the INI (250).
+        checkpoint_count: Checkpoints kept (1..1000); default from the INI
+            (60).
 
     Returns:
         JSON status (``mode: "playing"``, ``frames``), or an error (file
@@ -7858,9 +7883,12 @@ async def emu_replay_play(path: str, pause_after_load: bool = False) -> str:
         only in one of the two, the CMT hack set differently, an image not
         stored in the replay that differs from the mounted one).
     """
-    resp = await _send_request("replay_play",
-                               {"path": path, "pause_after_load": pause_after_load},
-                               timeout_s=_REPLAY_TIMEOUT_S)
+    data: dict[str, Any] = {"path": path, "pause_after_load": pause_after_load}
+    if checkpoint_interval is not None:
+        data["checkpoint_interval"] = checkpoint_interval
+    if checkpoint_count is not None:
+        data["checkpoint_count"] = checkpoint_count
+    resp = await _send_request("replay_play", data, timeout_s=_REPLAY_TIMEOUT_S)
     return json.dumps(_data_or_error(resp))
 
 
@@ -7876,6 +7904,61 @@ async def emu_replay_play_stop() -> str:
 
 
 @mcp.tool()
+async def emu_replay_rewind(frames: int = 0) -> str:
+    """Go back to a checkpoint of the running recording or playback.
+
+    While recording: the machine returns to the checkpoint, the inputs and
+    hashes after it are dropped, ``rerecord_count`` grows by one and the
+    recording goes on from there (the emulation stays paused at the
+    checkpoint frame boundary; ``emu_resume`` to continue). While playing:
+    the same as ``emu_replay_seek`` to that checkpoint.
+
+    A checkpoint after which a disk (FDC, Quick Disk, IDE8) or the tape was
+    written or the tape ejected cannot be used: checkpoints do not hold
+    media contents. While recording the rewind is then refused; while
+    playing the seek starts the playback again from the beginning.
+
+    Args:
+        frames: 0 = one checkpoint back (the newest one before the current
+            frame; call again to go further); N = the newest checkpoint at
+            least N frames back.
+
+    Returns:
+        JSON status (``frame`` = checkpoint frame, ``rerecord_count``,
+        ``checkpoints``), or an error (``checkpoints are off``, ``no
+        checkpoint at or before frame N``, ``a disk or the tape was written
+        or ejected after frame N``, ``nothing is recording or playing``).
+    """
+    resp = await _send_request("replay_rewind", {"frames": frames}, timeout_s=_REPLAY_TIMEOUT_S)
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
+async def emu_replay_seek(frame: int) -> str:
+    """Jump the running playback to a frame.
+
+    Forward: the playback runs on at MAX SPEED and stops at the frame
+    boundary of ``frame`` (pause reason ``replay_seek``; wait with
+    ``emu_wait_stop``). Back: the newest usable checkpoint at or before
+    ``frame`` is loaded (otherwise the playback starts again from the
+    beginning with clean copies of the media) and the rest is played at
+    MAX SPEED. Hashes are checked all the way; breakpoints stay active and
+    may stop the seek early. The speed before the seek returns at the end.
+    A frame past the end of the replay is limited to the end.
+
+    Args:
+        frame: Target frame counted from the start of the replay.
+
+    Returns:
+        JSON status right after the start: ``seeking: true`` = running to
+        ``seek_target``, ``false`` = already standing at the frame; or an
+        error (``seek works only during playback``).
+    """
+    resp = await _send_request("replay_seek", {"frame": frame}, timeout_s=_REPLAY_TIMEOUT_S)
+    return json.dumps(_data_or_error(resp))
+
+
+@mcp.tool()
 async def emu_replay_status() -> str:
     """Status of recording and playback.
 
@@ -7886,8 +7969,11 @@ async def emu_replay_status() -> str:
         "deviated": bool, "deviation": str, "path": str, "outcome":
         "none" | "recorded" | "ended" | "desync" | "stopped" | "error",
         "outcome_frame": int, "outcome_message": str, "desync_parts":
-        [str]}``. ``outcome*`` describe the last finished recording or
-        playback.
+        [str], "rerecord_count": int, "seeking": bool, "seek_target": int,
+        "checkpoints": {"interval": int, "capacity": int, "count": int,
+        "first_frame": int, "last_frame": int, "bytes": int}}``.
+        ``outcome*`` describe the last finished recording or playback;
+        ``first_frame`` / ``last_frame`` are present only with ``count`` > 0.
     """
     resp = await _send_request("replay_status")
     return json.dumps(_data_or_error(resp))

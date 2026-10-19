@@ -1,7 +1,7 @@
 /**
  * @file menu_replay.cpp
  * @brief Nabídka Replay (záznam a přehrání vstupů), souborové dialogy,
- *        oznámení výsledku a indikátor REC / PLAY v obraze.
+ *        rewind a seek, oznámení výsledku a indikátor REC / PLAY v obraze.
  *
  * GUI jen posílá požadavky do modulu záznamu (replay.h) a čte jeho stav;
  * záznam i přehrávání řídí emu vlákno. Výsledek požadavku (chyba startu)
@@ -40,6 +40,52 @@ static int s_dialog_open = 0;
 static uint32_t s_pending_seq = 0;
 /** @brief Naposledy ohlášený výsledek (výsledek + snímek + text = otisk). */
 static char s_last_outcome_key[REPLAY_STATUS_TEXT_MAX + 64] = "";
+/** @brief Požadavek z nabídky: otevřít dialog seeku. */
+static bool s_seek_dialog_request = false;
+/** @brief Cílový snímek v dialogu seeku. */
+static int s_seek_frame = 0;
+
+
+void imgui_replay_open_record_dialog(void)
+{
+    s_record_dialog_request = true;
+}
+
+
+void imgui_replay_open_play_dialog(void)
+{
+    s_play_dialog_request = true;
+}
+
+
+void imgui_replay_request(uint32_t seq)
+{
+    s_pending_seq = seq;
+}
+
+
+void imgui_replay_rewind(void)
+{
+    st_REPLAY_STATUS st;
+    replay_get_status(&st);
+    if (st.mode == REPLAY_MODE_OFF || st.seeking) return;
+    s_pending_seq = replay_request_rewind(0);
+}
+
+
+void imgui_replay_shortcuts(void)
+{
+    ImGuiIO &io = ImGui::GetIO();
+    if (!io.KeyAlt || io.KeyCtrl || !ImGui::IsKeyPressed(ImGuiKey_J, false)) return;
+    if (io.KeyShift)
+    {
+        imgui_replay_rewind();
+    }
+    else
+    {
+        g_gui->showReplayWindow = !g_gui->showReplayWindow;
+    };
+}
 
 
 void imgui_menu_replay(void)
@@ -68,13 +114,40 @@ void imgui_menu_replay(void)
     };
 
     ImGui::Separator();
+    if (ImGui::MenuItem(_L("Rewind"), IMGUI_REPLAY_SHORTCUT_REWIND, false, !off && st.checkpoints > 0 && !st.seeking))
+    {
+        s_pending_seq = replay_request_rewind(0);
+    };
+    ImGui::SetItemTooltip("%s", _("Go back to the previous checkpoint (again = further back). While recording, "
+                                  "the inputs after the checkpoint are dropped and the recording goes on from "
+                                  "there. Not possible past a write to a disk or the tape."));
+    if (ImGui::MenuItem(_L("Seek..."), NULL, false, st.mode == REPLAY_MODE_PLAYING && !st.seeking))
+    {
+        s_seek_frame = (int)st.frame;
+        s_seek_dialog_request = true;
+    };
+    ImGui::SetItemTooltip("%s", _("Jump the playback to a frame: back via a checkpoint, forward at maximum speed."));
+    if (ImGui::MenuItem(_L("Replay Control..."), IMGUI_REPLAY_SHORTCUT_WINDOW, g_gui->showReplayWindow))
+    {
+        g_gui->showReplayWindow = !g_gui->showReplayWindow;
+    };
+
+    ImGui::Separator();
     if (st.mode == REPLAY_MODE_RECORDING)
     {
         ImGui::TextDisabled(_("Recording: frame %u, %u events"), st.frame, st.events);
+        if (st.rerecord_count)
+        {
+            ImGui::TextDisabled(_("Rewinds: %u"), st.rerecord_count);
+        };
     }
     else if (st.mode == REPLAY_MODE_PLAYING)
     {
         ImGui::TextDisabled(_("Playing: frame %u / %u"), st.frame, st.frames);
+        if (st.seeking)
+        {
+            ImGui::TextDisabled(_("Seeking to frame %u"), st.seek_target);
+        };
         if (st.deviated)
         {
             ImGui::TextDisabled(_("Deviated: %s"), st.deviation);
@@ -88,7 +161,64 @@ void imgui_menu_replay(void)
     {
         ImGui::TextDisabled("%s", _("No replay"));
     };
+    if (!off)
+    {
+        if (st.checkpoint_interval == 0)
+        {
+            ImGui::TextDisabled("%s", _("Checkpoints: off"));
+        }
+        else if (st.checkpoints)
+        {
+            ImGui::TextDisabled(_("Checkpoints: %u (frames %u - %u, %u kB)"), st.checkpoints, st.checkpoint_first,
+                                st.checkpoint_last, (unsigned)((st.checkpoint_bytes + 1023) / 1024));
+        };
+    };
     ImGui::EndMenu();
+}
+
+
+/**
+ * @brief Dialog seeku: cílový snímek, tlačítka Seek / Cancel.
+ *
+ * Otevře se z nabídky (s_seek_dialog_request); zavře se sám, když
+ * přehrávání mezitím skončilo.
+ */
+static void replay_seek_dialog(void)
+{
+    const std::string title = std::string(_("Seek Replay")) + "###ReplaySeekPopup";
+    if (s_seek_dialog_request)
+    {
+        s_seek_dialog_request = false;
+        ImGui::OpenPopup(title.c_str());
+    };
+    if (!ImGui::BeginPopupModal(title.c_str(), NULL, ImGuiWindowFlags_AlwaysAutoResize))
+    {
+        return;
+    };
+    st_REPLAY_STATUS st;
+    replay_get_status(&st);
+    if (st.mode != REPLAY_MODE_PLAYING)
+    {
+        ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+        return;
+    };
+    ImGui::Text(_("Current frame %u of %u"), st.frame, st.frames);
+    ImGui::SetNextItemWidth(160.0f);
+    ImGui::InputInt(_L("Frame"), &s_seek_frame, 50, 500);
+    if (s_seek_frame < 0) s_seek_frame = 0;
+    if (s_seek_frame > (int)st.frames) s_seek_frame = (int)st.frames;
+    if (ImGui::Button(_L("Seek")))
+    {
+        s_pending_seq = replay_request_seek((uint32_t)s_seek_frame);
+        ImGui::CloseCurrentPopup();
+    };
+    ImGui::SameLine();
+    if (ImGui::Button(_L("Cancel")))
+    {
+        ImGui::CloseCurrentPopup();
+    };
+    ImGui::EndPopup();
 }
 
 
@@ -197,6 +327,7 @@ void imgui_replay_dialogs(void)
         };
     };
 
+    replay_seek_dialog();
     replay_notify();
 }
 
@@ -211,6 +342,10 @@ void imgui_replay_overlay(void)
     if (st.mode == REPLAY_MODE_RECORDING)
     {
         g_snprintf(text, sizeof(text), _("REPLAY REC %u"), st.frame);
+    }
+    else if (st.seeking)
+    {
+        g_snprintf(text, sizeof(text), _("REPLAY SEEK %u -> %u"), st.frame, st.seek_target);
     }
     else
     {

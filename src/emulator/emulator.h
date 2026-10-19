@@ -48,8 +48,10 @@ typedef enum en_EMU_PAUSE_REASON
                                          v paused smyčce, po něm se emulace znovu
                                          rozběhne (replay.h). */
     EMU_PAUSE_REASON_REPLAY_END,    /**< Přehrávání záznamu došlo na konec (replay.h). */
-    EMU_PAUSE_REASON_REPLAY_DESYNC  /**< Přehrávání záznamu se rozjelo: hash stavu
+    EMU_PAUSE_REASON_REPLAY_DESYNC, /**< Přehrávání záznamu se rozjelo: hash stavu
                                          se liší od záznamu (replay.h). */
+    EMU_PAUSE_REASON_REPLAY_SEEK    /**< Přehrávání došlo na cílový snímek seeku
+                                         (replay_request_seek(), replay.h). */
 } en_EMU_PAUSE_REASON;
 
 /**
@@ -92,7 +94,9 @@ typedef struct st_EMULATOR
      * wait-loop ani control-plane drain ho NEvidí (čtou jen @c paused).
      *
      * Nastavuje a obnovuje se výhradně na emu vlákně mezi instrukcemi
-     * (BP-action FWD_SNAPSHOT), proto nevyžaduje atomic. Klidová hodnota
+     * (BP-action FWD_SNAPSHOT, checkpoint záznamu vstupů v bodě hranice
+     * snímku), proto nevyžaduje atomic. Akceptuje ho i
+     * snapshot_save_to_buffer(). Klidová hodnota
      * je false. Save/restore pattern umožňuje bezpečné vnoření.
      */
     bool snapshot_safepoint;

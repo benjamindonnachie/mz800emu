@@ -1,6 +1,6 @@
 ---
 title: Replay - record inputs once, repeat the run exactly
-description: How to record a run (keys, joysticks, resets, tape control, debugger writes, the mounted disks and tape) into a .mzr file and play it back exactly in the same or a new process - repeat a bug with other breakpoints, trace or ramlog, find the first frame where two runs differ, check a run in CI (--replay-verify, exit code 4).
+description: How to record a run (keys, joysticks, resets, tape control, debugger writes, the mounted disks and tape) into a .mzr file and play it back exactly in the same or a new process - repeat a bug with other breakpoints, trace or ramlog, go back to a checkpoint while recording, jump to a frame while playing, find the first frame where two runs differ, check a run in CI (--replay-verify, exit code 4).
 ---
 # Replay: record inputs once, repeat the run exactly
 
@@ -63,6 +63,52 @@ settings tools are refused while recording.
    or Freeze Bytes during playback mark it `deviated` (it goes on, the
    hashes are no longer checked) - `emu_replay_status` shows it.
 
+## Recipe: go back and try another way (rewind)
+
+Checkpoints are on by default: a snapshot in memory every 250 frames,
+the last 60 kept (`checkpoint_interval`, `checkpoint_count` of
+`emu_replay_record_start`; 0 = off). `emu_replay_status().checkpoints`
+shows `count`, `first_frame`, `last_frame`, `bytes`.
+
+```
+emu_replay_record_start(path="try.mzr")
+emu_run(frames=600)              # play on ... a wrong move at about 560
+emu_replay_rewind()              # back to the checkpoint 500, paused there
+emu_replay_rewind()              # once more: 250
+emu_replay_rewind(frames=300)    # or: the newest checkpoint >= 300 frames back
+emu_input_send_keys_with_delays(...)   # another way from there
+emu_replay_record_stop()         # the file holds only the final path, rerecord_count = number of rewinds
+```
+
+A rewind past a write to a disk (FDC, Quick Disk, IDE8), a recording to
+tape or a tape eject is refused (`a disk or the tape was written or
+ejected after frame N`): checkpoints do not hold media contents and the
+user files are never overwritten. No checkpoint is taken while autotype
+runs or the tape records.
+
+## Recipe: jump to a frame while playing (seek)
+
+```
+emu_replay_play(path="bug.mzr", pause_after_load=true)
+emu_replay_seek(frame=12000)     # runs at MAX SPEED, seeking: true
+emu_wait_stop()                  # reason "replay_seek", paused at frame 12000
+emu_bp_add(...); emu_resume()    # investigate from there
+emu_replay_seek(frame=11500)     # back: from a checkpoint of this playback
+```
+
+A seek back without a usable checkpoint (before the first one, or past
+a media write) starts the playback from the beginning with clean media
+copies and runs to the frame - always correct, only slower. The hashes
+are checked during the seek; breakpoints stay active and may stop it
+early (then `seeking` stays true and the seek goes on after
+`emu_resume`). `emu_replay_rewind` while playing = a seek to the
+previous checkpoint. Checkpoints are not in the `.mzr` file: a new
+process collects its own while it plays.
+
+Typical use after a desync: the playback ends at the desync frame N;
+play again with `pause_after_load`, `emu_replay_seek(frame=N-50)`, then
+step with trace or ramlog to the difference.
+
 ## Rules while recording
 
 | Situation | What happens |
@@ -117,4 +163,6 @@ FILE --exit-after-frames N` records a run of the command line. See
 `frame`, `frames` (length of the played / last played replay), `events`,
 `hashes`, `hash_interval`, `warnings`, `deviated`, `deviation`, `path`,
 `outcome` (`none`, `recorded`, `ended`, `desync`, `stopped`, `error`),
-`outcome_frame`, `outcome_message`, `desync_parts`.
+`outcome_frame`, `outcome_message`, `desync_parts`, `rerecord_count`,
+`seeking`, `seek_target`, `checkpoints` (`interval`, `capacity`,
+`count`, `first_frame`, `last_frame`, `bytes`).

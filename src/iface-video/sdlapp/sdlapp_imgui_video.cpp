@@ -17,6 +17,7 @@
 #include "emulator/cfgmain.h"
 #include "mzarch/mzarch_config.h"
 #include "ui-imgui/videorec/videorec_menu.h"
+#include "ui-imgui/topmenu/topmenu.h"
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
 #include "ui-imgui/debugger/eventview/event_viewer_window.h"
 #include "ui-imgui/debugger/profiler/profiler_window.h"
@@ -193,6 +194,8 @@ static gboolean sdlapp_myimgui_video_init(void)
      * i v headless režimu, aby uložení INI sekci [VIDEOREC_UI] nepřepsalo
      * (cfgmain už proběhl; do g_gui se hodnota aplikuje až níže v GUI větvi). */
     imgui_videorec_remote_cfg_init();
+    /* Totéž pro okno Replay Control ([REPLAY_UI]). */
+    imgui_replay_window_cfg_init();
 
     /* Headless režim: žádné SDL okno se nevytváří, žádný ImGui kontext.
      * Alokujeme:
@@ -300,6 +303,8 @@ static gboolean sdlapp_myimgui_video_init(void)
 #endif
     /* Viditelnost okna dálkového ovládání nahrávání ([VIDEOREC_UI]). */
     imgui_videorec_remote_apply_persisted();
+    /* Viditelnost okna Replay Control ([REPLAY_UI]). */
+    imgui_replay_window_apply_persisted();
 
     /* CLI --cmt vkládá pásku do virtuálního CMT (cmt_cli.c) - otevřít
      * okno Virtual CMT, aby uživatel viděl stav pásky. */

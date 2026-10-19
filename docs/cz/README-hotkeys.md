@@ -91,6 +91,15 @@ Settings... Podrobnosti viz [`audio-capture.md`](audio-capture.md).
 |----------------------------|-----------------------------------------------------------------------------|
 | `Alt + Q`                  | Spustit / ukončit zachycení zvuku do nové složky                            |
 
+## Záznam vstupů (Replay)
+
+Všechny platformy. Podrobnosti viz [`replay.md`](replay.md).
+
+| Klávesa                    | Akce                                                                        |
+|----------------------------|-----------------------------------------------------------------------------|
+| `Alt + J`                  | Zobrazit / skrýt okno Replay Control                                        |
+| `Alt + Shift + J`          | Rewind: zpět na předchozí checkpoint (při záznamu i přehrávání)             |
+
 ## Debugger
 
 Dostupné pouze v buildech s `MZ800EMU_CFG_DEBUGGER_ENABLED`.

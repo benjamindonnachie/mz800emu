@@ -76,6 +76,7 @@
 #include "debugger/trace/hwlog.h"
 #endif
 #include "baseui/baseui_filechooser.h"
+#include "media_writes.h"
 
 #define ui_qdisk_set_std_path( x ) {g_free( g_qdisk.ui_std_filepath ); g_qdisk.ui_std_filepath = (x) ? g_strdup( x ) : g_strdup( "" );}
 #define ui_qdisk_set_virt_path( x ) {g_free( g_qdisk.ui_virt_filepath ); g_qdisk.ui_virt_filepath = (x) ? g_strdup( x ) : g_strdup( "" );}
@@ -1165,6 +1166,8 @@ void qdisk_write_byte_into_drive ( uint8_t value ) {
 
 #ifdef COMPILE_FOR_EMULATOR
         if ( g_qdisk.handler_valid ) {
+            /* Zápis na médium (checkpoint záznamu vstupů, media_writes.h). */
+            MEDIA_WRITES_NOTE ( );
             if ( EXIT_SUCCESS != generic_driver_write ( &g_qdisk.handler, g_qdisk.image_position, &value, 1 ) ) {
                 DBGPRINTF ( DBGERR, "generic_driver_write() error: %s\n",
                             generic_driver_error_message ( &g_qdisk.handler, g_qdisk.handler.driver ) );

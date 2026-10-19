@@ -154,6 +154,19 @@ void replay_data_add_hash(st_REPLAY_DATA *d, const st_REPLAY_HASH_ROW *row)
 }
 
 
+void replay_data_truncate(st_REPLAY_DATA *d, guint events_len, guint hashes_len, guint media_len)
+{
+    if (events_len < d->events->len) g_array_remove_range(d->events, events_len, d->events->len - events_len);
+    if (hashes_len < d->hashes->len) g_array_set_size(d->hashes, hashes_len);
+    if (media_len < d->media->len) g_ptr_array_set_size(d->media, (gint)media_len);
+    d->has_debugger_events = false;
+    for (guint i = 0; i < d->events->len; i++)
+    {
+        if (g_array_index(d->events, st_REPLAY_EVENT, i).kind == REPLAY_EV_DBG) d->has_debugger_events = true;
+    };
+}
+
+
 void replay_data_add_warning(st_REPLAY_DATA *d, const char *warning)
 {
     if (!warning) return;

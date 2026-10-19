@@ -89,6 +89,8 @@ dokumentu [Resources overview](resources-overview.md).
 | `emu_replay_record_stop` | ne | Konec záznamu a uložení souboru |
 | `emu_replay_play` | ano (nahradí stav emulátoru) | Přehrání záznamu od startovního snapshotu, zastavení na prvním rozdílném hashi |
 | `emu_replay_play_stop` | ne | Ukončení běžícího přehrávání |
+| `emu_replay_rewind` | ano (nahradí stav emulátoru) | Návrat na checkpoint: při záznamu zahodí vstupy po něm a nahrává dál, při přehrávání skočí zpět |
+| `emu_replay_seek` | ano (nahradí stav emulátoru) | Skok přehrávání na snímek (zpět přes checkpoint nebo od začátku, dopředu v MAX SPEED) |
 | `emu_replay_status` | ne | Stav záznamu / přehrávání a výsledek posledního |
 | `emu_screenshot_save_to_file` | ano (vytvoří / přepíše soubor) | PNG obrazovky do souboru: oblast (full / canvas), měřítko (framebuffer / nativní body / okno 1-4), ořez |
 | `emu_screenshot_series_start` | ano (vytváří soubory) | Série snímků: PNG každého změněného emulovaného snímku (oblast, měřítko, ořez, only_changed, frames, max_files) |
@@ -1298,9 +1300,15 @@ snímku, který se liší.
 ### `emu_replay_record_start` (sensitive - vytvoří / přepíše soubor)
 
 Argumenty: `path` (string, povinný), `hash_interval` (int 1..100000,
-výchozí 50 snímků), `description` (string, volitelný). Když emulace
-běží, pozastaví se na nejbližší hranici snímku, záznam začne a emulace
-běží dál; v pauze zůstane v pauze.
+výchozí 50 snímků), `description` (string, volitelný),
+`checkpoint_interval` (int 0..100000 snímků, 0 = bez checkpointů,
+výchozí ze sekce `[REPLAY]` INI: 250), `checkpoint_count` (int 1..1000,
+výchozí z INI: 60). Když emulace běží, pozastaví se na nejbližší hranici
+snímku, záznam začne a emulace běží dál; v pauze zůstane v pauze.
+
+Každých `checkpoint_interval` snímků vznikne checkpoint (snapshot
+v paměti, desítky kB), drží se posledních `checkpoint_count`; viz
+`emu_replay_rewind`.
 
 Během záznamu se klávesnice z GUI převezme na nejbližší hranici snímku.
 Zápisy debuggeru (`emu_mem_write`, `emu_mem_write_force`, zápis do
@@ -1331,7 +1339,9 @@ soubor), nebo chybu (`no recording is running`, chyba zápisu).
 ### `emu_replay_play` (sensitive - nahradí stav emulátoru)
 
 Argumenty: `path` (string, povinný), `pause_after_load` (bool, výchozí
-false). Načte startovní snapshot a přehraje zaznamenané vstupy;
+false), `checkpoint_interval` a `checkpoint_count` (jako u
+`emu_replay_record_start`; checkpointy přehrávání zrychlí seek zpět).
+Načte startovní snapshot a přehraje zaznamenané vstupy;
 `pause_after_load: true` po načtení zůstane v pauze (nastavit
 breakpointy, pak `emu_resume`). Živý vstup (klávesnice GUI, virtuální
 klávesnice, klávesy z MCP) se ignoruje. Konec pozastaví emulaci
@@ -1352,14 +1362,49 @@ jinak nastavený CMT hack, neuložený obraz, který se liší od vloženého.
 Ukončí běžící přehrávání (`outcome: "stopped"`). Chyba: `no playback is
 running`.
 
+### `emu_replay_rewind` (sensitive - nahradí stav emulátoru)
+
+Argument: `frames` (int >= 0, výchozí 0). 0 = o jeden checkpoint zpět
+(nejnovější před aktuálním snímkem; další volání jde dál), N = nejnovější
+checkpoint aspoň o N snímků zpět. Při záznamu se stroj vrátí na
+checkpoint, vstupy a hashe po něm se zahodí, `rerecord_count` se zvýší
+o jedna a záznam pokračuje odtud; emulace zůstane stát na hranici snímku
+checkpointu. Při přehrávání jde o seek zpět na ten checkpoint (viz
+`emu_replay_seek`).
+
+Checkpointy nenesou obsah médií. Checkpoint, po kterém se zapsalo na
+disk (FDC, Quick Disk, IDE8) nebo na kazetu nebo se páska vysunula, použít
+nejde: při záznamu se rewind odmítne, při přehrávání začne přehrávání
+znovu od začátku. Při běžícím autotype ani při nahrávání na kazetu
+checkpoint nevznikne. Chyby: `checkpoints are off`, `no checkpoint at or
+before frame N (the oldest kept is frame M)`, `a disk or the tape was
+written or ejected after frame N; rewinding past a media change is not
+possible`, `nothing is recording or playing`. Vrací stav.
+
+### `emu_replay_seek` (sensitive - nahradí stav emulátoru)
+
+Argument: `frame` (int >= 0, povinný; za koncem se omezí na konec).
+Dopředu: přehrávání pokračuje v MAX SPEED a zastaví na hranici snímku
+`frame` s důvodem pauzy `replay_seek` (událost `paused`,
+`emu_wait_stop`); rychlost před seekem se vrátí. Zpět: načte se
+nejnovější použitelný checkpoint do `frame` (jinak přehrávání začne
+znovu od začátku s čistými kopiemi médií) a zbytek se dohraje v MAX
+SPEED. Hashe se ověřují celou dobu; breakpointy zůstávají aktivní a mohou
+seek zastavit dřív. Odpověď přijde hned po spuštění: `seeking: true` =
+dohrávání na `seek_target` běží, `false` = emulace už stojí na snímku.
+Chyba: `seek works only during playback`. Vrací stav.
+
 ### `emu_replay_status`
 
 Bez argumentů. Vrací `{"mode": "off" | "recording" | "playing",
 "frame", "frames" (délka při přehrávání), "events", "hashes",
 "hash_interval", "warnings", "deviated", "deviation", "path", "outcome":
 "none" | "recorded" | "ended" | "desync" | "stopped" | "error",
-"outcome_frame", "outcome_message", "desync_parts": [...]}`. Členy
-`outcome*` popisují poslední skončený záznam nebo přehrávání.
+"outcome_frame", "outcome_message", "desync_parts": [...],
+"rerecord_count", "seeking", "seek_target", "checkpoints": {"interval",
+"capacity", "count", "first_frame", "last_frame", "bytes"}}`. Členy
+`outcome*` popisují poslední skončený záznam nebo přehrávání;
+`first_frame` a `last_frame` jsou jen při `count` > 0.
 
 ## Nástroje screenshotu
 

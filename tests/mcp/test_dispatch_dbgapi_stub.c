@@ -2935,6 +2935,39 @@ static uint32_t stub_replay_request(int kind, const char *path, uint32_t interva
     return (uint32_t)g_stub_replay.calls;
 }
 
+/** @brief Uloží nastavení checkpointů požadavku (NULL = z INI = -1). */
+static void stub_replay_ckpt(const st_REPLAY_CKPT_CFG *ckpt)
+{
+    g_stub_replay.last_ckpt.interval = ckpt ? ckpt->interval : -1;
+    g_stub_replay.last_ckpt.count = ckpt ? ckpt->count : -1;
+}
+
+uint32_t replay_request_record_ex(const char *path, uint32_t hash_interval, const char *description,
+                                  const st_REPLAY_CKPT_CFG *ckpt)
+{
+    (void)description;
+    stub_replay_ckpt(ckpt);
+    return stub_replay_request(1, path, hash_interval, false);
+}
+
+uint32_t replay_request_play_ex(const char *path, bool pause_after_load, const st_REPLAY_CKPT_CFG *ckpt)
+{
+    stub_replay_ckpt(ckpt);
+    return stub_replay_request(2, path, 0, pause_after_load);
+}
+
+uint32_t replay_request_rewind(uint32_t frames)
+{
+    g_stub_replay.last_frames = frames;
+    return stub_replay_request(4, NULL, 0, false);
+}
+
+uint32_t replay_request_seek(uint32_t frame)
+{
+    g_stub_replay.last_frames = frame;
+    return stub_replay_request(5, NULL, 0, false);
+}
+
 uint32_t replay_request_record(const char *path, uint32_t hash_interval, const char *description)
 {
     (void)description;

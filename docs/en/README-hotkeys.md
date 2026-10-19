@@ -91,6 +91,15 @@ Settings... For details see [`audio-capture.md`](audio-capture.md).
 |----------------------------|-----------------------------------------------------------------------------|
 | `Alt + Q`                  | Start / stop an audio capture into a new folder                             |
 
+## Replay (input recording)
+
+All platforms. For details see [`replay.md`](replay.md).
+
+| Key                        | Action                                                                      |
+|----------------------------|-----------------------------------------------------------------------------|
+| `Alt + J`                  | Show / hide the Replay Control window                                       |
+| `Alt + Shift + J`          | Rewind: back to the previous checkpoint (while recording or playing back)   |
+
 ## Debugger
 
 Available only in builds with `MZ800EMU_CFG_DEBUGGER_ENABLED`.

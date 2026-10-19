@@ -101,6 +101,7 @@ static const char *run_control_reason_name(en_EMU_PAUSE_REASON reason)
         case EMU_PAUSE_REASON_REPLAY: return "replay";
         case EMU_PAUSE_REASON_REPLAY_END: return "replay_end";
         case EMU_PAUSE_REASON_REPLAY_DESYNC: return "replay_desync";
+        case EMU_PAUSE_REASON_REPLAY_SEEK: return "replay_seek";
         case EMU_PAUSE_REASON_NONE:
         default: break;
     };

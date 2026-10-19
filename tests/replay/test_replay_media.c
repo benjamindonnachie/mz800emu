@@ -43,6 +43,7 @@
 #include "fs_layer.h"
 #include "libs/dsk/dsk_tools.h"
 #include "generic_driver/memory_driver.h"
+#include "emulator/media_writes.h"
 
 /** @brief Dočasný adresář testu. */
 static char *s_tmpdir = NULL;
@@ -266,6 +267,45 @@ void test_media_recorded_and_played_on_copies(void)
 }
 
 
+/* Zápis sektoru IDE8 přes registry zvýší počítadlo zápisů na média
+ * (checkpoint pak nejde použít); čtení ho nezmění. */
+void test_media_writes_counted_ide8(void)
+{
+    char *hdd = tmp_path("cnt.img");
+    uint8_t zeros[4096];
+    memset(zeros, 0, sizeof(zeros));
+    TEST_ASSERT_TRUE(g_file_set_contents(hdd, (const char *)zeros, sizeof(zeros), NULL));
+    st_IDE8_DRIVE *hd = &g_ide8.drive[0];
+    TEST_ASSERT_EQUAL_INT(EXIT_SUCCESS, ide8_drive_open_image(hd, hdd));
+
+    /* Sektor 1 adresovaný LBA, jeden, master. */
+    ide8_write_byte(IDE8_ADDR_HEAD, (uint8_t)(0xA0 | IDE8_HEAD_BUSMODEMASK));
+    ide8_write_byte(IDE8_ADDR_SCOUNT, 1);
+    ide8_write_byte(IDE8_ADDR_SECTOR, 1);
+    ide8_write_byte(IDE8_ADDR_LCYL, 0);
+    ide8_write_byte(IDE8_ADDR_HCYL, 0);
+    uint32_t before = g_media_writes;
+    ide8_write_byte(IDE8_ADDR_COMMAND, IDE8_CMD_SECTOR_READ);
+    for (int i = 0; i < IDE8_SECTOR_SIZE; i++) (void)ide8_read_byte(IDE8_ADDR_DATA);
+    TEST_ASSERT_EQUAL_UINT32_MESSAGE(before, g_media_writes, "reading must not count");
+
+    ide8_write_byte(IDE8_ADDR_SCOUNT, 1);
+    ide8_write_byte(IDE8_ADDR_SECTOR, 1);
+    ide8_write_byte(IDE8_ADDR_COMMAND, IDE8_CMD_SECTOR_WRITE);
+    for (int i = 0; i < IDE8_SECTOR_SIZE && hd->cmd == IDE8_CMD_SECTOR_WRITE; i++)
+    {
+        ide8_write_byte(IDE8_ADDR_DATA, 0x5A);
+    };
+    TEST_ASSERT_EQUAL_UINT32(before + 1, g_media_writes);
+    /* Sektor 1 v LBA = blok 0 (ide8_drive_assign_registers odečte 1). */
+    TEST_ASSERT_EQUAL_HEX8(0x5A, ide8_peek(0, 0));
+
+    ide8_drive_close_image(hd);
+    g_remove(hdd);
+    g_free(hdd);
+}
+
+
 /* Quick Disk: nasazení z paměti, kopie obsahu a zavření bez INI. */
 void test_qdisk_buffer_mount(void)
 {
@@ -427,6 +467,7 @@ int main(int argc, char **argv)
     UNITY_BEGIN();
     RUN_TEST(test_media_recorded_and_played_on_copies);
     RUN_TEST(test_qdisk_buffer_mount);
+    RUN_TEST(test_media_writes_counted_ide8);
     RUN_TEST(test_cmt_window_ops_recorded);
     int result = UNITY_END();
 

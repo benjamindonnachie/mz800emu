@@ -121,8 +121,10 @@
  * replay-core doplnil replay_record_start, replay_record_stop, replay_play,
  * replay_play_stop a replay_status (záznam a přehrání vstupů, na KONEC
  * cmd_map[]) = 205 + 5 = 210.
+ * replay-rewind doplnil replay_rewind a replay_seek (checkpointy záznamu
+ * vstupů, na KONEC cmd_map[]) = 210 + 2 = 212.
  */
-#define MCP_EXPECTED_CMD_COUNT 210
+#define MCP_EXPECTED_CMD_COUNT 212
 
 
 /* ====================================================================== */
@@ -8440,7 +8442,75 @@ void test_replay_status_fields(void) {
     TEST_ASSERT_EQUAL_UINT(2, json_array_get_length(parts));
     TEST_ASSERT_EQUAL_STRING("ram", json_array_get_string_element(parts, 1));
     TEST_ASSERT_EQUAL_INT(0, g_stub_replay.calls);
+    JsonObject *ck = json_object_get_object_member(d, "checkpoints");
+    TEST_ASSERT_NOT_NULL(ck);
+    TEST_ASSERT_FALSE(json_object_has_member(ck, "first_frame"));
+    TEST_ASSERT_TRUE(json_object_has_member(d, "rerecord_count"));
+    TEST_ASSERT_TRUE(json_object_has_member(d, "seeking"));
     g_object_unref(parser);
+    free(resp);
+}
+
+
+/**
+ * @brief replay_rewind / replay_seek a parametry checkpointů u startu.
+ */
+void test_replay_rewind_seek_params(void) {
+    dispatch_stub_reset();
+    en_MCP_DISPATCH_RESULT rc;
+    JsonParser *parser = NULL;
+    char *resp = NULL;
+
+    /* Checkpointy u záznamu: předají se, mimo rozsah = chyba bez požadavku. */
+    (void)_rc_call("{\"type\":\"request\",\"req_id\":9130,\"cmd\":\"replay_record_start\","
+                   "\"data\":{\"path\":\"a.mzr\",\"checkpoint_interval\":0,\"checkpoint_count\":5}}",
+                   &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_EQUAL_INT(0, g_stub_replay.last_ckpt.interval);
+    TEST_ASSERT_EQUAL_INT(5, g_stub_replay.last_ckpt.count);
+    g_object_unref(parser);
+    free(resp);
+    int calls = g_stub_replay.calls;
+    (void)_rc_call("{\"type\":\"request\",\"req_id\":9131,\"cmd\":\"replay_play\","
+                   "\"data\":{\"path\":\"a.mzr\",\"checkpoint_count\":0}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, rc);
+    TEST_ASSERT_EQUAL_INT(calls, g_stub_replay.calls);
+    free(resp);
+    (void)_rc_call("{\"type\":\"request\",\"req_id\":9132,\"cmd\":\"replay_play\","
+                   "\"data\":{\"path\":\"a.mzr\"}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_EQUAL_INT(-1, g_stub_replay.last_ckpt.interval);
+    g_object_unref(parser);
+    free(resp);
+
+    /* Rewind: výchozí 0, záporné = chyba. */
+    (void)_rc_call("{\"type\":\"request\",\"req_id\":9133,\"cmd\":\"replay_rewind\"}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_EQUAL_INT(4, g_stub_replay.last_kind);
+    TEST_ASSERT_EQUAL_UINT32(0, g_stub_replay.last_frames);
+    g_object_unref(parser);
+    free(resp);
+    (void)_rc_call("{\"type\":\"request\",\"req_id\":9134,\"cmd\":\"replay_rewind\","
+                   "\"data\":{\"frames\":-1}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, rc);
+    free(resp);
+
+    /* Seek: frame povinný; chyba z emu vlákna s textem. */
+    (void)_rc_call("{\"type\":\"request\",\"req_id\":9135,\"cmd\":\"replay_seek\"}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_INVALID_PARAMS, rc);
+    free(resp);
+    (void)_rc_call("{\"type\":\"request\",\"req_id\":9136,\"cmd\":\"replay_seek\","
+                   "\"data\":{\"frame\":1200}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_OK, rc);
+    TEST_ASSERT_EQUAL_INT(5, g_stub_replay.last_kind);
+    TEST_ASSERT_EQUAL_UINT32(1200, g_stub_replay.last_frames);
+    g_object_unref(parser);
+    free(resp);
+    g_stub_replay.fail = true;
+    (void)_rc_call("{\"type\":\"request\",\"req_id\":9137,\"cmd\":\"replay_seek\","
+                   "\"data\":{\"frame\":5}}", &rc, &parser, &resp);
+    TEST_ASSERT_EQUAL_INT(MCP_DISPATCH_EMU_ERROR, rc);
+    TEST_ASSERT_NOT_NULL(strstr(resp, "stub failure"));
     free(resp);
 }
 int main(void) {
@@ -8538,6 +8608,7 @@ int main(void) {
     RUN_TEST(test_replay_record_start_params);
     RUN_TEST(test_replay_play_and_stop_modes);
     RUN_TEST(test_replay_status_fields);
+    RUN_TEST(test_replay_rewind_seek_params);
     RUN_TEST(test_snapshot_load_not_paused_reason);
     RUN_TEST(test_cooperation_hint_set_modes);
 

@@ -22,3 +22,19 @@ mz_add_test(replay-media
     SOURCES  test_replay_media.c
     LABELS   "emu;replay"
 )
+
+# Checkpointy (rewind, seek): kruhový buffer, hledání do snímku, blokace
+# zápisem na médium, zkrácení záznamu po rewindu.
+mz_add_test(replay-ckpt
+    TYPE     EMU
+    SOURCES  test_replay_ckpt.c
+    LABELS   "emu;replay"
+)
+
+# Rewind při záznamu a seek při přehrávání bez GUI: návrat stavu, zkrácení
+# záznamu, odmítnutí po zápisu na médium, dohrání v MAX SPEED a restart.
+mz_add_test(replay-rewind
+    TYPE     EMU
+    SOURCES  test_replay_rewind.c
+    LABELS   "emu;replay"
+)

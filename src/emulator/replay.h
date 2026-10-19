@@ -20,6 +20,13 @@
  * čekajícím požadavku (replay_frame_hook_wanted()). Bez záznamu tak
  * v per-event bloku přibude jen test jednoho příznaku.
  *
+ * Checkpointy (replay_ckpt.h): při záznamu i přehrávání se každých N snímků
+ * v bodě B_f uloží snapshot do paměti (kruhový buffer K posledních).
+ * Rewind při záznamu načte checkpoint a zahodí vstupy po něm, seek při
+ * přehrávání skočí na snímek (zpět přes checkpoint nebo restart od
+ * začátku, dopředu dohráním v MAX SPEED). Checkpoint za zápisem na médium
+ * (media_writes.h) použít nejde.
+ *
  * Řízení (GUI, MCP, CLI) jde přes frontu požadavků s pořadovým číslem
  * (replay_request_*()); emu vlákno je vyřídí v paused smyčce. Za běhu
  * emulace se proto emulace v nejbližší hranici snímku pozastaví, požadavek
@@ -99,7 +106,28 @@ extern "C"
         uint32_t outcome_frame;      /**< Snímek konce nebo prvního rozjetí. */
         char outcome_message[REPLAY_STATUS_TEXT_MAX]; /**< Popis konce (anglicky). */
         char desync_parts[REPLAY_STATUS_TEXT_MAX];    /**< Rozjeté části oddělené čárkou (`cpu,ram,time`). */
+        uint32_t checkpoint_interval; /**< Interval checkpointů ve snímcích (0 = vypnuto). */
+        uint32_t checkpoint_capacity; /**< Největší počet uchovaných checkpointů. */
+        uint32_t checkpoints;        /**< Počet uchovaných checkpointů. */
+        uint32_t checkpoint_first;   /**< Snímek nejstaršího checkpointu (platí při `checkpoints` > 0). */
+        uint32_t checkpoint_last;    /**< Snímek nejnovějšího checkpointu (platí při `checkpoints` > 0). */
+        uint64_t checkpoint_bytes;   /**< Paměť checkpointů v bajtech. */
+        uint32_t rerecord_count;     /**< Počet rewindů v probíhajícím nebo posledním záznamu. */
+        bool seeking;                /**< Přehrávání právě dohrává na cíl seeku (MAX SPEED). */
+        uint32_t seek_target;        /**< Cílový snímek seeku (platí při `seeking`). */
     } st_REPLAY_STATUS;
+
+    /**
+     * @brief Nastavení checkpointů jednoho záznamu nebo přehrávání.
+     *
+     * Záporná hodnota = převzít z konfigurace (sekce `[REPLAY]` INI,
+     * výchozí REPLAY_CKPT_DEFAULT_INTERVAL a REPLAY_CKPT_DEFAULT_COUNT).
+     */
+    typedef struct st_REPLAY_CKPT_CFG
+    {
+        int interval; /**< Interval ve snímcích, 0 = checkpointy vypnout, < 0 = z INI. */
+        int count;    /**< Počet uchovaných (1 .. REPLAY_CKPT_MAX_COUNT), < 0 = z INI. */
+    } st_REPLAY_CKPT_CFG;
 
     /**
      * @brief Aktuální režim (en_REPLAY_MODE jako int).
@@ -173,6 +201,18 @@ extern "C"
     uint32_t replay_request_record(const char *path, uint32_t hash_interval, const char *description);
 
     /**
+     * @brief Start záznamu s vlastním nastavením checkpointů.
+     *
+     * @param path          Cílový soubor `.mzr` (zkopíruje se).
+     * @param hash_interval Interval hashů ve snímcích; 0 = výchozí (50).
+     * @param description   Popis do manifestu nebo NULL.
+     * @param ckpt          Nastavení checkpointů, NULL = z konfigurace.
+     * @return Číslo požadavku pro replay_wait_request() (vždy > 0).
+     */
+    uint32_t replay_request_record_ex(const char *path, uint32_t hash_interval, const char *description,
+                                      const st_REPLAY_CKPT_CFG *ckpt);
+
+    /**
      * @brief Požádá o start přehrávání souboru.
      *
      * @param path            Soubor `.mzr`.
@@ -180,6 +220,46 @@ extern "C"
      * @return Číslo požadavku.
      */
     uint32_t replay_request_play(const char *path, bool pause_after_load);
+
+    /**
+     * @brief Start přehrávání s vlastním nastavením checkpointů.
+     *
+     * @param path             Soubor `.mzr`.
+     * @param pause_after_load true = po načtení zůstat v pauze.
+     * @param ckpt             Nastavení checkpointů, NULL = z konfigurace.
+     * @return Číslo požadavku.
+     */
+    uint32_t replay_request_play_ex(const char *path, bool pause_after_load, const st_REPLAY_CKPT_CFG *ckpt);
+
+    /**
+     * @brief Požádá o rewind (návrat na checkpoint).
+     *
+     * Při záznamu načte checkpoint, zahodí vstupy a hashe po něm, zvýší
+     * `rerecord_count` a záznam pokračuje; při přehrávání skočí zpět (jako
+     * replay_request_seek()). Po vyřízení emulace stojí na hranici snímku
+     * checkpointu.
+     *
+     * @param frames 0 = o jeden checkpoint zpět (nejnovější se snímkem menším
+     *               než aktuální); jinak nejnovější checkpoint aspoň o tolik
+     *               snímků zpět.
+     * @return Číslo požadavku. Odmítnutí (žádný checkpoint, zápis na médium
+     *         po checkpointu) je ve stavu (`request_ok` = false).
+     */
+    uint32_t replay_request_rewind(uint32_t frames);
+
+    /**
+     * @brief Požádá o skok přehrávání na snímek.
+     *
+     * Dopředu: dohraje v MAX SPEED a zastaví na hranici cílového snímku
+     * (pauza s důvodem EMU_PAUSE_REASON_REPLAY_SEEK). Zpět: načte nejbližší
+     * použitelný checkpoint (jinak spustí přehrávání znovu od začátku
+     * s čistými kopiemi médií) a dohraje. Cíl za koncem záznamu se omezí na
+     * konec. Hashe se při dohrávání dál ověřují.
+     *
+     * @param frame Cílový snímek od startu záznamu.
+     * @return Číslo požadavku (jen při přehrávání, jinak se odmítne).
+     */
+    uint32_t replay_request_seek(uint32_t frame);
 
     /**
      * @brief Požádá o konec: záznam uloží, přehrávání ukončí (výsledek `stopped`).

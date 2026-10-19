@@ -431,8 +431,6 @@ bool replay_dbg_execute(const char *cmd_name, const char *args_json, char **err)
     return ok;
 }
 
-#endif /* MZ800EMU_CFG_DEBUGGER_ENABLED */
-
 
 bool replay_dbg_cmt_op(en_DBGAPI_CMD cmd, const void *data_ptr, int *op, int32_t *arg, const char **path)
 {
@@ -472,3 +470,5 @@ bool replay_dbg_cmt_op(en_DBGAPI_CMD cmd, const void *data_ptr, int *op, int32_t
     };
     return false;
 }
+
+#endif /* MZ800EMU_CFG_DEBUGGER_ENABLED */

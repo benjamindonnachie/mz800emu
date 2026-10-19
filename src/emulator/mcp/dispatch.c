@@ -189,6 +189,7 @@ en_DBGAPI_SUBMIT_STATUS dbgapi_ui_submit_cmd_sync_watched(st_DBGAPI_CMDRQ_QUEUE 
 
 /* Záznam a přehrání vstupů (replay_*): v test buildu náhrada ve stubu. */
 #include "../replay.h"
+#include "../replay_ckpt.h"
 
 
 /* ------------------------------------------------------------------ */
@@ -411,6 +412,10 @@ static en_MCP_DISPATCH_RESULT _handle_replay_play(const st_JSONL_MESSAGE *req,
                                                   char **out_response);
 static en_MCP_DISPATCH_RESULT _handle_replay_play_stop(const st_JSONL_MESSAGE *req,
                                                        char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_replay_rewind(const st_JSONL_MESSAGE *req,
+                                                    char **out_response);
+static en_MCP_DISPATCH_RESULT _handle_replay_seek(const st_JSONL_MESSAGE *req,
+                                                  char **out_response);
 static en_MCP_DISPATCH_RESULT _handle_replay_status(const st_JSONL_MESSAGE *req,
                                                     char **out_response);
 /* V0.B.7 - resource backing pro emulator://config/mcp */
@@ -1241,6 +1246,8 @@ static const st_MCP_CMD_MAP_ENTRY g_cmd_map[] = {
     { "replay_play",              DBGAPI_CMD_NONE,                    _handle_replay_play              },
     { "replay_play_stop",         DBGAPI_CMD_NONE,                    _handle_replay_play_stop         },
     { "replay_status",            DBGAPI_CMD_NONE,                    _handle_replay_status            },
+    { "replay_rewind",            DBGAPI_CMD_NONE,                    _handle_replay_rewind            },
+    { "replay_seek",              DBGAPI_CMD_NONE,                    _handle_replay_seek              },
     /* sentinel */
     { NULL,              DBGAPI_CMD_NONE,              NULL                  },
 };
@@ -17812,7 +17819,9 @@ static en_MCP_DISPATCH_RESULT _handle_memsearch_close(const st_JSONL_MESSAGE *re
  *
  * Členy: `mode`, `frame`, `frames`, `events`, `hashes`, `hash_interval`,
  * `warnings`, `deviated`, `deviation`, `path`, `outcome`, `outcome_frame`,
- * `outcome_message`, `desync_parts` (pole jmen částí).
+ * `outcome_message`, `desync_parts` (pole jmen částí), `rerecord_count`,
+ * `seeking`, `seek_target` a objekt `checkpoints` (`interval`, `capacity`,
+ * `count`, `first_frame`, `last_frame`, `bytes`; snímky jen při `count` > 0).
  */
 static JsonObject *_replay_status_to_json(const st_REPLAY_STATUS *st) {
     JsonObject *o = json_object_new();
@@ -17836,6 +17845,19 @@ static JsonObject *_replay_status_to_json(const st_REPLAY_STATUS *st) {
         g_strfreev(v);
     }
     json_object_set_array_member(o, "desync_parts", parts);
+    json_object_set_int_member(o, "rerecord_count", (gint64)st->rerecord_count);
+    json_object_set_boolean_member(o, "seeking", st->seeking ? TRUE : FALSE);
+    json_object_set_int_member(o, "seek_target", (gint64)st->seek_target);
+    JsonObject *ck = json_object_new();
+    json_object_set_int_member(ck, "interval", (gint64)st->checkpoint_interval);
+    json_object_set_int_member(ck, "capacity", (gint64)st->checkpoint_capacity);
+    json_object_set_int_member(ck, "count", (gint64)st->checkpoints);
+    if (st->checkpoints) {
+        json_object_set_int_member(ck, "first_frame", (gint64)st->checkpoint_first);
+        json_object_set_int_member(ck, "last_frame", (gint64)st->checkpoint_last);
+    }
+    json_object_set_int_member(ck, "bytes", (gint64)st->checkpoint_bytes);
+    json_object_set_object_member(o, "checkpoints", ck);
     return o;
 }
 
@@ -17886,12 +17908,46 @@ static bool _replay_obj_bool(JsonObject *obj, const char *key, bool def, bool *o
 
 
 /**
+ * @brief Volitelné parametry checkpointů `checkpoint_interval` a `checkpoint_count`.
+ *
+ * @param[out] cfg Chybějící parametr = -1 (z INI).
+ * @param[out] err Text chyby při neplatné hodnotě.
+ * @return true = v pořádku; false = hodnota mimo rozsah (interval 0..100000,
+ *         počet 1..REPLAY_CKPT_MAX_COUNT).
+ */
+static bool _replay_ckpt_params(JsonObject *obj, st_REPLAY_CKPT_CFG *cfg, const char **err) {
+    cfg->interval = -1;
+    cfg->count = -1;
+    if (obj && json_object_has_member(obj, "checkpoint_interval")) {
+        gint64 v = _obj_int_or(obj, "checkpoint_interval", -1);
+        if (v < 0 || v > 100000) {
+            *err = "checkpoint_interval must be in range 0..100000 (0 = no checkpoints)";
+            return false;
+        }
+        cfg->interval = (int)v;
+    }
+    if (obj && json_object_has_member(obj, "checkpoint_count")) {
+        gint64 v = _obj_int_or(obj, "checkpoint_count", -1);
+        if (v < 1 || v > REPLAY_CKPT_MAX_COUNT) {
+            *err = "checkpoint_count must be in range 1..1000";
+            return false;
+        }
+        cfg->count = (int)v;
+    }
+    return true;
+}
+
+
+/**
  * @brief `replay_record_start` handler - start záznamu vstupů do souboru.
  *
  * Parametry: `path` (string, povinný, `.mzr`), `hash_interval` (int
- * 1..100000, default 50 snímků), `description` (string). Za běhu se
- * emulace na nejbližší hranici snímku pozastaví, záznam začne a emulace
- * běží dál; v pauze zůstane v pauze. Response: stav (viz replay_status).
+ * 1..100000, default 50 snímků), `description` (string),
+ * `checkpoint_interval` (0..100000 snímků, 0 = bez checkpointů, default
+ * z INI = 250), `checkpoint_count` (1..1000, default z INI = 60). Za běhu
+ * se emulace na nejbližší hranici snímku pozastaví, záznam začne a
+ * emulace běží dál; v pauze zůstane v pauze. Response: stav (viz
+ * replay_status).
  */
 static en_MCP_DISPATCH_RESULT _handle_replay_record_start(const st_JSONL_MESSAGE *req,
                                                           char **out_response) {
@@ -17908,8 +17964,14 @@ static en_MCP_DISPATCH_RESULT _handle_replay_record_start(const st_JSONL_MESSAGE
         return _err_response(req_id, "hash_interval must be in range 1..100000",
                              MCP_DISPATCH_INVALID_PARAMS, out_response);
     }
+    st_REPLAY_CKPT_CFG ckpt;
+    const char *perr = NULL;
+    if (!_replay_ckpt_params(obj, &ckpt, &perr)) {
+        g_free(path);
+        return _err_response(req_id, perr, MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
     char *desc = _obj_str_dup(obj, "description");
-    uint32_t seq = replay_request_record(path, (uint32_t)interval, desc);
+    uint32_t seq = replay_request_record_ex(path, (uint32_t)interval, desc, &ckpt);
     g_free(path);
     g_free(desc);
     return _replay_finish_request(req_id, seq, out_response);
@@ -17949,9 +18011,11 @@ static en_MCP_DISPATCH_RESULT _handle_replay_record_stop(const st_JSONL_MESSAGE 
  * @brief `replay_play` handler - start přehrávání záznamu.
  *
  * Parametry: `path` (string, povinný), `pause_after_load` (bool, default
- * false: po načtení startovního snapshotu se emulace rozběhne). Konec
- * přehrávání = pauza s důvodem `replay_end` nebo `replay_desync`
- * (událost `paused`, wait_stop). Response: stav (viz replay_status).
+ * false: po načtení startovního snapshotu se emulace rozběhne),
+ * `checkpoint_interval` a `checkpoint_count` (jako u replay_record_start;
+ * checkpointy přehrávání urychlí seek zpět). Konec přehrávání = pauza
+ * s důvodem `replay_end` nebo `replay_desync` (událost `paused`,
+ * wait_stop). Response: stav (viz replay_status).
  */
 static en_MCP_DISPATCH_RESULT _handle_replay_play(const st_JSONL_MESSAGE *req,
                                                   char **out_response) {
@@ -17968,7 +18032,13 @@ static en_MCP_DISPATCH_RESULT _handle_replay_play(const st_JSONL_MESSAGE *req,
         return _err_response(req_id, "pause_after_load must be a boolean",
                              MCP_DISPATCH_INVALID_PARAMS, out_response);
     }
-    uint32_t seq = replay_request_play(path, pause_after_load);
+    st_REPLAY_CKPT_CFG ckpt;
+    const char *perr = NULL;
+    if (!_replay_ckpt_params(obj, &ckpt, &perr)) {
+        g_free(path);
+        return _err_response(req_id, perr, MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    uint32_t seq = replay_request_play_ex(path, pause_after_load, &ckpt);
     g_free(path);
     return _replay_finish_request(req_id, seq, out_response);
 }
@@ -17980,6 +18050,53 @@ static en_MCP_DISPATCH_RESULT _handle_replay_play(const st_JSONL_MESSAGE *req,
 static en_MCP_DISPATCH_RESULT _handle_replay_play_stop(const st_JSONL_MESSAGE *req,
                                                        char **out_response) {
     return _replay_stop(req, REPLAY_MODE_PLAYING, out_response);
+}
+
+
+/**
+ * @brief `replay_rewind` handler - návrat na checkpoint.
+ *
+ * Parametr `frames` (int >= 0, default 0 = o jeden checkpoint zpět; jinak
+ * nejnovější checkpoint aspoň o tolik snímků zpět). Při záznamu se vstupy
+ * po checkpointu zahodí (`rerecord_count` + 1) a emulace zůstane stát na
+ * hranici snímku checkpointu; při přehrávání jde o seek zpět (viz
+ * replay_seek). Odmítnutí (žádný checkpoint, zápis na médium po
+ * checkpointu, nic neběží) = EMU_ERROR s vysvětlením. Response: stav.
+ */
+static en_MCP_DISPATCH_RESULT _handle_replay_rewind(const st_JSONL_MESSAGE *req,
+                                                    char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _replay_data_obj(req);
+    gint64 frames = _obj_int_or(obj, "frames", 0);
+    if (frames < 0 || frames > G_MAXUINT32) {
+        return _err_response(req_id, "frames must be >= 0", MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    return _replay_finish_request(req_id, replay_request_rewind((uint32_t)frames), out_response);
+}
+
+
+/**
+ * @brief `replay_seek` handler - skok přehrávání na snímek.
+ *
+ * Parametr `frame` (int >= 0, povinný; za koncem záznamu se omezí na
+ * konec). Zpět: nejbližší použitelný checkpoint, jinak přehrávání znovu od
+ * začátku; dopředu (nebo od checkpointu) dohraje v MAX SPEED a zastaví na
+ * hranici cílového snímku s důvodem pauzy `replay_seek` (událost `paused`,
+ * emu_wait_stop). Odpověď přijde hned po spuštění: `seeking` true =
+ * dohrávání běží, false = emulace už stojí na cíli. Response: stav.
+ */
+static en_MCP_DISPATCH_RESULT _handle_replay_seek(const st_JSONL_MESSAGE *req,
+                                                  char **out_response) {
+    int64_t req_id = jsonl_msg_get_req_id(req);
+    JsonObject *obj = _replay_data_obj(req);
+    if (!obj || !json_object_has_member(obj, "frame")) {
+        return _err_response(req_id, "frame is required", MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    gint64 frame = _obj_int_or(obj, "frame", -1);
+    if (frame < 0 || frame > G_MAXUINT32) {
+        return _err_response(req_id, "frame must be >= 0", MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
+    return _replay_finish_request(req_id, replay_request_seek((uint32_t)frame), out_response);
 }
 
 

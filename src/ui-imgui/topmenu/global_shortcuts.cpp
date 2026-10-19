@@ -30,6 +30,7 @@
 #include "ui-imgui/debugger/dbgapi_helpers.h"
 #include "ui-imgui/videorec/videorec_menu.h"
 #include "ui-imgui/screenshot/screenshot_ui.h"
+#include "ui-imgui/topmenu/topmenu.h"
 #include "ui-imgui/audiocap/audio_capture_ui.h"
 
 extern "C"
@@ -435,6 +436,13 @@ void imgui_global_shortcuts(void)
          * Q není v žádné jiné zkratce GUI použité.
          */
         imgui_audio_capture_shortcuts();
+
+        /*
+         * Záznam vstupů: Alt + J okno Replay Control, Alt + Shift + J Rewind
+         * (o jeden checkpoint zpět). J není v jiných Alt zkratkách použité
+         * (globálních ani debuggerových). Platí i bez debuggeru.
+         */
+        imgui_replay_shortcuts();
 
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
         /*

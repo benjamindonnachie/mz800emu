@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mz800emu 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-19 08:43+0200\n"
+"POT-Creation-Date: 2026-10-19 12:44+0200\n"
 "PO-Revision-Date: 2026-03-11 21:00+0100\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -81,23 +81,23 @@ msgstr "Velocidad personalizada"
 msgid "Normal speed"
 msgstr "Velocidad normal"
 
-#: src/emulator/hw-generic/cmt/cmt.c:584
+#: src/emulator/hw-generic/cmt/cmt.c:592
 msgid "Create a new WAV file"
 msgstr "Crear un nuevo archivo WAV"
 
-#: src/emulator/hw-generic/cmt/cmt.c:584
+#: src/emulator/hw-generic/cmt/cmt.c:592
 msgid "newfile.wav"
 msgstr "newfile.wav"
 
-#: src/emulator/hw-generic/cmt/cmt.c:1131
+#: src/emulator/hw-generic/cmt/cmt.c:1139
 msgid "All Supported CMT Files"
 msgstr "Todos los archivos CMT compatibles"
 
-#: src/emulator/hw-generic/cmt/cmt.c:1132
+#: src/emulator/hw-generic/cmt/cmt.c:1140
 msgid "Tape Files"
 msgstr "Archivos de cinta"
 
-#: src/emulator/hw-generic/cmt/cmt.c:1209
+#: src/emulator/hw-generic/cmt/cmt.c:1217
 msgid "Select CMT file to open"
 msgstr "Seleccionar archivo CMT para abrir"
 
@@ -110,11 +110,11 @@ msgstr "Seleccionar archivo MZF"
 msgid "Select DSK image file for FDC%u drive FD%d"
 msgstr "Seleccione el archivo de imagen DSK para FDC%u unidad FD%d"
 
-#: src/emulator/hw-generic/qdisk/qdisk.c:816
+#: src/emulator/hw-generic/qdisk/qdisk.c:817
 msgid "Select existing .MZQ file or create new QD image"
 msgstr "Seleccionar archivo .MZQ existente o crear nueva imagen QD"
 
-#: src/emulator/hw-generic/qdisk/qdisk.c:818
+#: src/emulator/hw-generic/qdisk/qdisk.c:819
 msgid "Select directory to mount as virtual Quick Disk"
 msgstr "Seleccionar directorio para montar como Quick Disk virtual"
 
@@ -513,6 +513,7 @@ msgstr "OK"
 #: src/ui-imgui/snapshot/snapshot_setup_dialog.cpp:176
 #: src/ui-imgui/topmenu/devices/menu_fdcontroller.cpp:99
 #: src/ui-imgui/topmenu/devices/menu_qdisk.cpp:93
+#: src/ui-imgui/topmenu/menu_replay.cpp:217
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:343
 msgid "Cancel"
 msgstr "Cancelar"
@@ -755,10 +756,12 @@ msgstr "No hay cinta cargada"
 
 #: src/ui-imgui/cmt/cmt_window.cpp:836
 #: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:363
+#: src/ui-imgui/topmenu/replay_window.cpp:205
 msgid "Recording"
 msgstr "Grabando"
 
 #: src/ui-imgui/cmt/cmt_window.cpp:846
+#: src/ui-imgui/topmenu/replay_window.cpp:213
 msgid "Playing"
 msgstr "Reproduciendo"
 
@@ -2552,6 +2555,7 @@ msgid "syms in range"
 msgstr "símbolos en rango"
 
 #: src/ui-imgui/debugger/dasm_window/dasm_window.cpp:556
+#: src/ui-imgui/topmenu/replay_window.cpp:252
 msgid "off"
 msgstr "desactivado"
 
@@ -3135,6 +3139,8 @@ msgstr "Ninguno"
 #: src/ui-imgui/debugger/eventview/event_viewer_window.cpp:2845
 #: src/ui-imgui/debugger/psg_audio_scope_window.cpp:3160
 #: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:312
+#: src/ui-imgui/topmenu/menu_replay.cpp:208
+#: src/ui-imgui/topmenu/replay_window.cpp:245
 msgid "Frame"
 msgstr "Frame"
 
@@ -6393,6 +6399,7 @@ msgid "Z80"
 msgstr "Z80"
 
 #: src/ui-imgui/debugger/memsearch_window/memsearch_window.cpp:487
+#: src/ui-imgui/topmenu/replay_window.cpp:344
 msgid "Current"
 msgstr "Actual"
 
@@ -6680,6 +6687,8 @@ msgstr "Búsqueda en memoria###memsearch_window"
 #: src/ui-imgui/memext/memext_load_dialog.cpp:107
 #: src/ui-imgui/snapshot/snapshot_save_dialog.cpp:101
 #: src/ui-imgui/topmenu/devices/menu_qdisk.cpp:259
+#: src/ui-imgui/topmenu/replay_window.cpp:223
+#: src/ui-imgui/topmenu/replay_window.cpp:229
 msgid "File"
 msgstr "Archivo"
 
@@ -6740,6 +6749,7 @@ msgstr "Seleccionar directorio de salida de trace"
 #: src/ui-imgui/debugger/menu/dbg_topmenu.cpp:348
 #: src/ui-imgui/debugger/menu/dbg_topmenu.cpp:391
 #: src/ui-imgui/debugger/menu/dbg_topmenu.cpp:488
+#: src/ui-imgui/topmenu/replay_window.cpp:217
 #: src/ui-imgui/videorec/videorec_menu.cpp:96
 msgid "Off"
 msgstr "Desactivado"
@@ -12794,6 +12804,7 @@ msgid "I/O Ports"
 msgstr "Puertos I/O"
 
 #: src/ui-imgui/topmenu/menu_debugger.cpp:536
+#: src/ui-imgui/topmenu/replay_window.cpp:248
 msgid "Events"
 msgstr "Eventos"
 
@@ -12825,15 +12836,17 @@ msgstr "Modo de desarrollo"
 msgid "ImGui Demo"
 msgstr "ImGui Demo"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:47
+#: src/ui-imgui/topmenu/menu_replay.cpp:93
 msgid "Replay"
 msgstr "Replay"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:55
+#: src/ui-imgui/topmenu/menu_replay.cpp:101
+#: src/ui-imgui/topmenu/replay_window.cpp:309
+#: src/ui-imgui/topmenu/replay_window.cpp:320
 msgid "Record Inputs..."
 msgstr "Grabar entradas..."
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:59
+#: src/ui-imgui/topmenu/menu_replay.cpp:105
 msgid ""
 "Record keyboard, joystick, resets and debugger writes from a start snapshot, "
 "to repeat the run exactly later."
@@ -12842,84 +12855,159 @@ msgstr ""
 "desde una instantánea inicial, para repetir la ejecución exactamente más "
 "tarde."
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:61
+#: src/ui-imgui/topmenu/menu_replay.cpp:107
+#: src/ui-imgui/topmenu/replay_window.cpp:309
+#: src/ui-imgui/topmenu/replay_window.cpp:321
 msgid "Play Replay..."
 msgstr "Reproducir replay..."
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:65
+#: src/ui-imgui/topmenu/menu_replay.cpp:111
+#: src/ui-imgui/topmenu/replay_window.cpp:309
+#: src/ui-imgui/topmenu/replay_window.cpp:322
 msgid "Stop Replay"
 msgstr "Detener replay"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:73
+#: src/ui-imgui/topmenu/menu_replay.cpp:117
+#: src/ui-imgui/topmenu/replay_window.cpp:309
+#: src/ui-imgui/topmenu/replay_window.cpp:323
+msgid "Rewind"
+msgstr "Volver al checkpoint"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:121
+msgid ""
+"Go back to the previous checkpoint (again = further back). While recording, "
+"the inputs after the checkpoint are dropped and the recording goes on from "
+"there. Not possible past a write to a disk or the tape."
+msgstr ""
+"Vuelve al checkpoint anterior (otra vez = más atrás). Durante la grabación "
+"se descartan las entradas posteriores al checkpoint y la grabación continúa "
+"desde ahí. No es posible más allá de una escritura en un disco o en la cinta."
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:124
+msgid "Seek..."
+msgstr "Ir al fotograma..."
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:129
+msgid ""
+"Jump the playback to a frame: back via a checkpoint, forward at maximum "
+"speed."
+msgstr ""
+"Lleva la reproducción a un fotograma: hacia atrás mediante un checkpoint, "
+"hacia delante a la velocidad máxima."
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:130
+msgid "Replay Control..."
+msgstr "Control del replay..."
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:138
 #, c-format
 msgid "Recording: frame %u, %u events"
 msgstr "Grabando: fotograma %u, %u eventos"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:77
+#: src/ui-imgui/topmenu/menu_replay.cpp:141
+#, c-format
+msgid "Rewinds: %u"
+msgstr "Retrocesos: %u"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:146
 #, c-format
 msgid "Playing: frame %u / %u"
 msgstr "Reproduciendo: fotograma %u / %u"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:80
+#: src/ui-imgui/topmenu/menu_replay.cpp:149
+#, c-format
+msgid "Seeking to frame %u"
+msgstr "Yendo al fotograma %u"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:153
 #, c-format
 msgid "Deviated: %s"
 msgstr "Desviado: %s"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:85
+#: src/ui-imgui/topmenu/menu_replay.cpp:158
 #, c-format
 msgid "Last: %s"
 msgstr "Último: %s"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:89
+#: src/ui-imgui/topmenu/menu_replay.cpp:162
 msgid "No replay"
 msgstr "Ningún replay"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:115
+#: src/ui-imgui/topmenu/menu_replay.cpp:168
+msgid "Checkpoints: off"
+msgstr "Checkpoints: desactivados"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:172
+#, c-format
+msgid "Checkpoints: %u (frames %u - %u, %u kB)"
+msgstr "Checkpoints: %u (fotogramas %u - %u, %u kB)"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:188
+msgid "Seek Replay"
+msgstr "Ir en el replay"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:206
+#, c-format
+msgid "Current frame %u of %u"
+msgstr "Fotograma actual %u de %u"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:211
+#: src/ui-imgui/topmenu/replay_window.cpp:332
+#: src/ui-imgui/topmenu/replay_window.cpp:339
+msgid "Seek"
+msgstr "Ir"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:245
 msgid "Record Inputs"
 msgstr "Grabar entradas"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:115
+#: src/ui-imgui/topmenu/menu_replay.cpp:245
 msgid "Play Replay"
 msgstr "Reproducir replay"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:131
-#: src/ui-imgui/topmenu/menu_replay.cpp:160
+#: src/ui-imgui/topmenu/menu_replay.cpp:261
+#: src/ui-imgui/topmenu/menu_replay.cpp:290
 msgid "Replay failed"
 msgstr "El replay ha fallado"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:132
-#: src/ui-imgui/topmenu/menu_replay.cpp:161
+#: src/ui-imgui/topmenu/menu_replay.cpp:262
+#: src/ui-imgui/topmenu/menu_replay.cpp:291
 msgid "Replay Error"
 msgstr "Error de replay"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:147
+#: src/ui-imgui/topmenu/menu_replay.cpp:277
 msgid "Replay recorded"
 msgstr "Replay grabado"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:151
+#: src/ui-imgui/topmenu/menu_replay.cpp:281
 msgid "Replay ended"
 msgstr "Replay terminado"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:155
+#: src/ui-imgui/topmenu/menu_replay.cpp:285
 #, c-format
 msgid "Replay differs from the recording at frame %u (%s)"
 msgstr "El replay difiere de la grabación en el fotograma %u (%s)"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:157
+#: src/ui-imgui/topmenu/menu_replay.cpp:287
 msgid "Replay Desync"
 msgstr "Desincronización del replay"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:213
+#: src/ui-imgui/topmenu/menu_replay.cpp:344
 #, c-format
 msgid "REPLAY REC %u"
 msgstr "REPLAY GRAB %u"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:217
+#: src/ui-imgui/topmenu/menu_replay.cpp:348
+#, c-format
+msgid "REPLAY SEEK %u -> %u"
+msgstr "REPLAY SALTO %u -> %u"
+
+#: src/ui-imgui/topmenu/menu_replay.cpp:352
 #, c-format
 msgid "REPLAY PLAY %u / %u%s"
 msgstr "REPLAY REPR %u / %u%s"
 
-#: src/ui-imgui/topmenu/menu_replay.cpp:218
+#: src/ui-imgui/topmenu/menu_replay.cpp:353
 msgid " (deviated)"
 msgstr " (desviado)"
 
@@ -13006,6 +13094,75 @@ msgstr "Configuración de comprobación de versión"
 #: src/ui-imgui/topmenu/menu_tools.cpp:72
 msgid "MCP Activity##menu_mcp_activity"
 msgstr "MCP Activity##menu_mcp_activity"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:169
+msgid "Replay Control"
+msgstr "Control del replay"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:201
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:171
+msgid "State"
+msgstr "Estado"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:209
+msgid "Seeking"
+msgstr "Saltando"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:239
+#, c-format
+msgid "%u / %u (%s / %s)"
+msgstr "%u / %u (%s / %s)"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:256
+#, c-format
+msgid "%u (frames %u - %u, %u kB)"
+msgstr "%u (fotogramas %u - %u, %u kB)"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:263
+msgid "Checkpoints"
+msgstr "Checkpoints"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:268
+msgid "Rewinds"
+msgstr "Retrocesos"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:273
+msgid "Seek target"
+msgstr "Fotograma de destino"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:279
+msgid "Deviated"
+msgstr "Desviado"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:290
+msgid "Last result"
+msgstr "Último resultado"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:307
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:227
+msgid "Controls"
+msgstr "Controles"
+
+#: src/ui-imgui/topmenu/replay_window.cpp:329
+msgid ""
+"Rewind goes back to the previous checkpoint; while recording the inputs "
+"after it are dropped."
+msgstr "Rewind vuelve al checkpoint anterior; durante la grabación se descartan las entradas posteriores."
+
+#: src/ui-imgui/topmenu/replay_window.cpp:353
+#, c-format
+msgid "Frame %d = %s; back via a checkpoint, forward at maximum speed."
+msgstr "Fotograma %d = %s; hacia atrás mediante un checkpoint, hacia delante a la velocidad máxima."
+
+#: src/ui-imgui/topmenu/replay_window.cpp:357
+msgid "Available while playing a replay."
+msgstr "Disponible durante la reproducción de un replay."
+
+#: src/ui-imgui/topmenu/replay_window.cpp:361
+#: src/ui-imgui/videorec/videorec_remote_window.cpp:320
+#, c-format
+msgid "Show or hide this window: %s"
+msgstr "Mostrar/ocultar esta ventana: %s"
 
 #: src/ui-imgui/topmenu/topmenu.cpp:38
 msgid ""
@@ -13314,10 +13471,6 @@ msgstr "Empalme en la grabación (instantánea cargada)"
 msgid "Recording Remote Control"
 msgstr "Control remoto de grabación"
 
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:171
-msgid "State"
-msgstr "Estado"
-
 #: src/ui-imgui/videorec/videorec_remote_window.cpp:177
 msgid "Time"
 msgstr "Tiempo"
@@ -13350,10 +13503,6 @@ msgstr "Base de tiempo"
 msgid "Last event"
 msgstr "Último evento"
 
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:227
-msgid "Controls"
-msgstr "Controles"
-
 #: src/ui-imgui/videorec/videorec_remote_window.cpp:268
 msgid "Marker label (empty = Marker N)"
 msgstr "Etiqueta del marcador (vacía = Marker N)"
@@ -13377,11 +13526,6 @@ msgstr "Se aplica a partir de la próxima grabación."
 #, c-format
 msgid "Current recording: %s"
 msgstr "Grabación actual: %s"
-
-#: src/ui-imgui/videorec/videorec_remote_window.cpp:320
-#, c-format
-msgid "Show or hide this window: %s"
-msgstr "Mostrar/ocultar esta ventana: %s"
 
 #: src/ui-imgui/videorec/videorec_setup_dialog.cpp:58
 msgid "Cut"
