@@ -58,3 +58,19 @@ mz700emu-ntsc.exe
 # *.tap
 # *.wav
 # *.mzs
+
+# Local macOS/CMake/Python artefacts
+.DS_Store
+__pycache__/
+*.pyc
+/build-*/
+/.local/
+/emulators/
+/build-records/
+
+# Third-party CP/M build inputs and generated system/media files.
+/cpm/*/build/
+/cpm/*/reference/
+/cpm/*/upstream-dri/
+/cpm/*/toolchain/
+/cpm/gide/third_party/

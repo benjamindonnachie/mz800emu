@@ -1,0 +1,22 @@
+{
+  "passed": true,
+  "build_targets": [
+    "mz700emu-pal",
+    "mz800emu",
+    "mz1500emu"
+  ],
+  "tests": {
+    "native_suc80": "passed, including retired configuration and inert I/O writes",
+    "legacy_snapshot": "35 retired fields ignored; pixel-exact SUC80 preserved",
+    "current_zpm_boot": "passed, active Sharp applications image opened read-only",
+    "terminal_contracts": 229,
+    "original_suc_keyboard_cases": 28
+  },
+  "tpa_bytes": 60672,
+  "kernel_and_media_changed": false,
+  "active_disk_sha256": "e68aa0005ff58ac9935e2e6ce78f70668c0c94f7b53bf3aa2468a20873abd144",
+  "pal_binary_sha256": "a5f5f38d3e55769a0604ecfd8eea48b58e6b8c1b3b629a4c8782239ab17fa8ff",
+  "restore": "before.zip plus before-sha256.json",
+  "source_archive": "after-source.zip",
+  "patch": "change.patch"
+}

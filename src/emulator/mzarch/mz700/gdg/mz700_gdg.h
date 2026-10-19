@@ -115,9 +115,6 @@ extern "C"
         unsigned regBOR;    /* Border register — MZ-700 nema border port, vzdy 0 */
 
         unsigned suc80_enabled; /* Optional John Edwards / SUC expansion fitted. */
-        unsigned suc80_kp_interface; /* Alternative K&P ports on this same display. */
-        unsigned kp80_index, kp80_address;
-        unsigned kp80_registers[32];
         unsigned suc80_mode80;  /* D4 latch; reset selects the normal 40 columns. */
 
         unsigned regct53g7; /* rizeni GATE pro CTC0 v ctc8253 v rezimu MZ700 */
@@ -141,6 +138,13 @@ extern "C"
 
     extern void gdg_init(void);
     extern void gdg_reset(void);
+    /* SUC alternating character/attribute banks, including D400h wrap. */
+    static inline unsigned suc80_vram_offset(unsigned address)
+    {
+        unsigned odd = address & 1u;
+        return (((address >> 1) + odd) & 0x3ffu) | (odd << 10);
+    }
+
     extern void gdg_suc80_write(uint8_t value);
     extern void gdg_suc80_set_enabled(unsigned enabled);
     extern uint8_t gdg_read_dmd_status_memop(void);

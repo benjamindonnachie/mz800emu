@@ -150,3 +150,6 @@ Doxyfile      text eol=lf
 *.pdf         binary
 *.doc         binary
 *.docx        binary
+
+# Preserve original CP/M notices byte-for-byte, including DOS line endings.
+systems/mz700-zpm3/notices/* -text -whitespace

@@ -1,0 +1,117 @@
+{
+  "passed": true,
+  "source_zip_only": true,
+  "zxcc_built_from_source": true,
+  "outputs": {
+    "native-0.bin": {
+      "bytes": 6545,
+      "sha256": "cf3d12694cc4bae8763ba9098131d122ca8fa00236cd0b813787e0bb1ce0f56f",
+      "byte_identical": true
+    },
+    "common-0.bin": {
+      "bytes": 1998,
+      "sha256": "1b186fcdadeb5036507ddd01477bbebab677de05e81ebd2768bff108f9f3374c",
+      "byte_identical": true
+    },
+    "bnkbios3.spr": {
+      "bytes": 9984,
+      "sha256": "5d009fac6b904af490a16300a3572e2e19066f5aafe115dad9e341c7675bfb11",
+      "byte_identical": true
+    },
+    "bnkbdos3.spr": {
+      "bytes": 13568,
+      "sha256": "974711103bef5a74fbda0957fb313d7a219913f407082fd2b5cd49f6352ada1f",
+      "byte_identical": true
+    },
+    "resbdos3.spr": {
+      "bytes": 2048,
+      "sha256": "8db1316df7ba3e3ccfd1e76113a6845164ee8a8b3af0bfc2b2c9c58a1ba991e9",
+      "byte_identical": true
+    },
+    "cpm3.sys": {
+      "bytes": 22272,
+      "sha256": "1cee90192fa7005b8f56a67c8ec517d362b7f78c616f50ee87c8d9349fe70dd6",
+      "byte_identical": true
+    },
+    "cpmldr.com": {
+      "bytes": 7808,
+      "sha256": "d22372874a4534d27d85b2bf7aeff8e61ba29ab45e6e6d10e441d4fac43da353",
+      "byte_identical": true
+    },
+    "stage.bin": {
+      "bytes": 287,
+      "sha256": "5fed46c9c409801267e389b908df07d80e763a0b3afd8a5b42359aab43fe034e",
+      "byte_identical": true
+    },
+    "gide-zpm3-pehu-keyboard-fast-bootrom.bin": {
+      "bytes": 4096,
+      "sha256": "52839353e52172b2b0667bd8d197fd7417812f025deceb38ebe3d68511e40936",
+      "byte_identical": true
+    },
+    "gide-zpm3-pehu-keyboard-fast-e800.bin": {
+      "bytes": 2048,
+      "sha256": "9e0c989cd63a9c5c92c5ca14c7db7f70b1240a3497074466118ea86b8c6ea0ea",
+      "byte_identical": true
+    },
+    "gide-zpm3-pehu-keyboard-fast-stock-rom.bin": {
+      "bytes": 16384,
+      "sha256": "98e58d531d3872a0188db2fa877ee32b2add5a5dcab0d81e571f2612defca0aa",
+      "byte_identical": true
+    },
+    "GIDE-CPM3.MZF": {
+      "bytes": 415,
+      "sha256": "0cd162e5541485404d48c675b63a37c8acfab00ce9c1abc86f6bd1c11ca41b4a",
+      "byte_identical": true
+    },
+    "gide-zpm3-pehu-keyboard-fast.img": {
+      "bytes": 16785920,
+      "sha256": "d09a003483e1874b207e2b2a3c2442a7135cd3511c94f4515e766ff67e321e48",
+      "byte_identical": true
+    },
+    "RTC.COM": {
+      "bytes": 892,
+      "sha256": "229d26805b6c6853784bba3cfe50dfe85816a31d877dc12e7785bcc057429725",
+      "byte_identical": true
+    },
+    "shell/CCP.COM": {
+      "bytes": 4381,
+      "sha256": "b8ac01830115d07e5410eef34c8e7871e192209d11ab2ca32833a69f4424f350",
+      "byte_identical": true
+    },
+    "shell/ZCCP.COM": {
+      "bytes": 4381,
+      "sha256": "b8ac01830115d07e5410eef34c8e7871e192209d11ab2ca32833a69f4424f350",
+      "byte_identical": true
+    },
+    "shell/ZINSTAL.ZPM": {
+      "bytes": 1536,
+      "sha256": "3cd886198fa947fd8f795da8ef4c1cf3950d3518b0f1b4fadedb997f5420fbf6",
+      "byte_identical": true
+    },
+    "shell/STARTZPM.COM": {
+      "bytes": 1024,
+      "sha256": "4e54ec107c0b428cbe94012e67485e12e865eb9d0224493c5881a80db45d3e0e",
+      "byte_identical": true
+    },
+    "shell/TCAP.Z3T": {
+      "bytes": 128,
+      "sha256": "9a1243031ec9c936f9e1064ca81c052d1df182133a462b1cfcb526d69b7744d7",
+      "byte_identical": true
+    },
+    "shell/TPA.COM": {
+      "bytes": 194,
+      "sha256": "4134364bfae9cb17687be8790906b43a143e3d337bf2f12a8ee8dd99a62c10ca",
+      "byte_identical": true
+    },
+    "shell/TPATEST.COM": {
+      "bytes": 105,
+      "sha256": "c0d3fe75d232356ec0ba454f1c5cf0856852ee6b9b6a130d0a1640c059fac8a8",
+      "byte_identical": true
+    },
+    "shell/reset-drive.bin": {
+      "bytes": 29,
+      "sha256": "b4858909c46d488810de028ba1f500b41d53862af9521ff2c24683422447992b",
+      "byte_identical": true
+    }
+  }
+}

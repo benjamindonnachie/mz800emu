@@ -1,0 +1,63 @@
+{
+  "original_sys_sha256": "946aadf9e53b2d2341b796f188c2f04418653b0f5e0b7e0c30333d9c2be274f7",
+  "code_ranges": [
+    "F08D-F362",
+    "F38C-F3B3",
+    "F4F6-F516"
+  ],
+  "retained_block": "F08D-F516",
+  "tables": [
+    "DF00-DFFF function macros",
+    "E000-E07F editing macros",
+    "0BEA-0C29 and0C2A-0C69 monitor tables",
+    "F3D6-F4D5 ASCII/display table"
+  ],
+  "changes": [
+    {
+      "address": "0xf356",
+      "purpose": "ROM table now resident in high RAM; omit lower-ROM bank switching and forced EI"
+    },
+    {
+      "address": "0xf357",
+      "purpose": "ROM table now resident in high RAM; omit lower-ROM bank switching and forced EI"
+    },
+    {
+      "address": "0xf35a",
+      "purpose": "ROM table now resident in high RAM; omit lower-ROM bank switching and forced EI"
+    },
+    {
+      "address": "0xf35c",
+      "purpose": "ROM table now resident in high RAM; omit lower-ROM bank switching and forced EI"
+    },
+    {
+      "address": "0xf0f6-0xf0fd",
+      "purpose": "Direct Z80 LD DE,(state+29), LD A,E, SUB D, RET; original final RET retained; unchanged8byte slot; DE saved by outer keyboard wrapper;17T faster"
+    }
+  ],
+  "callbacks": {
+    "60519": "suc_no_draw",
+    "60642": "suc_no_draw",
+    "61302": "suc_no_draw",
+    "61412": "suc_no_draw",
+    "61259": "suc_alpha",
+    "60148": "mmio_write",
+    "60162": "mmio_read"
+  },
+  "method": "Original DB/DW instructions and addresses retained except explicitly audited banking, callback and instruction patches; macro/mode/character tables preserved byte-for-byte.",
+  "word_load_contract": {
+    "original_tstates_including_ret": 55,
+    "new_tstates_including_ret": 38,
+    "saved_tstates": 17,
+    "slot_bytes": 8,
+    "clobbers_internal": [
+      "DE"
+    ],
+    "preserves_internal": [
+      "BC",
+      "HL",
+      "A_result",
+      "flags_result"
+    ],
+    "caller_de_preserved_by": "keyboard_safe_call"
+  }
+}

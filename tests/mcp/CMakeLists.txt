@@ -901,11 +901,3 @@ if(Python3_Interpreter_FOUND AND TARGET mz700emu-pal)
     set_tests_properties(mcp_gide PROPERTIES
         LABELS "e2e;mcp;mz700;gide" TIMEOUT 180 SKIP_RETURN_CODE 77)
 endif()
-
-if(Python3_Interpreter_FOUND AND TARGET mz700emu-pal)
-    add_test(NAME mcp_kp80_suc
-        COMMAND ${CMAKE_COMMAND} -E env "MZ_EMU=$<TARGET_FILE:mz700emu-pal>" "PYTHONDONTWRITEBYTECODE=1"
-                ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_kp80_suc.py)
-    set_tests_properties(mcp_kp80_suc PROPERTIES
-        LABELS "e2e;mcp;mz700;suc80;kp80" TIMEOUT 150 SKIP_RETURN_CODE 77)
-endif()

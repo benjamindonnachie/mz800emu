@@ -1,0 +1,116 @@
+{
+  "version": 1,
+  "date": "2026-10-19",
+  "files": {
+    "images/keyboard-fast-factory.img": {
+      "bytes": 16785920,
+      "sha256": "d09a003483e1874b207e2b2a3c2442a7135cd3511c94f4515e766ff67e321e48",
+      "workspace_source": "cpm/zpm3-pehu-keyboard-fast/build/gide-zpm3-pehu-keyboard-fast.img"
+    },
+    "images/sharp-applications.img": {
+      "bytes": 16785920,
+      "sha256": "e68aa0005ff58ac9935e2e6ce78f70668c0c94f7b53bf3aa2468a20873abd144",
+      "workspace_source": "build-records/mz800emu/disks/gide-zpm3-pehu-keyboard-fast-0.1.0.img"
+    },
+    "roms/boot-f000.bin": {
+      "bytes": 4096,
+      "sha256": "52839353e52172b2b0667bd8d197fd7417812f025deceb38ebe3d68511e40936",
+      "workspace_source": "cpm/zpm3-pehu-keyboard-fast/build/gide-zpm3-pehu-keyboard-fast-bootrom.bin"
+    },
+    "roms/boot-e800.bin": {
+      "bytes": 2048,
+      "sha256": "9e0c989cd63a9c5c92c5ca14c7db7f70b1240a3497074466118ea86b8c6ea0ea",
+      "workspace_source": "cpm/zpm3-pehu-keyboard-fast/build/gide-zpm3-pehu-keyboard-fast-e800.bin"
+    },
+    "roms/stock-monitor-font.bin": {
+      "bytes": 16384,
+      "sha256": "98e58d531d3872a0188db2fa877ee32b2add5a5dcab0d81e571f2612defca0aa",
+      "workspace_source": "cpm/zpm3-pehu-keyboard-fast/build/gide-zpm3-pehu-keyboard-fast-stock-rom.bin"
+    },
+    "roms/GIDE-CPM3.MZF": {
+      "bytes": 415,
+      "sha256": "0cd162e5541485404d48c675b63a37c8acfab00ce9c1abc86f6bd1c11ca41b4a",
+      "workspace_source": "cpm/zpm3-pehu-keyboard-fast/build/GIDE-CPM3.MZF"
+    },
+    "notices/ZCCP-READ.ME": {
+      "bytes": 3968,
+      "sha256": "25e9cf981ed10a18493b4781a767b6fe17c2f7cd26972fce36f9d59b26a58416",
+      "workspace_source": "cpm/zpm3-pehu-keyboard-fast/reference/zccp0293/READ.ME"
+    },
+    "notices/ZPM3.TXT": {
+      "bytes": 21248,
+      "sha256": "1d9b182d3d823401206972fb6a2e906497a942a1c542dedb5d1012d0a3675fcf",
+      "workspace_source": "cpm/zpm3-pehu-keyboard-fast/reference/zpm3n10/ZPM3.TXT"
+    },
+    "notices/HI-TECH-README.txt": {
+      "bytes": 781,
+      "sha256": "8622aeb843f8cf7be506704455e5b4e7bb14bf41090dcd933343b136350e3b9e",
+      "workspace_source": "cpm/zpm3-pehu-sharp-apps/reference/HITECH-README.txt"
+    },
+    "APPLICATIONS.txt": {
+      "bytes": 1479,
+      "sha256": "ec784eb31adaf59776448e2f4c66e303dd3fbd33cf096646870c11946516b5ca",
+      "workspace_source": "cpm/zpm3-pehu-sharp-apps/APPS.TXT"
+    },
+    "APPLICATION-PROVENANCE.json": {
+      "bytes": 57032,
+      "sha256": "f36930148f07b3ebe7d15612bf9ec781111896f1fdd57cd4c2bd2a5292660b9f",
+      "workspace_source": "build-records/mz800emu/zpm3-pehu-sharp-apps/manifest.json"
+    },
+    "validation/emulator-update.json": {
+      "bytes": 795,
+      "sha256": "7d46b42cd07c8732ea90109cb5d9e22fca391a898ccd2d688d3656064ed88fd0",
+      "workspace_source": "build-records/mz800emu/remove-kp80-2026-10-19/result.json"
+    },
+    "preservation/MZ700-ZPM3-PEHU-KEYBOARD-FAST-0.1.0-evidence.zip": {
+      "bytes": 368840,
+      "sha256": "48a3aa9ce960034a15242d0181c6c686c31bb62f86ec36c4cb2d656f7d9550cf",
+      "workspace_source": "build-records/mz800emu/zpm3-pehu-keyboard-fast/preservation/0.1.0/MZ700-ZPM3-PEHU-KEYBOARD-FAST-0.1.0-evidence.zip"
+    },
+    "preservation/MZ700-ZPM3-PEHU-KEYBOARD-FAST-0.1.0-source.zip": {
+      "bytes": 3823512,
+      "sha256": "e5ead07098894b0bb809be62ae3de77284b79387fdc3660014853172eca846d3",
+      "workspace_source": "build-records/mz800emu/zpm3-pehu-keyboard-fast/preservation/0.1.0/MZ700-ZPM3-PEHU-KEYBOARD-FAST-0.1.0-source.zip"
+    },
+    "preservation/zpm3-pehu-keyboard-fast-clean-rebuild.json": {
+      "bytes": 3807,
+      "sha256": "50104315e5aead509f8d23d84c14b230bad436fc6a2ac439be534df2f369f4e9",
+      "workspace_source": "build-records/mz800emu/zpm3-pehu-keyboard-fast/preservation/0.1.0/clean-rebuild.json"
+    },
+    "preservation/zpm3-pehu-keyboard-fast-packages.json": {
+      "bytes": 488,
+      "sha256": "3a1845b05de38a5a238f93bd87e36f562eb286592713f995dd1fe1cf0dfc4657",
+      "workspace_source": "build-records/mz800emu/zpm3-pehu-keyboard-fast/preservation/0.1.0/packages.json"
+    },
+    "preservation/Sharp-CPM-Applications-0.1.0-evidence.zip": {
+      "bytes": 309675,
+      "sha256": "af087625604c733d501d25bc0e8e4c234c79fae99349fbed09993746adcc7ae1",
+      "workspace_source": "build-records/mz800emu/zpm3-pehu-sharp-apps/preservation/0.1.0/Sharp-CPM-Applications-0.1.0-evidence.zip"
+    },
+    "preservation/Sharp-CPM-Applications-0.1.0-source.zip": {
+      "bytes": 2719597,
+      "sha256": "0c312c40a104ac5d45f55a50ca0e109e7c1481eada41d9beabadd268dec94067",
+      "workspace_source": "build-records/mz800emu/zpm3-pehu-sharp-apps/preservation/0.1.0/Sharp-CPM-Applications-0.1.0-source.zip"
+    },
+    "preservation/zpm3-pehu-sharp-apps-clean-rebuild.json": {
+      "bytes": 213,
+      "sha256": "ee440ecb7bbbd491f43ecc7941e8347cf6a12c0648ca0dc718eb567649d60adb",
+      "workspace_source": "build-records/mz800emu/zpm3-pehu-sharp-apps/preservation/0.1.0/clean-rebuild.json"
+    },
+    "preservation/zpm3-pehu-sharp-apps-packages.json": {
+      "bytes": 468,
+      "sha256": "d51d9661afc5fb25fa8ff85abe00322a9002b65ec9079b92486c5919115ecd48",
+      "workspace_source": "build-records/mz800emu/zpm3-pehu-sharp-apps/preservation/0.1.0/packages.json"
+    },
+    "preservation/MZ700-ZPM3-PEHU-KEYBOARD-FAST-0.1.0-media.zip": {
+      "bytes": 807130,
+      "sha256": "0a8babfd878e83960c5fe6047c8be1dc64eba3f0cd652cb7fdfea86dd5ff2be1",
+      "workspace_source": "build-records/mz800emu/zpm3-pehu-keyboard-fast/preservation/0.1.0/MZ700-ZPM3-PEHU-KEYBOARD-FAST-0.1.0-media.zip"
+    },
+    "preservation/Sharp-CPM-Applications-0.1.0-media.zip": {
+      "bytes": 1702357,
+      "sha256": "bb637c7beb563b2d1123eddb801915898b49c88f88cf4f2209b2d78d8f5cf645",
+      "workspace_source": "build-records/mz800emu/zpm3-pehu-sharp-apps/preservation/0.1.0/Sharp-CPM-Applications-0.1.0-media.zip"
+    }
+  }
+}

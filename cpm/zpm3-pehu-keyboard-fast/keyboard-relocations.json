@@ -1,0 +1,532 @@
+{
+  "base": 61581,
+  "end": 62743,
+  "relocations": [
+    {
+      "offset": 1,
+      "original": 61600,
+      "expression": "suc_blob+19"
+    },
+    {
+      "offset": 7,
+      "original": 64925,
+      "expression": "suc_state+29"
+    },
+    {
+      "offset": 12,
+      "original": 64926,
+      "expression": "suc_state+30"
+    },
+    {
+      "offset": 15,
+      "original": 62738,
+      "expression": "suc_blob+1157"
+    },
+    {
+      "offset": 20,
+      "original": 60519,
+      "expression": "suc_no_draw"
+    },
+    {
+      "offset": 23,
+      "original": 61686,
+      "expression": "suc_blob+105"
+    },
+    {
+      "offset": 26,
+      "original": 61683,
+      "expression": "suc_blob+102"
+    },
+    {
+      "offset": 31,
+      "original": 61702,
+      "expression": "suc_blob+121"
+    },
+    {
+      "offset": 36,
+      "original": 61668,
+      "expression": "suc_blob+87"
+    },
+    {
+      "offset": 47,
+      "original": 61658,
+      "expression": "suc_blob+77"
+    },
+    {
+      "offset": 50,
+      "original": 64918,
+      "expression": "suc_state+22"
+    },
+    {
+      "offset": 60,
+      "original": 64908,
+      "expression": "suc_state+12"
+    },
+    {
+      "offset": 63,
+      "original": 64898,
+      "expression": "suc_state+2"
+    },
+    {
+      "offset": 73,
+      "original": 64918,
+      "expression": "suc_state+22"
+    },
+    {
+      "offset": 80,
+      "original": 64918,
+      "expression": "suc_state+22"
+    },
+    {
+      "offset": 83,
+      "original": 61761,
+      "expression": "suc_blob+180"
+    },
+    {
+      "offset": 88,
+      "original": 64925,
+      "expression": "suc_state+29"
+    },
+    {
+      "offset": 95,
+      "original": 64925,
+      "expression": "suc_state+29"
+    },
+    {
+      "offset": 100,
+      "original": 61694,
+      "expression": "suc_blob+113"
+    },
+    {
+      "offset": 107,
+      "original": 64925,
+      "expression": "suc_state+29"
+    },
+    {
+      "offset": 114,
+      "original": 57486,
+      "expression": "suc_config+14"
+    },
+    {
+      "offset": 118,
+      "original": 60642,
+      "expression": "suc_no_draw"
+    },
+    {
+      "offset": 122,
+      "original": 62726,
+      "expression": "suc_blob+1145"
+    },
+    {
+      "offset": 125,
+      "original": 64908,
+      "expression": "suc_state+12"
+    },
+    {
+      "offset": 128,
+      "original": 64898,
+      "expression": "suc_state+2"
+    },
+    {
+      "offset": 141,
+      "original": 60148,
+      "expression": "mmio_write"
+    },
+    {
+      "offset": 147,
+      "original": 60162,
+      "expression": "mmio_read"
+    },
+    {
+      "offset": 181,
+      "original": 62726,
+      "expression": "suc_blob+1145"
+    },
+    {
+      "offset": 184,
+      "original": 64898,
+      "expression": "suc_state+2"
+    },
+    {
+      "offset": 187,
+      "original": 64908,
+      "expression": "suc_state+12"
+    },
+    {
+      "offset": 207,
+      "original": 60148,
+      "expression": "mmio_write"
+    },
+    {
+      "offset": 212,
+      "original": 60162,
+      "expression": "mmio_read"
+    },
+    {
+      "offset": 222,
+      "original": 60148,
+      "expression": "mmio_write"
+    },
+    {
+      "offset": 228,
+      "original": 60162,
+      "expression": "mmio_read"
+    },
+    {
+      "offset": 234,
+      "original": 64897,
+      "expression": "suc_state+1"
+    },
+    {
+      "offset": 271,
+      "original": 64925,
+      "expression": "suc_state+29"
+    },
+    {
+      "offset": 285,
+      "original": 64925,
+      "expression": "suc_state+29"
+    },
+    {
+      "offset": 302,
+      "original": 64920,
+      "expression": "suc_state+24"
+    },
+    {
+      "offset": 311,
+      "original": 64921,
+      "expression": "suc_state+25"
+    },
+    {
+      "offset": 318,
+      "original": 64925,
+      "expression": "suc_state+29"
+    },
+    {
+      "offset": 326,
+      "original": 61851,
+      "expression": "suc_blob+270"
+    },
+    {
+      "offset": 331,
+      "original": 61875,
+      "expression": "suc_blob+294"
+    },
+    {
+      "offset": 336,
+      "original": 64921,
+      "expression": "suc_state+25"
+    },
+    {
+      "offset": 340,
+      "original": 64920,
+      "expression": "suc_state+24"
+    },
+    {
+      "offset": 353,
+      "original": 62060,
+      "expression": "suc_blob+479"
+    },
+    {
+      "offset": 366,
+      "original": 61259,
+      "expression": "suc_alpha"
+    },
+    {
+      "offset": 369,
+      "original": 62060,
+      "expression": "suc_blob+479"
+    },
+    {
+      "offset": 373,
+      "original": 61851,
+      "expression": "suc_blob+270"
+    },
+    {
+      "offset": 377,
+      "original": 64897,
+      "expression": "suc_state+1"
+    },
+    {
+      "offset": 388,
+      "original": 61861,
+      "expression": "suc_blob+280"
+    },
+    {
+      "offset": 392,
+      "original": 62186,
+      "expression": "suc_blob+605"
+    },
+    {
+      "offset": 395,
+      "original": 64897,
+      "expression": "suc_state+1"
+    },
+    {
+      "offset": 402,
+      "original": 61851,
+      "expression": "suc_blob+270"
+    },
+    {
+      "offset": 410,
+      "original": 61851,
+      "expression": "suc_blob+270"
+    },
+    {
+      "offset": 421,
+      "original": 62247,
+      "expression": "suc_blob+666"
+    },
+    {
+      "offset": 430,
+      "original": 61851,
+      "expression": "suc_blob+270"
+    },
+    {
+      "offset": 445,
+      "original": 61861,
+      "expression": "suc_blob+280"
+    },
+    {
+      "offset": 448,
+      "original": 64925,
+      "expression": "suc_state+29"
+    },
+    {
+      "offset": 457,
+      "original": 64927,
+      "expression": "suc_state+31"
+    },
+    {
+      "offset": 460,
+      "original": 61875,
+      "expression": "suc_blob+294"
+    },
+    {
+      "offset": 463,
+      "original": 64922,
+      "expression": "suc_state+26"
+    },
+    {
+      "offset": 474,
+      "original": 61412,
+      "expression": "suc_no_draw"
+    },
+    {
+      "offset": 477,
+      "original": 61851,
+      "expression": "suc_blob+270"
+    },
+    {
+      "offset": 483,
+      "original": 62216,
+      "expression": "suc_blob+635"
+    },
+    {
+      "offset": 486,
+      "original": 62100,
+      "expression": "suc_blob+519"
+    },
+    {
+      "offset": 489,
+      "original": 64897,
+      "expression": "suc_state+1"
+    },
+    {
+      "offset": 494,
+      "original": 61851,
+      "expression": "suc_blob+270"
+    },
+    {
+      "offset": 510,
+      "original": 57474,
+      "expression": "suc_config+2"
+    },
+    {
+      "offset": 517,
+      "original": 62008,
+      "expression": "suc_blob+427"
+    },
+    {
+      "offset": 521,
+      "original": 62186,
+      "expression": "suc_blob+605"
+    },
+    {
+      "offset": 532,
+      "original": 64897,
+      "expression": "suc_state+1"
+    },
+    {
+      "offset": 537,
+      "original": 62307,
+      "expression": "suc_blob+726"
+    },
+    {
+      "offset": 546,
+      "original": 62325,
+      "expression": "suc_blob+744"
+    },
+    {
+      "offset": 549,
+      "original": 62267,
+      "expression": "suc_blob+686"
+    },
+    {
+      "offset": 552,
+      "original": 61851,
+      "expression": "suc_blob+270"
+    },
+    {
+      "offset": 555,
+      "original": 62196,
+      "expression": "suc_blob+615"
+    },
+    {
+      "offset": 559,
+      "original": 61861,
+      "expression": "suc_blob+280"
+    },
+    {
+      "offset": 562,
+      "original": 62267,
+      "expression": "suc_blob+686"
+    },
+    {
+      "offset": 565,
+      "original": 61851,
+      "expression": "suc_blob+270"
+    },
+    {
+      "offset": 571,
+      "original": 61861,
+      "expression": "suc_blob+280"
+    },
+    {
+      "offset": 574,
+      "original": 62343,
+      "expression": "suc_blob+762"
+    },
+    {
+      "offset": 587,
+      "original": 61851,
+      "expression": "suc_blob+270"
+    },
+    {
+      "offset": 592,
+      "original": 61851,
+      "expression": "suc_blob+270"
+    },
+    {
+      "offset": 597,
+      "original": 61861,
+      "expression": "suc_blob+280"
+    },
+    {
+      "offset": 603,
+      "original": 61861,
+      "expression": "suc_blob+280"
+    },
+    {
+      "offset": 616,
+      "original": 64923,
+      "expression": "suc_state+27"
+    },
+    {
+      "offset": 656,
+      "original": 62186,
+      "expression": "suc_blob+605"
+    },
+    {
+      "offset": 668,
+      "original": 64922,
+      "expression": "suc_state+26"
+    },
+    {
+      "offset": 681,
+      "original": 57472,
+      "expression": "suc_config+0"
+    },
+    {
+      "offset": 721,
+      "original": 62360,
+      "expression": "suc_blob+779"
+    },
+    {
+      "offset": 726,
+      "original": 3050,
+      "expression": "suc_rom_normal"
+    },
+    {
+      "offset": 744,
+      "original": 3114,
+      "expression": "suc_rom_shift"
+    },
+    {
+      "offset": 768,
+      "original": 62726,
+      "expression": "suc_blob+1145"
+    },
+    {
+      "offset": 771,
+      "original": 62422,
+      "expression": "suc_blob+841"
+    },
+    {
+      "offset": 793,
+      "original": 62726,
+      "expression": "suc_blob+1145"
+    },
+    {
+      "offset": 796,
+      "original": 62422,
+      "expression": "suc_blob+841"
+    },
+    {
+      "offset": 1136,
+      "original": 62736,
+      "expression": "suc_blob+1155"
+    },
+    {
+      "offset": 1151,
+      "original": 62736,
+      "expression": "suc_blob+1155"
+    }
+  ],
+  "nop_patches": [
+    {
+      "offset": 713,
+      "original": "f3",
+      "bytes": 1
+    },
+    {
+      "offset": 714,
+      "original": "d3e2",
+      "bytes": 2
+    },
+    {
+      "offset": 717,
+      "original": "d3e0",
+      "bytes": 2
+    },
+    {
+      "offset": 719,
+      "original": "fb",
+      "bytes": 1
+    }
+  ],
+  "instruction_patches": [
+    {
+      "offset": 105,
+      "original": "e52a",
+      "replacement": "ed5b",
+      "purpose": "Z80 LD DE,(nn), same word relocation at107"
+    },
+    {
+      "offset": 109,
+      "original": "7d94e1",
+      "replacement": "7b92c9",
+      "purpose": "LD A,E; SUB D; early RET, original trailing RET retained"
+    }
+  ]
+}

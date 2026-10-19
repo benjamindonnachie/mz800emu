@@ -1,0 +1,14 @@
+{
+  "MZ700-ZPM3-PEHU-KEYBOARD-FAST-0.1.0-media.zip": {
+    "bytes": 807130,
+    "sha256": "0a8babfd878e83960c5fe6047c8be1dc64eba3f0cd652cb7fdfea86dd5ff2be1"
+  },
+  "MZ700-ZPM3-PEHU-KEYBOARD-FAST-0.1.0-evidence.zip": {
+    "bytes": 368840,
+    "sha256": "48a3aa9ce960034a15242d0181c6c686c31bb62f86ec36c4cb2d656f7d9550cf"
+  },
+  "MZ700-ZPM3-PEHU-KEYBOARD-FAST-0.1.0-source.zip": {
+    "bytes": 3823512,
+    "sha256": "e5ead07098894b0bb809be62ae3de77284b79387fdc3660014853172eca846d3"
+  }
+}

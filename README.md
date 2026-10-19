@@ -6,6 +6,11 @@ Open-source emulator of the 8-bit Sharp MZ-800, MZ-700 and MZ-1500 home computer
 
 [Česky](README_cz.md)
 
+This fork develops MZ-700 SUC 80-column, KC-Club GIDE/RTC, configurable
+expansion boot ROM and banked ZP/M support. See the
+[MZ-700 system and BIOS guide](docs/en/devices/mz700-zpm3.md).
+
+
 ## Project has moved to GitHub
 
 The project was previously hosted on SourceForge:

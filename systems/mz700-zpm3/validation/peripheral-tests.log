@@ -1,0 +1,22 @@
+Test project /Users/benjamindonnachie/Documents/ChatGPT/Retro - sharp/emulators/Working/mz800emu/build-mac
+    Start 118: gide_core
+1/4 Test #118: gide_core ........................   Passed    0.19 sec
+    Start 119: gide_rtc
+2/4 Test #119: gide_rtc .........................   Passed    0.12 sec
+    Start 177: mcp_suc80_display
+3/4 Test #177: mcp_suc80_display ................   Passed    4.52 sec
+    Start 178: mcp_gide
+4/4 Test #178: mcp_gide .........................   Passed   12.44 sec
+
+100% tests passed, 0 tests failed out of 4
+
+Label Time Summary:
+e2e            =  16.96 sec*proc (2 tests)
+gide           =  12.75 sec*proc (3 tests)
+mcp            =  16.96 sec*proc (2 tests)
+mz700          =  16.96 sec*proc (2 tests)
+peripherals    =   0.31 sec*proc (2 tests)
+rtc            =   0.12 sec*proc (1 test)
+suc80          =   4.52 sec*proc (1 test)
+
+Total Test time (real) =  17.29 sec

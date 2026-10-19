@@ -1,0 +1,14 @@
+{
+  "Sharp-CPM-Applications-0.1.0-evidence.zip": {
+    "bytes": 309675,
+    "sha256": "af087625604c733d501d25bc0e8e4c234c79fae99349fbed09993746adcc7ae1"
+  },
+  "Sharp-CPM-Applications-0.1.0-source.zip": {
+    "bytes": 2719597,
+    "sha256": "0c312c40a104ac5d45f55a50ca0e109e7c1481eada41d9beabadd268dec94067"
+  },
+  "Sharp-CPM-Applications-0.1.0-media.zip": {
+    "bytes": 1702357,
+    "sha256": "bb637c7beb563b2d1123eddb801915898b49c88f88cf4f2209b2d78d8f5cf645"
+  }
+}

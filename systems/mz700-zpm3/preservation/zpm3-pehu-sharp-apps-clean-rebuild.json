@@ -1,0 +1,7 @@
+{
+  "passed": true,
+  "source_zip_only": true,
+  "factory_image_byte_identical": true,
+  "payload_files_byte_identical": 178,
+  "image_sha256": "e68aa0005ff58ac9935e2e6ce78f70668c0c94f7b53bf3aa2468a20873abd144"
+}

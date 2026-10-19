@@ -1,0 +1,2210 @@
+{
+  "passed": true,
+  "source_image": {
+    "path": "/Users/benjamindonnachie/Documents/ChatGPT/Retro - sharp/build-records/mz800emu/disks/gide-zpm3-pehu-keyboard-fast-0.1.0.img",
+    "sha256": "d09a003483e1874b207e2b2a3c2442a7135cd3511c94f4515e766ff67e321e48"
+  },
+  "image_sha256": "e68aa0005ff58ac9935e2e6ce78f70668c0c94f7b53bf3aa2468a20873abd144",
+  "files": [
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "DEMO.TXT",
+      "bytes": 896,
+      "sha256": "cc2f41418cc47d27acc00a47412070da5c75bc030f1a4604bea17df07d9f37ab",
+      "origin": "CPM31_1M44_WORDSTAR_v330.RAW:DEMO.TXT"
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "MAILMRGE.OVR",
+      "bytes": 13312,
+      "sha256": "7b8573a54efedc2fb5f2738b27cf70c008ccfd08620f1d18ba6e895e0eedd44c",
+      "origin": "CPM31_1M44_WORDSTAR_v330.RAW:MAILMRGE.OVR"
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "PRINT.TST",
+      "bytes": 4096,
+      "sha256": "41bde58133eec627aa724ab922cf4c200375b39686da67f195aa39100b1482a3",
+      "origin": "CPM31_1M44_WORDSTAR_v330.RAW:PRINT.TST"
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "READ.ME",
+      "bytes": 128,
+      "sha256": "0e27ced8e00057f98ca64b5fb98780568cbd3b4f17392d680a580de6affdb3d6",
+      "origin": "CPM31_1M44_WORDSTAR_v330.RAW:READ.ME"
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "SAMPLE.TXT",
+      "bytes": 3328,
+      "sha256": "225e215324304e02412d9c00eb49f6df1d9f3ade6ee42e35b4e20d59665bda2c",
+      "origin": "CPM31_1M44_WORDSTAR_v330.RAW:SAMPLE.TXT"
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "SPELSTAR.DCT",
+      "bytes": 97280,
+      "sha256": "f22f3da9942bd1e25401df79a2181c0a038f940546b6ea684b7ae6677ed20334",
+      "origin": "CPM31_1M44_WORDSTAR_v330.RAW:SPELSTAR.DCT"
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "SPELSTAR.OVR",
+      "bytes": 17920,
+      "sha256": "1c296183e2810600ca28abe9a22d8b05261c8b406e2221f5734bfbc6f1489103",
+      "origin": "CPM31_1M44_WORDSTAR_v330.RAW:SPELSTAR.OVR"
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "WINSTALL.COM",
+      "bytes": 29184,
+      "sha256": "f1b86240ed6aadad09a2a3e5cd0022d835a33490a3cbfbaf84a3478f8bf9cda1",
+      "origin": "CPM31_1M44_WORDSTAR_v330.RAW:WINSTALL.COM"
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "WS.INS",
+      "bytes": 58240,
+      "sha256": "95f7c1e04730f4a52bfb1344b4b1851b31ac818c67e58b6c4d30644dabd0ba1a",
+      "origin": "CPM31_1M44_WORDSTAR_v330.RAW:WS.INS"
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "WS3.HEX",
+      "bytes": 896,
+      "sha256": "8a9be4a860c65642019ed5e843d799f2b2ab1d07c1331d1815c3ae81fd5aa604",
+      "origin": "CPM31_1M44_WORDSTAR_v330.RAW:WS3.HEX"
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "WS330 PA.",
+      "bytes": 4352,
+      "sha256": "77f8ecf72ebd737670df40d200fb8f85450bda207e8596b2740efa528a44546c",
+      "origin": "CPM31_1M44_WORDSTAR_v330.RAW:WS330 PA."
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "WSBONDWE.",
+      "bytes": 17664,
+      "sha256": "f77801e79d3f9d227c1ab28fa77c985d0b858566ff4fe708b607ee84a8b717c3",
+      "origin": "CPM31_1M44_WORDSTAR_v330.RAW:WSBONDWE."
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "WSHEATH.COM",
+      "bytes": 17664,
+      "sha256": "523c8585e5befec03af001c05140c4e3d64939b26bc8f4bafee4a47565cadd49",
+      "origin": "CPM31_1M44_WORDSTAR_v330.RAW:WSHEATH.COM"
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "WSKAYPRO.",
+      "bytes": 17664,
+      "sha256": "b709d9f3f569e425fdf5de4db845348f0bcc12726a4a225ae28ad2356eb518fc",
+      "origin": "CPM31_1M44_WORDSTAR_v330.RAW:WSKAYPRO."
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "WSMSGS.OVR",
+      "bytes": 30080,
+      "sha256": "65c3231fe18dcfcddf2f5580553bb6ab2dc4af6c95e2e9bd6424813c0abc57df",
+      "origin": "CPM31_1M44_WORDSTAR_v330.RAW:WSMSGS.OVR"
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "WSOSBORN.",
+      "bytes": 17664,
+      "sha256": "aa28306b8e35be1970744213e0be94c2a787dd8349c62caa3f195a99134c16ea",
+      "origin": "CPM31_1M44_WORDSTAR_v330.RAW:WSOSBORN."
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "WSOVLY1.OVR",
+      "bytes": 33536,
+      "sha256": "71f212196dd8e1aca9f9e16b85823da2f0fd391070e2e3f12ffcf333d8382074",
+      "origin": "CPM31_1M44_WORDSTAR_v330.RAW:WSOVLY1.OVR"
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "WSTELEVI.",
+      "bytes": 17664,
+      "sha256": "a9694de4d80d6ce914423d07e2d31bcea51cc47c670fe5d9436cd3a6cd368413",
+      "origin": "CPM31_1M44_WORDSTAR_v330.RAW:WSTELEVI."
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "WSU.COM",
+      "bytes": 17664,
+      "sha256": "c7ed17d588199637ba7838d51d67d893ee17d2a46c7da744441d20eaeff67968",
+      "origin": "CPM31_1M44_WORDSTAR_v330.RAW:WSU.COM"
+    },
+    {
+      "drive": "D",
+      "user": 1,
+      "name": "DBASE.COM",
+      "bytes": 19328,
+      "sha256": "fc9c4e858a942b4adea27f7add9b051d5f8134262fdc6ae447c98cd12b789811",
+      "origin": "CPM_1M44_MC_F5.RAW:DBASE.COM"
+    },
+    {
+      "drive": "D",
+      "user": 1,
+      "name": "DBASEMSG.TXT",
+      "bytes": 18304,
+      "sha256": "68f9ffa5c132e47c40e306a09cb871577cc57dc35e148e76d2777f8daffedac3",
+      "origin": "CPM_1M44_MC_F5.RAW:DBASEMSG.TXT"
+    },
+    {
+      "drive": "D",
+      "user": 1,
+      "name": "DBASEOVR.COM",
+      "bytes": 41472,
+      "sha256": "7a8dd8e076db7db92a98a4933f13487c4798eb1843c47e9c9d191c8fee52aad5",
+      "origin": "CPM_1M44_MC_F5.RAW:DBASEOVR.COM"
+    },
+    {
+      "drive": "D",
+      "user": 1,
+      "name": "INSTALL.COM",
+      "bytes": 14336,
+      "sha256": "5c494e433586d23e270e8aa016d32048444187176209b8bd4293bc4d85daa6ff",
+      "origin": "CPM_1M44_MC_F5.RAW:INSTALL.COM"
+    },
+    {
+      "drive": "D",
+      "user": 1,
+      "name": "NAMES.DBF",
+      "bytes": 1024,
+      "sha256": "1d02a6a21866ddc74938771644694fa24d8e772cab6a5eb21f1b8f26981e140c",
+      "origin": "CPM_1M44_MC_F5.RAW:NAMES.DBF"
+    },
+    {
+      "drive": "D",
+      "user": 1,
+      "name": "SP-HELP.CMD",
+      "bytes": 2048,
+      "sha256": "c7cd712682ac78aa18f1992ce663ca7d9be64800967471c33d6650c71e33a629",
+      "origin": "CPM_1M44_MC_F5.RAW:SP-HELP.CMD"
+    },
+    {
+      "drive": "D",
+      "user": 1,
+      "name": "SP-MAIN.CMD",
+      "bytes": 1664,
+      "sha256": "f48e3ed9db046c4862c74a7c2cbe44dcfdfeac2c22cb4996eff38102670c9e65",
+      "origin": "CPM_1M44_MC_F5.RAW:SP-MAIN.CMD"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "$EXEC.COM",
+      "bytes": 1152,
+      "sha256": "a6e97b01a4d335402924ac78a315bf829e0444d062253bc136efece398e53962",
+      "origin": "CPM02_1M44_HI_C.RAW:$EXEC.COM"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "ASSERT.H",
+      "bytes": 512,
+      "sha256": "ff76bc34891c3bc5c32cc6a4d5469f22dd40a09dd7fa87c2cb1eb5048019cb56",
+      "origin": "CPM02_1M44_HI_C.RAW:ASSERT.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "C.COM",
+      "bytes": 19456,
+      "sha256": "4524db8e8b2ffaccc5078e4837b1790ec96d86a936fe8d807477a4a661e8b65a",
+      "origin": "CPM02_1M44_HI_C.RAW:C.COM"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "CGEN.COM",
+      "bytes": 44288,
+      "sha256": "17b81739257b46d7965ac184ced55bdfc4bf20fba24965c1d739fc24e59649e0",
+      "origin": "CPM02_1M44_HI_C.RAW:CGEN.COM"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "CONIO.H",
+      "bytes": 640,
+      "sha256": "599f9c02f2f7dfe0f1eaee6711b8d3f8f6d3c14c11534cc3fd466b8ed4b69872",
+      "origin": "CPM02_1M44_HI_C.RAW:CONIO.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "CPM.H",
+      "bytes": 3584,
+      "sha256": "8b3cb96ad382456f839366c172586f0cd70ba46046547f9f6d704f106c28e142",
+      "origin": "CPM02_1M44_HI_C.RAW:CPM.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "CPP.COM",
+      "bytes": 25984,
+      "sha256": "9433e4ca897ba04be02b6347e8edf12dac2ecce2e81950e3cc72bc99eaa5b298",
+      "origin": "CPM02_1M44_HI_C.RAW:CPP.COM"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "CREF.COM",
+      "bytes": 16896,
+      "sha256": "733d44124eb58290e744cf789e89691e0cabeb78302504e5db9aa8e4a38fdd29",
+      "origin": "CPM02_1M44_HI_C.RAW:CREF.COM"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "CRTCPM.OBJ",
+      "bytes": 384,
+      "sha256": "6a914293d80cf071f0eb1d8e23ad154f298e5340f683df229fc0e75a14bd5307",
+      "origin": "CPM02_1M44_HI_C.RAW:CRTCPM.OBJ"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "CTYPE.H",
+      "bytes": 896,
+      "sha256": "fe374bb9ea433d86d814637fac374d1bc6ac0f06e6a5532ef05280f5d7403907",
+      "origin": "CPM02_1M44_HI_C.RAW:CTYPE.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "DEBUG.COM",
+      "bytes": 13568,
+      "sha256": "0660dfad0ddfd71868679d1b6fff4d31a2e88a88f8b7a934ea072fd2173fee46",
+      "origin": "CPM02_1M44_HI_C.RAW:DEBUG.COM"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "DEHUFF.COM",
+      "bytes": 12032,
+      "sha256": "54b107d37e9a12a9198ed23b28cd1d29bfb743aefd31ab3e9b34ff3a049a9d34",
+      "origin": "CPM02_1M44_HI_C.RAW:DEHUFF.COM"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "EXEC.H",
+      "bytes": 384,
+      "sha256": "4cf41c199c767cb688ba15f1fc3ebab6f6eb5d1f240e246c17a9e09333f016fc",
+      "origin": "CPM02_1M44_HI_C.RAW:EXEC.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "FLOAT.H",
+      "bytes": 2176,
+      "sha256": "b007751dd434035415e3bf69b39f62201dbe498d834e516cbfa99a8d8727834f",
+      "origin": "CPM02_1M44_HI_C.RAW:FLOAT.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "HITECH.H",
+      "bytes": 2048,
+      "sha256": "8bcd3684223f21ab08bdbabd621d03c33c8790cd13d969ebb37e1e75dc69ac97",
+      "origin": "CPM02_1M44_HI_C.RAW:HITECH.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "LIBC.LIB",
+      "bytes": 61056,
+      "sha256": "f5c1858b11cda267bb3224cf2faa056d4dcda751b5519332ce60a2dd00c3084f",
+      "origin": "CPM02_1M44_HI_C.RAW:LIBC.LIB"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "LIBF.LIB",
+      "bytes": 25472,
+      "sha256": "f33a0d85f8dfde9571ae5506cd4954ea3c68d7096896e76c62868eb16475fdd1",
+      "origin": "CPM02_1M44_HI_C.RAW:LIBF.LIB"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "LIBR.COM",
+      "bytes": 18048,
+      "sha256": "aef1a8b76a5baf9b51c461ad04c0c59be8f9a5b191685d3652037a6da4023a7d",
+      "origin": "CPM02_1M44_HI_C.RAW:LIBR.COM"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "LIMITS.H",
+      "bytes": 768,
+      "sha256": "94cbc6f7d84b7c14af32bb7e3b2e8b18ab7da68c7037d3440c53ee36ab818cf2",
+      "origin": "CPM02_1M44_HI_C.RAW:LIMITS.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "LINK.COM",
+      "bytes": 30080,
+      "sha256": "a36c604f480977bf8001a6bab2c2571072fac0fa01d905ce98f72840fd79ab65",
+      "origin": "CPM02_1M44_HI_C.RAW:LINK.COM"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "MATH.H",
+      "bytes": 512,
+      "sha256": "19f0f31d28fc50680cd55329ff6f3bf248e6a366b9f00ac243d85d1c5ba3e896",
+      "origin": "CPM02_1M44_HI_C.RAW:MATH.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "OBJTOHEX.COM",
+      "bytes": 24448,
+      "sha256": "9b8bfe0ed6c947999fe61253b273614279e5afabbce644d0c6b02c752b2cb7fc",
+      "origin": "CPM02_1M44_HI_C.RAW:OBJTOHEX.COM"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "OPTIM.COM",
+      "bytes": 28160,
+      "sha256": "833645161461db9d938e13683ec773be4d9590f238d08e458999950adc78576e",
+      "origin": "CPM02_1M44_HI_C.RAW:OPTIM.COM"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "P1.COM",
+      "bytes": 39936,
+      "sha256": "b54312b3547945781b0582b20ecb676b01742cbbaef2f9b0561d1419cf14b8b8",
+      "origin": "CPM02_1M44_HI_C.RAW:P1.COM"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "README.TXT",
+      "bytes": 896,
+      "sha256": "c2696f636fa5a097c94143f759dbc263489cbb4cd1113a2206290aad8fb68cca",
+      "origin": "CPM02_1M44_HI_C.RAW:README.TXT"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "RRTCPM.OBJ",
+      "bytes": 768,
+      "sha256": "ae7f860c38de6b2e7569f6dc7b8121fd4a7ed71b91c4e0096e58343e45c4cfb2",
+      "origin": "CPM02_1M44_HI_C.RAW:RRTCPM.OBJ"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "SETJMP.H",
+      "bytes": 256,
+      "sha256": "042772377fed63633607c6c2d8efd42e3c2654422468f62c1f16797594a62b2e",
+      "origin": "CPM02_1M44_HI_C.RAW:SETJMP.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "SIGNAL.H",
+      "bytes": 1152,
+      "sha256": "56b79b196382c22ffed2e54a3d92337c1b2aa1528cce82eb0a2b06122afd0684",
+      "origin": "CPM02_1M44_HI_C.RAW:SIGNAL.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "STAT.H",
+      "bytes": 768,
+      "sha256": "0586a6ad1eb2ea3e9ce6619a20360231ffb93fff4b546daf0177042e192a9d97",
+      "origin": "CPM02_1M44_HI_C.RAW:STAT.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "STDARG.H",
+      "bytes": 256,
+      "sha256": "335fc6ecbc359d52cad61409ec69d9b8a303998eb108eb979791f60639a6f119",
+      "origin": "CPM02_1M44_HI_C.RAW:STDARG.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "STDDEF.H",
+      "bytes": 384,
+      "sha256": "4bf5f6446cb82c2351b7673c24377376e38625daaab25345260cf6dffe6fa5b2",
+      "origin": "CPM02_1M44_HI_C.RAW:STDDEF.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "STDIO.H",
+      "bytes": 2560,
+      "sha256": "d4129cdecf90c58a2a2b73d173f9d80102b86ef17171569f060e4f1998bf2a06",
+      "origin": "CPM02_1M44_HI_C.RAW:STDIO.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "STDLIB.H",
+      "bytes": 1024,
+      "sha256": "d37a5c2f8fe44695bbd600e021fe3e268dc7a0392e11b5a2d326a3263c8752c4",
+      "origin": "CPM02_1M44_HI_C.RAW:STDLIB.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "STRING.H",
+      "bytes": 1280,
+      "sha256": "7c3e44328d70cb5e159b3d8c5de833ea59a9d73b8b891d962591320ba1f02cd7",
+      "origin": "CPM02_1M44_HI_C.RAW:STRING.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "SYS.H",
+      "bytes": 1024,
+      "sha256": "de37176bf0c2fd49004e67c1ae75916e699a66f295b8cc43ae1f187801da8a46",
+      "origin": "CPM02_1M44_HI_C.RAW:SYS.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "TIME.H",
+      "bytes": 896,
+      "sha256": "bc84a34c8a9e4d27e6d5a59d2b345e794ba90e4c7986ca837ce43cec84bf9150",
+      "origin": "CPM02_1M44_HI_C.RAW:TIME.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "UNIXIO.H",
+      "bytes": 768,
+      "sha256": "024ec34aec5e74a7abe66f66548b6d06083edb73f92334c52b7ffbe9bf519e5e",
+      "origin": "CPM02_1M44_HI_C.RAW:UNIXIO.H"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "ZAS.COM",
+      "bytes": 37632,
+      "sha256": "fa0a6ababf05d9320ca01d6ca4797bca49168e0c8b38c96c0f33ec80f6a62585",
+      "origin": "CPM02_1M44_HI_C.RAW:ZAS.COM"
+    },
+    {
+      "drive": "D",
+      "user": 3,
+      "name": "INSTALL.COM",
+      "bytes": 6528,
+      "sha256": "59fc71604f26632e78e8d2d0ec0688fb64ec6ee3d8d87942d65c2aaa13ed29aa",
+      "origin": "CPM_1M44_MC_F4.RAW:INSTALL.COM"
+    },
+    {
+      "drive": "D",
+      "user": 3,
+      "name": "INSTALL.DAT",
+      "bytes": 19840,
+      "sha256": "80bca1ed27f624426296a5cfa7fb87ab12f453deba059192240aefdd7c885c45",
+      "origin": "CPM_1M44_MC_F4.RAW:INSTALL.DAT"
+    },
+    {
+      "drive": "D",
+      "user": 3,
+      "name": "INSTALL.LD",
+      "bytes": 30464,
+      "sha256": "4f8837c67498ff35a8feaf13c2bd9e97ca329874f2887be558aeaa28753448a9",
+      "origin": "CPM_1M44_MC_F4.RAW:INSTALL.LD"
+    },
+    {
+      "drive": "D",
+      "user": 3,
+      "name": "INSTALL.MSG",
+      "bytes": 11904,
+      "sha256": "68136d688be2b81bc1d3732b6ab0be59324cb75266d0f52c5dcab76866e91dc6",
+      "origin": "CPM_1M44_MC_F4.RAW:INSTALL.MSG"
+    },
+    {
+      "drive": "D",
+      "user": 3,
+      "name": "INSTALL.SPC",
+      "bytes": 256,
+      "sha256": "a6f46b136c52521dc85795d5ec27712773c2b4cffce70ad137f2c4fc8e74f114",
+      "origin": "CPM_1M44_MC_F4.RAW:INSTALL.SPC"
+    },
+    {
+      "drive": "D",
+      "user": 3,
+      "name": "MP.COD",
+      "bytes": 44032,
+      "sha256": "dbf93488b686810d429ac344acefa6dd68e29817f1c12654133ea966d297257c",
+      "origin": "CPM_1M44_MC_F4.RAW:MP.COD"
+    },
+    {
+      "drive": "D",
+      "user": 3,
+      "name": "MP.COM",
+      "bytes": 16768,
+      "sha256": "c8ed33d0c0b601f5a67aedbfda77a9703391bc1f29a02e34530013631f1072f0",
+      "origin": "CPM_1M44_MC_F4.RAW:MP.COM; terminal configuration, original preserved"
+    },
+    {
+      "drive": "D",
+      "user": 3,
+      "name": "MP.HLP",
+      "bytes": 42496,
+      "sha256": "1dba3ff3317f42e15def8bb4a7e0296928db20fa58ff4532d30c1466375641e5",
+      "origin": "CPM_1M44_MC_F4.RAW:MP.HLP"
+    },
+    {
+      "drive": "D",
+      "user": 3,
+      "name": "MP40.X",
+      "bytes": 6400,
+      "sha256": "9e8c83e2c94327695c92ba5be368b8a2de82146a0ad4c4ef203830c13979e849",
+      "origin": "CPM_1M44_MC_F4.RAW:MP40.X"
+    },
+    {
+      "drive": "D",
+      "user": 3,
+      "name": "MP80.X",
+      "bytes": 6400,
+      "sha256": "bb125bdf1cafadca69d32d06fcb7e9da58a0e931b21d024c372db26dfbc1d012",
+      "origin": "CPM_1M44_MC_F4.RAW:MP80.X"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "BASCOM.COM",
+      "bytes": 32768,
+      "sha256": "9080222fce5eecdb05d03aafef23361e31f6a449b87badb43a550247fa043a22",
+      "origin": "CPM04_1M44_MBASIC.RAW:BASCOM.COM"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "BASCOM.HLP",
+      "bytes": 14976,
+      "sha256": "cdb441f6a71028c8af14cf659011a1060835b48a9685a8df6952e8ef12a948be",
+      "origin": "CPM04_1M44_MBASIC.RAW:BASCOM.HLP"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "BASCOM2.HLP",
+      "bytes": 29312,
+      "sha256": "2417045708e4acf81cf3c59a4b794d0b5a4cb0d2eb5b281e982aafab8a53f9f3",
+      "origin": "CPM04_1M44_MBASIC.RAW:BASCOM2.HLP"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "BASLIB.REL",
+      "bytes": 24960,
+      "sha256": "7bf5558d98a7be68b9050b46c1b5329ab73f075d88e4c07239b8b9349404493c",
+      "origin": "CPM04_1M44_MBASIC.RAW:BASLIB.REL"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "BRUN.COM",
+      "bytes": 15488,
+      "sha256": "ae3128797a31af7d541cc464489a54722f90bf339debce3d4c83db5479c34a3a",
+      "origin": "CPM04_1M44_MBASIC.RAW:BRUN.COM"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "CREF.COM",
+      "bytes": 3968,
+      "sha256": "2e616ed60957d3179aca7a1acf0dfcf9e11cc4fbcddb7aacb216cdd8eff72218",
+      "origin": "CPM04_1M44_MBASIC.RAW:CREF.COM"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "CREF80.COM",
+      "bytes": 3968,
+      "sha256": "2e616ed60957d3179aca7a1acf0dfcf9e11cc4fbcddb7aacb216cdd8eff72218",
+      "origin": "CPM04_1M44_MBASIC.RAW:CREF80.COM"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "L80.COM",
+      "bytes": 10752,
+      "sha256": "7407f61e7788660550ea0a12ba44794f9786235c0a58aafb6d6c4bc3329d2831",
+      "origin": "CPM04_1M44_MBASIC.RAW:L80.COM"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "LIB80.COM",
+      "bytes": 4736,
+      "sha256": "28f5af4a73e5317af265abde3d58658df13090bd28a59dafeb5a061f4623aaba",
+      "origin": "CPM04_1M44_MBASIC.RAW:LIB80.COM"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "M80.COM",
+      "bytes": 20096,
+      "sha256": "1a229b803568f176e792d05faeeff31e70f451bb529267680b22c3c0ea764b20",
+      "origin": "CPM04_1M44_MBASIC.RAW:M80.COM"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "MBASIC.COM",
+      "bytes": 24320,
+      "sha256": "29d957fc6899c24f6296a1662a27eca545d85ee3f7d70d2794c9d045d92ff157",
+      "origin": "CPM04_1M44_MBASIC.RAW:MBASIC.COM"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "OBSLIB.REL",
+      "bytes": 48384,
+      "sha256": "92818a856cfeb75ceac995134e51839f528498e48b128c0b9b4a790d2543de76",
+      "origin": "CPM04_1M44_MBASIC.RAW:OBSLIB.REL"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "RANTEST.ASC",
+      "bytes": 640,
+      "sha256": "334b62809f70fd93246dba513c5786d7ff262d481676826a9125013461a8baec",
+      "origin": "CPM04_1M44_MBASIC.RAW:RANTEST.ASC"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "RANTEST.BAS",
+      "bytes": 384,
+      "sha256": "ca5d9a3e647157954ca1569e12dd6733d2c3fbe6bd82e90f72ad4801d21eda33",
+      "origin": "CPM04_1M44_MBASIC.RAW:RANTEST.BAS"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "RANTEST.COM",
+      "bytes": 1408,
+      "sha256": "f4aa1b107c77c7a63fb73ec03c58cc72c0f25468a55587d708719f9de0f3fb0f",
+      "origin": "CPM04_1M44_MBASIC.RAW:RANTEST.COM"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "RANTEST.REL",
+      "bytes": 640,
+      "sha256": "57df2567d010012419bf2abc5e50dcc11ae4c3b377f08f089124d24d212b73c4",
+      "origin": "CPM04_1M44_MBASIC.RAW:RANTEST.REL"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "README.TXT",
+      "bytes": 896,
+      "sha256": "0d4db6c81a63bb77b20797942750c55c89a4a6c9f8dff5ea74465c106eac7096",
+      "origin": "CPM04_1M44_MBASIC.RAW:README.TXT"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "SAMPLE.BAS",
+      "bytes": 128,
+      "sha256": "00dd0f982e83e23275cb419b03ffb2c1a28bd97c3132ce64779737b84f3c046e",
+      "origin": "CPM04_1M44_MBASIC.RAW:SAMPLE.BAS"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "SAMPLE.COM",
+      "bytes": 640,
+      "sha256": "6eaebdcf96f2fe65a2d2e62bdb82a64078121105e921bce19d85e236cd293026",
+      "origin": "CPM04_1M44_MBASIC.RAW:SAMPLE.COM"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "SAMPLE.REL",
+      "bytes": 256,
+      "sha256": "24d3a2b7a848cabdae4c8f443422610938ceb574f35ebdf4970d1be0d4996cb9",
+      "origin": "CPM04_1M44_MBASIC.RAW:SAMPLE.REL"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "CMDLIN.PAS",
+      "bytes": 768,
+      "sha256": "5a6ac5b9cbed937e81fa9e14e161221ff63b0f6ade0a39655cee550ade601fa3",
+      "origin": "CPM26_1M44_TPASCAL_v300a.RAW:CMDLIN.PAS"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "LISTER.PAS",
+      "bytes": 5632,
+      "sha256": "176f9c8556d2a1f0e9b99f3d61a166e37841e0a9244afb9a0a783638882dccbf",
+      "origin": "CPM26_1M44_TPASCAL_v300a.RAW:LISTER.PAS"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "MC-MOD00.INC",
+      "bytes": 1024,
+      "sha256": "9eedd3464b8a1721b05dca15a438c0c478c2bc8b728632015d35780eed6eb662",
+      "origin": "CPM26_1M44_TPASCAL_v300a.RAW:MC-MOD00.INC"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "MC-MOD01.INC",
+      "bytes": 1792,
+      "sha256": "620eabe19f795e6d8ec42008675d2247c862e89dc7ad0b821fdb543ed61c32e9",
+      "origin": "CPM26_1M44_TPASCAL_v300a.RAW:MC-MOD01.INC"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "MC-MOD02.INC",
+      "bytes": 3328,
+      "sha256": "777cd965e1c5858e4db4e5f72f906b6a61876206b5c1f15a5e5bc23577962e22",
+      "origin": "CPM26_1M44_TPASCAL_v300a.RAW:MC-MOD02.INC"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "MC-MOD03.INC",
+      "bytes": 4608,
+      "sha256": "62c24a59f9cb8903f98fe7471912c1ef7aae9a4f958f565c1275026b07ddb29d",
+      "origin": "CPM26_1M44_TPASCAL_v300a.RAW:MC-MOD03.INC"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "MC-MOD04.INC",
+      "bytes": 8960,
+      "sha256": "d261c5831c1a5448a822d859dc96ee713b7a535a4fc4b88e3c61baec66a3049f",
+      "origin": "CPM26_1M44_TPASCAL_v300a.RAW:MC-MOD04.INC"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "MC-MOD05.INC",
+      "bytes": 11264,
+      "sha256": "163aaac3bfecdea30159eae72ee8f5d882829edf55dadc9fa35730bef7181985",
+      "origin": "CPM26_1M44_TPASCAL_v300a.RAW:MC-MOD05.INC"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "MC.HLP",
+      "bytes": 4736,
+      "sha256": "4b7e8ccbb0dc74152a7eba3a40d8761e139b750f4d466fd3feba0b53c77221d5",
+      "origin": "CPM26_1M44_TPASCAL_v300a.RAW:MC.HLP"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "MC.PAS",
+      "bytes": 6528,
+      "sha256": "2778376ea77168cfeeff5ac80ff07573eb96bf42e7283f91c1a1ffdbe2c5bfa3",
+      "origin": "CPM26_1M44_TPASCAL_v300a.RAW:MC.PAS"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "MCDEMO.MCS",
+      "bytes": 11904,
+      "sha256": "a5b4df43f9636f6be58b1acfa12f90e24262b5e3e108a0489a961824f5f4359a",
+      "origin": "CPM26_1M44_TPASCAL_v300a.RAW:MCDEMO.MCS"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "READ.ME",
+      "bytes": 6784,
+      "sha256": "6d6f138fa19d7c0ee8e0db8672a5a2e3c642e2e32ef16c05e66d79239adce957",
+      "origin": "CPM26_1M44_TPASCAL_v300a.RAW:READ.ME"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "TINST.COM",
+      "bytes": 25472,
+      "sha256": "210fc32edda0f1ef5372273e1a35aef845dc3fb37746cd351238e6bd1fbc939f",
+      "origin": "CPM26_1M44_TPASCAL_v300a.RAW:TINST.COM"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "TINST.DTA",
+      "bytes": 4608,
+      "sha256": "6b437717da78203f76b8e3b90deac186b30b3684eb228018c74b636b71144456",
+      "origin": "CPM26_1M44_TPASCAL_v300a.RAW:TINST.DTA; terminal configuration, original preserved"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "TINST.MSG",
+      "bytes": 3968,
+      "sha256": "ecf67ff3e3adb5160c5c19c2cca792bf0f0cbf1a2eaf4670520a96447e71f1cd",
+      "origin": "CPM26_1M44_TPASCAL_v300a.RAW:TINST.MSG"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "TURBO.COM",
+      "bytes": 30848,
+      "sha256": "ea8cf5371a696456a173f88a00cf58b910c65dca7b85ec358f6f0aeb463b7330",
+      "origin": "CPM26_1M44_TPASCAL_v300a.RAW:TURBO.COM; terminal configuration, original preserved"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "TURBO.MSG",
+      "bytes": 1536,
+      "sha256": "bb6d210a71f147b0c26516d357ee7ca8fb2732b5393a7f856655d9afc63f44ea",
+      "origin": "CPM26_1M44_TPASCAL_v300a.RAW:TURBO.MSG"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "TURBO.OVR",
+      "bytes": 1152,
+      "sha256": "5cba0924c92b5945a3cc73b574cde67dc30e36595cf510d11867675abe5fff41",
+      "origin": "CPM26_1M44_TPASCAL_v300a.RAW:TURBO.OVR"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "ADV.COM",
+      "bytes": 36224,
+      "sha256": "7866fd47c6ce76489c7763067f5fe8a0b28ee1d9e875d403c94199fa1cd83ac1",
+      "origin": "CPM_1M44_MC_D0.RAW:ADV.COM"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "ADVDDIA.SAV",
+      "bytes": 1408,
+      "sha256": "f1a32cc6a7900802d2df5ce50ad9eae1fdb60ded5255c08a6c050e96cd3a92b7",
+      "origin": "CPM_1M44_MC_D0.RAW:ADVDDIA.SAV"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "ADVDDOM.SAV",
+      "bytes": 1408,
+      "sha256": "683090c1bb8f014c6f24e1b04479fc5844a721030fece3874dc0cb2da60f3353",
+      "origin": "CPM_1M44_MC_D0.RAW:ADVDDOM.SAV"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "ADVI.DAT",
+      "bytes": 31872,
+      "sha256": "89032636f7528ce42f67e601b0b8b5349aec55bc9f475d2bffcc2ba8cb5012ed",
+      "origin": "CPM_1M44_MC_D0.RAW:ADVI.DAT"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "ADVI.PTR",
+      "bytes": 3968,
+      "sha256": "86708c584076a9bd778af4c9179c7a4114d2e5569232444fe72bda5ffb3eb93d",
+      "origin": "CPM_1M44_MC_D0.RAW:ADVI.PTR"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "ADVT.DAT",
+      "bytes": 107392,
+      "sha256": "3a2be9971c763b8be23cfb582769550a2bdc9c77650cb2ee1cb7e21a899462a1",
+      "origin": "CPM_1M44_MC_D0.RAW:ADVT.DAT"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "ADVT.PTR",
+      "bytes": 15488,
+      "sha256": "9ce129b42b22d54bcc88c21e3a19ded3da279f8550cc6740920a06574946bf87",
+      "origin": "CPM_1M44_MC_D0.RAW:ADVT.PTR"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "ALIENS.COM",
+      "bytes": 14592,
+      "sha256": "14c4624e9b87e368dc32d87ea32dc4ccabc9f7d24bddc17dddbff28b670b4753",
+      "origin": "CPM_1M44_MC_D0.RAW:ALIENS.COM"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "BIGTREK.BAS",
+      "bytes": 39936,
+      "sha256": "aa6b79ec993a356e55ef9e6ca1fe8d9a10cf7ce55f6c4b576e4215d9a294bae3",
+      "origin": "CPM_1M44_MC_D0.RAW:BIGTREK.BAS"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "CATCHUM.COM",
+      "bytes": 29312,
+      "sha256": "1784db0aa56061ce304910359d8ae652494701e645136ae6fc6aadc6ee9cd686",
+      "origin": "CPM_1M44_MC_D0.RAW:CATCHUM.COM"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "CATCHUM.DAT",
+      "bytes": 512,
+      "sha256": "e7a63c529745e8642ee6ac6878fed128572c8e9680180cca639be10ba9bc90b9",
+      "origin": "CPM_1M44_MC_D0.RAW:CATCHUM.DAT"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "CATCONF.COM",
+      "bytes": 22528,
+      "sha256": "5a9549ce701ad3b9f74902ef5429c66f1a5063e9aa94444b22fc85785d5f7aaf",
+      "origin": "CPM_1M44_MC_D0.RAW:CATCONF.COM"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "CHESS.PAS",
+      "bytes": 92160,
+      "sha256": "d1bc52aed625797d9d88b12643de2d5452c530d432a30c4a60ebb63eba37b234",
+      "origin": "CPM_1M44_MC_D0.RAW:CHESS.PAS"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "CHESS.PQS",
+      "bytes": 51712,
+      "sha256": "824fc6b84b62905f1f5aa0599e4d1c945b3acd322159c225057ff103bcfb5bae",
+      "origin": "CPM_1M44_MC_D0.RAW:CHESS.PQS"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "CLONE.COM",
+      "bytes": 26880,
+      "sha256": "0d9fc212ecb608fb6362d827a93d6e531fb739d446b942ae3fcb0b5a8c1b991d",
+      "origin": "CPM_1M44_MC_D0.RAW:CLONE.COM"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "CLONE.DAT",
+      "bytes": 512,
+      "sha256": "10fb376fb060973fe43f6a609559823b36a80983e7cea3358d2eea1447b4ae5f",
+      "origin": "CPM_1M44_MC_D0.RAW:CLONE.DAT"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "HITCH.COM",
+      "bytes": 8832,
+      "sha256": "54c167937c82f5a7278fce141524ba4a31ca695cb9d33db5e0f9a1acbfd3a07c",
+      "origin": "CPM_1M44_MC_D0.RAW:HITCH.COM"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "HITCHHIK.DAT",
+      "bytes": 113664,
+      "sha256": "88b968cb0ab1f564fa40183e4e5fe93c41157fe7883a802ca31ae3095769acf6",
+      "origin": "CPM_1M44_MC_D0.RAW:HITCHHIK.DAT"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "HUNT.COM",
+      "bytes": 31488,
+      "sha256": "cc018a3bcce486049422c0f467cc3141122ca3ccf89d5f4c5a40cc23553ad9da",
+      "origin": "CPM_1M44_MC_D0.RAW:HUNT.COM"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "HUNT.DOC",
+      "bytes": 256,
+      "sha256": "0dbb121b8832909fe961a16488bf30387d7dde418d293a07f1b0415a83c9fe09",
+      "origin": "CPM_1M44_MC_D0.RAW:HUNT.DOC"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "LADCONF.COM",
+      "bytes": 22528,
+      "sha256": "7198470b1d0bd59b5129d60144dc3faf0ad7af96009242a8762d36c33f1d14ec",
+      "origin": "CPM_1M44_MC_D0.RAW:LADCONF.COM"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "LADDER.COM",
+      "bytes": 40320,
+      "sha256": "99340413cbd9ac7531d4f2a9c3615cf77405460c8e24f28201601b0a6cca6092",
+      "origin": "CPM_1M44_MC_D0.RAW:LADDER.COM"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "LADDER.DAT",
+      "bytes": 512,
+      "sha256": "466d0d72197699ea926c43b75c9a5575906f3b10dad8257fb618e35e1eb18d97",
+      "origin": "CPM_1M44_MC_D0.RAW:LADDER.DAT"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "MONSTER.BAS",
+      "bytes": 7040,
+      "sha256": "418eff07708ce8d1366070432479e52c4c1aaffc9235071526482c8c1248e890",
+      "origin": "CPM_1M44_MC_D0.RAW:MONSTER.BAS"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "MONSTER.DOC",
+      "bytes": 3712,
+      "sha256": "c7c580103cac02962dfb5e08e9cc843da914837ff6bdb84fcf8b29c24def8b96",
+      "origin": "CPM_1M44_MC_D0.RAW:MONSTER.DOC"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "OTHELLO.COM",
+      "bytes": 12032,
+      "sha256": "4d2c97ee7e7d8b911d0cbb10abead3d6ec0879e0753b1c56aa1047d83a53471d",
+      "origin": "CPM_1M44_MC_D0.RAW:OTHELLO.COM"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "PLANET.COM",
+      "bytes": 8704,
+      "sha256": "41c088b8f5d5a404ea410c6a55f2bb2b0672bde384c3a9f344a9c9a55178ccff",
+      "origin": "CPM_1M44_MC_D0.RAW:PLANET.COM"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "PLANETFA.DAT",
+      "bytes": 109568,
+      "sha256": "678c92a94dc7903c5ba4046bc27628e34763966bed0f20ce7e10dd3d28d2f65b",
+      "origin": "CPM_1M44_MC_D0.RAW:PLANETFA.DAT"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "QIX.COM",
+      "bytes": 31104,
+      "sha256": "79113f4e06e9bc39464da2ff566f7cc8e6fb9ea50981922207e23535b1fdd21b",
+      "origin": "CPM_1M44_MC_D0.RAW:QIX.COM"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "QIX.DAT",
+      "bytes": 256,
+      "sha256": "d172b8600d6c1e711c74336cd5caa1d2aa3c720b9b3c1eea05d50962b84c6e83",
+      "origin": "CPM_1M44_MC_D0.RAW:QIX.DAT"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "QIX.DOC",
+      "bytes": 768,
+      "sha256": "458e624d6c03d62db201a5bf2facbd58b82ac463c0f967cc04270f8096ef9b0f",
+      "origin": "CPM_1M44_MC_D0.RAW:QIX.DOC"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "QIXNSTL.INF",
+      "bytes": 1920,
+      "sha256": "ea469a04eb329ba248c7f7868b66c3d48d58485e31a967b9f46cef2520a20e90",
+      "origin": "CPM_1M44_MC_D0.RAW:QIXNSTL.INF"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "SARGON.COM",
+      "bytes": 14720,
+      "sha256": "702f922bbe73c20bc7048fed2bd314eab6dba381c2ec073388ab3eea5c628178",
+      "origin": "CPM_1M44_MC_D0.RAW:SARGON.COM"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "SCREEN.001",
+      "bytes": 768,
+      "sha256": "dc08f1da17201202c7e7280ae83aa3550d04019407885a9506deb1eb9ab73429",
+      "origin": "CPM_1M44_MC_D0.RAW:SCREEN.001"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "SCREEN.002",
+      "bytes": 768,
+      "sha256": "c6e1ce27882017e23edbad34d207f0048d14d079a8f475325c7c667741aebb15",
+      "origin": "CPM_1M44_MC_D0.RAW:SCREEN.002"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "SCREEN.003",
+      "bytes": 768,
+      "sha256": "2b2eb1605ca5b098e738e92cd3248ad2cc8d4665646c34cd27ada07b27df4e8f",
+      "origin": "CPM_1M44_MC_D0.RAW:SCREEN.003"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "SCREEN.004",
+      "bytes": 768,
+      "sha256": "4b1364e196143e4339d4d354a7e4263540970d074093a846be4bffaaaeea6db4",
+      "origin": "CPM_1M44_MC_D0.RAW:SCREEN.004"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "STAR.COM",
+      "bytes": 36608,
+      "sha256": "f2057e736b192ffead8419f2584fb5debebaa9ccd9a3d7dc7a438fec1de0c7d9",
+      "origin": "CPM_1M44_MC_D0.RAW:STAR.COM"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "WANDERER.COM",
+      "bytes": 9216,
+      "sha256": "5862649e5b416cf6464cb5975877e1837527333fd0dea61b4b2ae301db3f0c51",
+      "origin": "CPM_1M44_MC_D0.RAW:WANDERER.COM"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "WANDERER.TXT",
+      "bytes": 7936,
+      "sha256": "ca09dde3326c5df75c145f847ec7f1a99b6d445e6d751110a61ca3d3481091f0",
+      "origin": "CPM_1M44_MC_D0.RAW:WANDERER.TXT"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "WORM.COM",
+      "bytes": 3840,
+      "sha256": "1dad8a1d17f96e166ae5d3d7491366b1d0a97793bc669ee497ed72003e17c357",
+      "origin": "CPM_1M44_MC_D0.RAW:WORM.COM"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "WORTE.TXT",
+      "bytes": 6272,
+      "sha256": "1aa81fe23ca9f663f57a2a59f57f7ece96d894c8b2b6fc75d2dc5ee9e279fa8d",
+      "origin": "CPM_1M44_MC_D0.RAW:WORTE.TXT"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "ZORK1.COM",
+      "bytes": 8704,
+      "sha256": "edca41f905dbd2613400336bc561155ea8124c7d199b779715977f1157e62de4",
+      "origin": "CPM_1M44_MC_D0.RAW:ZORK1.COM"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "ZORK1.DAT",
+      "bytes": 84992,
+      "sha256": "f2ee9d946b87db8514aaea2441481c00b7e2ae7d3fa37aaa23c38d5f8049226c",
+      "origin": "CPM_1M44_MC_D0.RAW:ZORK1.DAT"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "ZORK2.COM",
+      "bytes": 8704,
+      "sha256": "44047d3475a10f75a3c17837c950234543ff7eb9b1b5350f8a2848a05db39e8f",
+      "origin": "CPM_1M44_MC_D0.RAW:ZORK2.COM"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "ZORK2.DAT",
+      "bytes": 90112,
+      "sha256": "9ed69ceb4c8d2c419fd35ee966d5106a52f4f0cd7bbe7df3bcffd3d966ec24f3",
+      "origin": "CPM_1M44_MC_D0.RAW:ZORK2.DAT"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "ZORK3.COM",
+      "bytes": 8704,
+      "sha256": "953a821aa39bc86af0d58d3c9cd09012f8bd4336dc70316e17bb7893cbad9909",
+      "origin": "CPM_1M44_MC_D0.RAW:ZORK3.COM"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "ZORK3.DAT",
+      "bytes": 82944,
+      "sha256": "01b84e5a3f63f84ec965f7bdd617ce01e2652f05044a1ec9cb040ab6ea2edcd9",
+      "origin": "CPM_1M44_MC_D0.RAW:ZORK3.DAT"
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "WS.COM",
+      "bytes": 17664,
+      "sha256": "74732b116bf3e87e9f93f595f7387ec84601060eee895b203274f106e6ab2c7a",
+      "origin": "Native terminal installation/active template/sample; see configured.json"
+    },
+    {
+      "drive": "D",
+      "user": 3,
+      "name": "MP40.",
+      "bytes": 6400,
+      "sha256": "9e8c83e2c94327695c92ba5be368b8a2de82146a0ad4c4ef203830c13979e849",
+      "origin": "Native terminal installation/active template/sample; see configured.json"
+    },
+    {
+      "drive": "D",
+      "user": 3,
+      "name": "MP80.",
+      "bytes": 6400,
+      "sha256": "bb125bdf1cafadca69d32d06fcb7e9da58a0e931b21d024c372db26dfbc1d012",
+      "origin": "Native terminal installation/active template/sample; see configured.json"
+    },
+    {
+      "drive": "D",
+      "user": 3,
+      "name": "SHARP.",
+      "bytes": 768,
+      "sha256": "f29d78afe656e0421b655a585124477a60b11d242e0c8a111c4deacf5658fe2d",
+      "origin": "Native terminal installation/active template/sample; see configured.json"
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "SHARPNEW.TXT",
+      "bytes": 116,
+      "sha256": "82ffca93705b79aba0e430ad1d9511a62ef1c5909b13f3ee32b68a2a4fb6e6f5",
+      "origin": "Local instructions/example"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "HELLO.C",
+      "bytes": 87,
+      "sha256": "ebe43bcbe3db7d4aef8cc35a4c64651826fea79cf6870cb7187351db71b3d81b",
+      "origin": "Local instructions/example"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "IOCHECK.C",
+      "bytes": 433,
+      "sha256": "39de2c7d6f4a52e7ac79c62be48abf670eaca8ca244e7583dd5a39ab3eb889d1",
+      "origin": "Local instructions/example"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "HELLO.PAS",
+      "bytes": 66,
+      "sha256": "16a5199e30ee56f2b9a4964e71087848c793f991cb6ecc8e24e096ba5c951af9",
+      "origin": "Local instructions/example"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "BDEMO.BAS",
+      "bytes": 40,
+      "sha256": "0f54c8ec2b239a062f2b77624c28c8d5025cba5277947926e1c1f0dd3741d409",
+      "origin": "Local instructions/example"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "APPS.TXT",
+      "bytes": 1505,
+      "sha256": "0b9189ec10454fb683924ddf9e6f70e94ea77787e38e332ad5c28942cd6f709e",
+      "origin": "Local instructions/example"
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "APPS.TXT",
+      "bytes": 1505,
+      "sha256": "0b9189ec10454fb683924ddf9e6f70e94ea77787e38e332ad5c28942cd6f709e",
+      "origin": "Local instructions/example"
+    },
+    {
+      "drive": "D",
+      "user": 1,
+      "name": "APPS.TXT",
+      "bytes": 1505,
+      "sha256": "0b9189ec10454fb683924ddf9e6f70e94ea77787e38e332ad5c28942cd6f709e",
+      "origin": "Local instructions/example"
+    },
+    {
+      "drive": "D",
+      "user": 2,
+      "name": "APPS.TXT",
+      "bytes": 1505,
+      "sha256": "0b9189ec10454fb683924ddf9e6f70e94ea77787e38e332ad5c28942cd6f709e",
+      "origin": "Local instructions/example"
+    },
+    {
+      "drive": "D",
+      "user": 3,
+      "name": "APPS.TXT",
+      "bytes": 1505,
+      "sha256": "0b9189ec10454fb683924ddf9e6f70e94ea77787e38e332ad5c28942cd6f709e",
+      "origin": "Local instructions/example"
+    },
+    {
+      "drive": "D",
+      "user": 4,
+      "name": "APPS.TXT",
+      "bytes": 1505,
+      "sha256": "0b9189ec10454fb683924ddf9e6f70e94ea77787e38e332ad5c28942cd6f709e",
+      "origin": "Local instructions/example"
+    },
+    {
+      "drive": "D",
+      "user": 5,
+      "name": "APPS.TXT",
+      "bytes": 1505,
+      "sha256": "0b9189ec10454fb683924ddf9e6f70e94ea77787e38e332ad5c28942cd6f709e",
+      "origin": "Local instructions/example"
+    },
+    {
+      "drive": "D",
+      "user": 6,
+      "name": "APPS.TXT",
+      "bytes": 1505,
+      "sha256": "0b9189ec10454fb683924ddf9e6f70e94ea77787e38e332ad5c28942cd6f709e",
+      "origin": "Local instructions/example"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "APPS.COM",
+      "bytes": 231,
+      "sha256": "5f36180789385e94cfcdcb6a42e5a86799d88a352109d98fa6df73fd5bf38407",
+      "origin": "Local BDOS9 application index"
+    }
+  ],
+  "removed": [
+    {
+      "user": 0,
+      "name": "WS.COM"
+    },
+    {
+      "user": 0,
+      "name": "WS.INS"
+    },
+    {
+      "user": 0,
+      "name": "WS.INS"
+    },
+    {
+      "user": 0,
+      "name": "WSMSGS.OVR"
+    },
+    {
+      "user": 0,
+      "name": "WSOVLY1.OVR"
+    },
+    {
+      "user": 0,
+      "name": "WSOVLY1.OVR"
+    },
+    {
+      "user": 0,
+      "name": "MAILMRGE.OVR"
+    },
+    {
+      "user": 0,
+      "name": "WINSTALL.COM"
+    },
+    {
+      "user": 0,
+      "name": "WORDSTAR.INF"
+    },
+    {
+      "user": 1,
+      "name": "DBASE.COM"
+    },
+    {
+      "user": 1,
+      "name": "DBASEMSG.TXT"
+    },
+    {
+      "user": 1,
+      "name": "DBASEMSG.TXT"
+    },
+    {
+      "user": 1,
+      "name": "DBASEOVR.COM"
+    },
+    {
+      "user": 1,
+      "name": "DBASEOVR.COM"
+    },
+    {
+      "user": 1,
+      "name": "DGEN.CMD"
+    },
+    {
+      "user": 1,
+      "name": "DGEN.OVL"
+    },
+    {
+      "user": 1,
+      "name": "DSORT.COM"
+    },
+    {
+      "user": 1,
+      "name": "FILEGEN.CMD"
+    },
+    {
+      "user": 1,
+      "name": "INSTALL.COM"
+    },
+    {
+      "user": 1,
+      "name": "LABELGEN.CMD"
+    },
+    {
+      "user": 1,
+      "name": "MENUGEN.CMD"
+    },
+    {
+      "user": 1,
+      "name": "REV-OFF.CMD"
+    },
+    {
+      "user": 1,
+      "name": "REV-ON.CMD"
+    },
+    {
+      "user": 1,
+      "name": "SAMPLE.ZIP"
+    },
+    {
+      "user": 1,
+      "name": "SAMPLE.ZPR"
+    },
+    {
+      "user": 1,
+      "name": "ZIP.COM"
+    },
+    {
+      "user": 1,
+      "name": "ZIPIN.COM"
+    },
+    {
+      "user": 1,
+      "name": "ZIPSCRN.CMD"
+    },
+    {
+      "user": 1,
+      "name": "ZIPSCRN.ZIP"
+    },
+    {
+      "user": 1,
+      "name": "ZIPSCRN.ZPR"
+    },
+    {
+      "user": 1,
+      "name": "ZIPTEST.CMD"
+    },
+    {
+      "user": 3,
+      "name": "SC2.COM"
+    },
+    {
+      "user": 3,
+      "name": "SC2.OVL"
+    },
+    {
+      "user": 3,
+      "name": "SC2.HLP"
+    },
+    {
+      "user": 3,
+      "name": "SC.HLP"
+    },
+    {
+      "user": 3,
+      "name": "INSTALL.COM"
+    },
+    {
+      "user": 3,
+      "name": "INSTALL.DAT"
+    },
+    {
+      "user": 3,
+      "name": "INSTALL.OVL"
+    },
+    {
+      "user": 3,
+      "name": "INSTALL.OVL"
+    },
+    {
+      "user": 3,
+      "name": "SDI.COM"
+    },
+    {
+      "user": 3,
+      "name": "SDI.OVL"
+    },
+    {
+      "user": 3,
+      "name": "MAINTAIN.COM"
+    },
+    {
+      "user": 3,
+      "name": "ARCS-DEP.CAL"
+    },
+    {
+      "user": 3,
+      "name": "BRKEVN.CAL"
+    },
+    {
+      "user": 3,
+      "name": "BUDGET.CAL"
+    },
+    {
+      "user": 3,
+      "name": "RULE-78.CAL"
+    },
+    {
+      "user": 3,
+      "name": "SAMPLE.CAL"
+    },
+    {
+      "user": 3,
+      "name": "TEN.CAL"
+    },
+    {
+      "user": 3,
+      "name": "TENMIN.CAL"
+    },
+    {
+      "user": 2,
+      "name": "BDSCPAT.LBR"
+    },
+    {
+      "user": 2,
+      "name": "C.CCC"
+    },
+    {
+      "user": 2,
+      "name": "C.SUB"
+    },
+    {
+      "user": 2,
+      "name": "CC.COM"
+    },
+    {
+      "user": 2,
+      "name": "CC2.COM"
+    },
+    {
+      "user": 2,
+      "name": "CCONFIG.COM"
+    },
+    {
+      "user": 2,
+      "name": "CHARIO.C"
+    },
+    {
+      "user": 2,
+      "name": "CLIB.COM"
+    },
+    {
+      "user": 2,
+      "name": "CLINK.COM"
+    },
+    {
+      "user": 2,
+      "name": "CRCK.COM"
+    },
+    {
+      "user": 2,
+      "name": "CRCK.DOC"
+    },
+    {
+      "user": 2,
+      "name": "CRCKLST1.CRC"
+    },
+    {
+      "user": 2,
+      "name": "DEFF.CRL"
+    },
+    {
+      "user": 2,
+      "name": "DEFF2.CRL"
+    },
+    {
+      "user": 2,
+      "name": "EXAMPLES.LBR"
+    },
+    {
+      "user": 2,
+      "name": "EXAMPLES.LBR"
+    },
+    {
+      "user": 2,
+      "name": "FILES.DOC"
+    },
+    {
+      "user": 2,
+      "name": "LBREXT.COM"
+    },
+    {
+      "user": 2,
+      "name": "LDIR.COM"
+    },
+    {
+      "user": 2,
+      "name": "SOURCES.LBR"
+    },
+    {
+      "user": 2,
+      "name": "SOURCES.LBR"
+    },
+    {
+      "user": 2,
+      "name": "SOURCES.LBR"
+    },
+    {
+      "user": 2,
+      "name": "UNCRUNCH.COM"
+    },
+    {
+      "user": 2,
+      "name": "ZCASM.LBR"
+    },
+    {
+      "user": 2,
+      "name": "ZCASM.LBR"
+    },
+    {
+      "user": 2,
+      "name": "STDIO.H"
+    },
+    {
+      "user": 2,
+      "name": "STDLIB1.C"
+    },
+    {
+      "user": 2,
+      "name": "STDLIB2.C"
+    },
+    {
+      "user": 2,
+      "name": "STDLIB3.C"
+    },
+    {
+      "user": 2,
+      "name": "BDS.LIB"
+    },
+    {
+      "user": 2,
+      "name": "CASM.C"
+    },
+    {
+      "user": 2,
+      "name": "CASM.SUB"
+    },
+    {
+      "user": 2,
+      "name": "CCC.ASM"
+    },
+    {
+      "user": 2,
+      "name": "CCC.ASM"
+    },
+    {
+      "user": 2,
+      "name": "CCONFIG.C"
+    },
+    {
+      "user": 2,
+      "name": "CCONFIG.H"
+    },
+    {
+      "user": 2,
+      "name": "CCONFIG2.C"
+    },
+    {
+      "user": 2,
+      "name": "CLOAD.C"
+    },
+    {
+      "user": 2,
+      "name": "DEFF2A.CSM"
+    },
+    {
+      "user": 2,
+      "name": "DEFF2B.CSM"
+    },
+    {
+      "user": 2,
+      "name": "L2.C"
+    },
+    {
+      "user": 0,
+      "name": "SHARP.TXT"
+    },
+    {
+      "user": 1,
+      "name": "DEMO.CMD"
+    },
+    {
+      "user": 2,
+      "name": "HELLO.C"
+    },
+    {
+      "user": 2,
+      "name": "IOCHECK.C"
+    },
+    {
+      "user": 2,
+      "name": "BUILD.SUB"
+    },
+    {
+      "user": 1,
+      "name": "TESTDB.DBF"
+    },
+    {
+      "user": 1,
+      "name": "TESTDB.NDX"
+    },
+    {
+      "user": 2,
+      "name": "HELLO.COM"
+    },
+    {
+      "user": 2,
+      "name": "HELLO.CRL"
+    },
+    {
+      "user": 2,
+      "name": "IOCHECK.COM"
+    },
+    {
+      "user": 2,
+      "name": "IOCHECK.CRL"
+    },
+    {
+      "user": 3,
+      "name": "GIDETEST.CAL"
+    },
+    {
+      "user": 4,
+      "name": "MBASIC.COM"
+    },
+    {
+      "user": 4,
+      "name": "MONOORIG.BAS"
+    },
+    {
+      "user": 4,
+      "name": "MONOPLY.BAS"
+    },
+    {
+      "user": 0,
+      "name": "APPS.TXT"
+    },
+    {
+      "user": 1,
+      "name": "APPS.TXT"
+    },
+    {
+      "user": 2,
+      "name": "APPS.TXT"
+    },
+    {
+      "user": 3,
+      "name": "APPS.TXT"
+    },
+    {
+      "user": 4,
+      "name": "APPS.TXT"
+    }
+  ],
+  "retained": [
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "README.TXT",
+      "sha256": "4535756dde7397ccccafc408eb27c3a7bf8c8fa1d2b7b6c28b7af81b5ceee6af"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "CCP.COM",
+      "sha256": "4708cfde78654dcb1e84d23125ddd8d57472ebb7d9ecffc01bfae1b5bf1dc248"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "PIP.COM",
+      "sha256": "8eb8a394a4c0d6d3154a4f84a8b17efe410d8d9032bfa1e2b82c58481dae7b21"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "DIR3.COM",
+      "sha256": "90c9042310c1a879336f9de9268c036ea2640d193578a1f795fdca9bfb47232b"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "SHOW.COM",
+      "sha256": "d706b5fad1b46e5ad142f1d028965bfb59ff89fccb694176f064629beb18a0d5"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "CPM3.SYS",
+      "sha256": "1cee90192fa7005b8f56a67c8ec517d362b7f78c616f50ee87c8d9349fe70dd6"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "VERS3.COM",
+      "sha256": "8b37785aa43cd5327d61cc281210e33ac4418caca843c320124ae203ed931a43"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "TESTC.COM",
+      "sha256": "574836eb1edfbc6c6b003e138d8b066ee0d0d3e320b9a1f7a7f7c51c096f21fa"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "TESTD.COM",
+      "sha256": "653ff1526d17b3368ccb3ed93898270577ef4faf9ac5aa55236b624ab1fcc319"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "MC4.COM",
+      "sha256": "d4d2ea6fcef18d9f6d086610c9523eda3008329f166a3902d263894bf9142e9e"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "DIR.COM",
+      "sha256": "90c9042310c1a879336f9de9268c036ea2640d193578a1f795fdca9bfb47232b"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "PEHUINFO.TXT",
+      "sha256": "8719be042ef7c380b7f8f1e69e7d8a38fe5e27fad43b2ec19304f819022053b5"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "ZPMINFO.TXT",
+      "sha256": "f025990d7fdba173678cd495f5fb7db6421c1d3039e8aa6ef577ab1706dfeb7c"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "AUTOTOG.COM",
+      "sha256": "ff3a054730f116161f69cf0b82f1abf2f55d9ddc233659e25c335af0422761ad"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "CLRHIST.COM",
+      "sha256": "054587608f63785b3fc12db87d8568a7c7e98db45964de5c2149fe2b3d0e53f9"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "SETZ3.COM",
+      "sha256": "2506f398c7be9e3d268ec3351c3620f9b0f5b376efff2eb3ab61696ed9c7720c"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "RTC.COM",
+      "sha256": "3855f2b9294e19dbc30478d3c7d6ccf1bbc244fa5fe81d007061c2d5c4589d44"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "ZCCP.COM",
+      "sha256": "4708cfde78654dcb1e84d23125ddd8d57472ebb7d9ecffc01bfae1b5bf1dc248"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "ZINSTAL.ZPM",
+      "sha256": "3cd886198fa947fd8f795da8ef4c1cf3950d3518b0f1b4fadedb997f5420fbf6"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "STARTZPM.COM",
+      "sha256": "4e54ec107c0b428cbe94012e67485e12e865eb9d0224493c5881a80db45d3e0e"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "TCAP.Z3T",
+      "sha256": "9a1243031ec9c936f9e1064ca81c052d1df182133a462b1cfcb526d69b7744d7"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "TPA.COM",
+      "sha256": "7c4098979c3ace0290ae919585982dbe1e383f3dab126fe8eef816c744ccd3a6"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "TPATEST.COM",
+      "sha256": "bff5609e7abce7c5675b3170233520f87181cde46e6e75fc49ff6acabb50ca5c"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "LOADSEG.COM",
+      "sha256": "e8c05508d87ffb86e13bfc9bac74da80807ddb96a816c34c17006eecdc56694f"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "RSXDIR.COM",
+      "sha256": "df022a4648a729c084e1c5201c107ed431151b187193315cdbd812297374539d"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "DISKINFO.COM",
+      "sha256": "3587c5e0ea50f7cbf296f8428ed27ead8cf20321550f62b795ebdcf6777f4c05"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "SETPATH.COM",
+      "sha256": "79cec4c16ed0d76b9f0329c37a5ca9c5cb04efa3ee4e712d75ae218ca7e276f6"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "TCVIEW.COM",
+      "sha256": "5fba56dc2c70814b2dbb9af1ee0fbdc9f923de89fdfc6660cf005d69743b72c5"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "HELP.COM",
+      "sha256": "8307fdbf2d319e33042ba097af5102bfee01fe9833674d3c64990aa8f1c7e817"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "ED.COM",
+      "sha256": "6229997d121d9d8a3356d81557a190223bff530d3c3311d31635225198d98aa1"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "DUMP.COM",
+      "sha256": "0d7d21ef91a5f53f4f9903f81a56785a20116009fe2c2fa0f79624658cc01cbc"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "SID.COM",
+      "sha256": "7c7419d95107bdba5ea1c537e1a316ed9a45229111a9fdd13267f3df65931af7"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "SUBMIT.COM",
+      "sha256": "8c641d7383d48e14a60fe72df0f4af926a970b0aba40765770f3034da80a1f24"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "HEXCOM.COM",
+      "sha256": "294b6fb383c83a65818c869c0d27dcf68d8f5406fe8c801554c2faa6943e0001"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "SET.COM",
+      "sha256": "213fa9a4617372d5b4518863a41adcbbca63ea535aae94632052ebb6ad026709"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "SETDEF.COM",
+      "sha256": "b790042633fe454bc96dc3c7cd4757eb63e1126e38fc9d2f156d85e8a9358855"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "DEVICE.COM",
+      "sha256": "d1efdf1a728594c9a063fa9650331efa6b2898d1fcb8a69bfc636675c2afae38"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "SAVE.COM",
+      "sha256": "77d232ad77a53743fd04a7e185a7da753f8fb233ffb55f5c4356ec9467dfc25c"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "GET.COM",
+      "sha256": "8a619ac87b1ddf9eae4a3b187f32e5e28522f64484ef8c06218073c849605f77"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "PUT.COM",
+      "sha256": "e7195c1039cf55e722b4f2d1c11ea1cf0cdfef0b5917a3471c789e40ffffdf78"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "GENCOM.COM",
+      "sha256": "ebef0c7d42391dc1cf025b25da4adfa8551a951f20bd0ae71bb1f1cc7877b6d3"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "PATCH.COM",
+      "sha256": "8e408a2ae08b8956e6e20468f9af4519671bb9b6c62b90708130856256bdbe85"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "RENAME.COM",
+      "sha256": "c4b5a1d9a191f7c66a5c4ad38e9d9b2cb90def7b5e0aa2ffcf7d69db21035faa"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "ERASE.COM",
+      "sha256": "6d6d100ba22831d6a876b1a260b1826002c6e033c918a23f01a21c429fe59dd8"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "TYPE.COM",
+      "sha256": "6e774bbe00a4248fa9955b41c77f659da5d5b768fad8979177087e405e9571db"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "HELP.HLP",
+      "sha256": "0ba002b32e659c19ccec18f13ab3231d403a41911c5b753d42853243b01ed8a6"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "LBREXT.COM",
+      "sha256": "4372b05905f162b3b82a55dd8041d47dab8ddf3f2dcd8ca0e1393e2410e5a979"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "LDIR.COM",
+      "sha256": "7699e502b9aabf4eac1aee6150cf875b797ef7bfd381466d361de64983bc1a21"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "UNCRUNCH.COM",
+      "sha256": "58b43e46493be51b7cef23e165753c7cd67611531c82eb7ef85a418cb09221b0"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "CRCK.COM",
+      "sha256": "3b05a40c6b8ff6f98437b9fe51063c3d7e68ed0dacb2af2b5f6193d738ca1734"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "CRCK.DOC",
+      "sha256": "868c740bc70d7644f74ca4a14551ee74ae3cc49edbd6c7d69008e22f64a8e539"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "DATE.COM",
+      "sha256": "3855f2b9294e19dbc30478d3c7d6ccf1bbc244fa5fe81d007061c2d5c4589d44"
+    },
+    {
+      "drive": "C",
+      "user": 0,
+      "name": "GIDETST.BIN",
+      "sha256": "5ae59fc2edf577ff2cea5eafe534493c377caad507720cde4c8b3f82e07c42ae"
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "README.TXT",
+      "sha256": "58e50362c341595ab0896fcbe4c3c7b4fa88d247372e14b6a8b2d56f64629072"
+    },
+    {
+      "drive": "D",
+      "user": 0,
+      "name": "GIDETST.BIN",
+      "sha256": "5ae59fc2edf577ff2cea5eafe534493c377caad507720cde4c8b3f82e07c42ae"
+    }
+  ],
+  "kernel_ccp_rtc_boot_unchanged": true,
+  "tpa_bytes": 60672
+}

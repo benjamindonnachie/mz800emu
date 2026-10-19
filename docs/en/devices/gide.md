@@ -38,7 +38,9 @@ select additional blocks; bus contention between colliding devices is not modell
 
 **The archived SUC Personal CP/M floppy has no GIDE disk driver.** It still
 boots from the MZ-1E05 floppy interface. Adding this card does not introduce a
-CP/M drive letter or boot ROM. A GIDE BIOS and suitable boot code are separate work.
+CP/M drive letter or boot ROM. The separate local CP/M3 LBA/RTC edition
+provides those BIOS services and expansion-ROM boot images; see
+`cpm/rtc/README.txt` in the companion workspace.
 
 ## Registers
 
@@ -112,10 +114,26 @@ calendar or STOP. Guest changes affect only the emulated clock.
 Updates occur atomically at host-second resolution: there is no transient BUSY
 window or subsecond oscillator model. The STD.P pulse output/IRQ flag and factory
 TEST behaviour are not implemented; E is retained for register compatibility.
-Supported calendar years are 2000–2099. The clock continues with host wall time
+The chip has no century register. Guest calendar writes use the same
+1978–2077 window as the CP/M BIOS:78–99 denotes1978–1999 and00–77 denotes
+2000–2077. Unused register bits read as zero. The clock continues with host wall time
 while the emulator is paused or running at maximum speed. It is stored in a
 snapshot, but is reseeded from host time on a fresh process, without a separate
 battery-state file.
+
+### CP/M3 clock companion
+
+The local CP/M3 LBA/RTC BIOS reads the RTC for every TIME request and implements
+BDOS104/105 plus file timestamp service calls. It retains52KiB application TPA.
+Its optimised calendar helper lives in the supplied F000 or E800 expansion boot
+ROM. An MZF-only boot needs one of those ROMs fitted to provide the clock helper.
+Without it CP/M still boots, but the RTC command reports unavailable.
+
+The companion `RTC.COM` displays a four-digit ISO date and time. Use `RTC` to
+read, or `RTC 2026-10-19 12:34:56` to set the emulated clock. Guest writes do not
+change the Mac clock. The original DRI DATE.COM has a post1999 year-display bug;
+its unmodified binary is retained for research, rather than installed as the
+clock command. See the companion README for hardware and ROM requirements.
 
 ## Snapshots and media
 

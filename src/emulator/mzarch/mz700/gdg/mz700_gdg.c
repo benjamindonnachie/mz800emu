@@ -46,7 +46,6 @@
 #include <string.h>
 
 #include "mz700_gdg.h"
-#include "mz700_kp80.h"
 #include "mz700_vramctrl.h"
 #include "mz700_hwscroll.h"
 #include "mz700_framebuffer.h"
@@ -111,11 +110,8 @@ void gdg_init(void)
     CFGMOD *suc = cfgroot_register_new_module(g_cfgmain, "VIDEO_MZ700");
     CFGELM *enabled = cfgmodule_register_new_element(suc, "suc80_enabled", CFGENTYPE_BOOL, 0);
     cfgelement_set_handlers(enabled, &g_gdg.suc80_enabled, &g_gdg.suc80_enabled);
-    CFGELM *kp = cfgmodule_register_new_element(suc, "suc80_kp_interface", CFGENTYPE_BOOL, 0);
-    cfgelement_set_handlers(kp, &g_gdg.suc80_kp_interface, &g_gdg.suc80_kp_interface);
     cfgmodule_parse(suc);
     cfgmodule_propagate(suc);
-    kp80_reset();
     g_gdg.suc80_mode80 = 0;
 
     g_gdg.total_elapsed.ticks = 0;
@@ -165,7 +161,6 @@ static inline void gdg_set_regDMD(uint8_t value, unsigned event_ticks)
 
 void gdg_reset(void)
 {
-    kp80_reset();
     g_gdg.suc80_mode80 = 0;
     g_gdg.regct53g7 = 0;
     gdg_set_regDMD(0, 0); /* MZ-700: reset = MZ-700 rezim (bit 0 = 0) */

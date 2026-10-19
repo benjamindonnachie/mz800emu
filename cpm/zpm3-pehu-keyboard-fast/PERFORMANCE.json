@@ -1,0 +1,1236 @@
+{
+  "passed": true,
+  "baseline": "Screen Fast0.1.0 with latest captured working-disk contents",
+  "keyboard": {
+    "passed": true,
+    "exhaustive_words": 65536,
+    "exact_a_and_all_flags_equal": true,
+    "bc_hl_sp_preserved": true,
+    "leaf_de_change_allowed": true,
+    "leaf_cycle_saving": 17,
+    "slot_bytes": 8,
+    "comparison": {
+      "raw_word_load": {
+        "baseline_tstates": 960000,
+        "fast_tstates": 790000,
+        "invocations": 10000,
+        "total_saved_tstates": 170000,
+        "saved_tstates_per_invocation": 17.0,
+        "cycle_reduction_percent": 17.708333333333336,
+        "leaf_body_tstates_per_invocation": {
+          "baseline": 55.0,
+          "fast": 38.0
+        }
+      },
+      "empty_const": {
+        "baseline_tstates": 8766000,
+        "fast_tstates": 8732000,
+        "invocations": 2000,
+        "total_saved_tstates": 34000,
+        "saved_tstates_per_invocation": 17.0,
+        "cycle_reduction_percent": 0.3878621948437133,
+        "leaf_body_tstates_per_invocation": {
+          "baseline": 55.0,
+          "fast": 38.0
+        }
+      },
+      "pending_const": {
+        "baseline_tstates": 2950000,
+        "fast_tstates": 2916000,
+        "invocations": 2000,
+        "total_saved_tstates": 34000,
+        "saved_tstates_per_invocation": 17.0,
+        "cycle_reduction_percent": 1.15254237288136,
+        "leaf_body_tstates_per_invocation": {
+          "baseline": 55.0,
+          "fast": 38.0
+        }
+      }
+    },
+    "results": [
+      {
+        "variant": "baseline",
+        "repeat": 1,
+        "tpa_bytes": 60672,
+        "segments": {
+          "raw_word_load": {
+            "tstates": 960000,
+            "invocations": 10000,
+            "tstates_per_invocation": 96.0,
+            "leaf_body_tstates": 550000,
+            "leaf_body_tstates_per_invocation": 55.0
+          },
+          "empty_const": {
+            "tstates": 8766000,
+            "invocations": 2000,
+            "tstates_per_invocation": 4383.0,
+            "leaf_body_tstates": 110000,
+            "leaf_body_tstates_per_invocation": 55.0
+          },
+          "pending_const": {
+            "tstates": 2950000,
+            "invocations": 2000,
+            "tstates_per_invocation": 1475.0,
+            "leaf_body_tstates": 110000,
+            "leaf_body_tstates_per_invocation": 55.0
+          }
+        },
+        "exhaustive_words": 65536,
+        "af_sha256": "909e4fbabb9888d06f5d375dc0bdfbb83cfe1f64dacb470f2344f7c6f2c59fc0"
+      },
+      {
+        "variant": "baseline",
+        "repeat": 2,
+        "tpa_bytes": 60672,
+        "segments": {
+          "raw_word_load": {
+            "tstates": 960000,
+            "invocations": 10000,
+            "tstates_per_invocation": 96.0,
+            "leaf_body_tstates": 550000,
+            "leaf_body_tstates_per_invocation": 55.0
+          },
+          "empty_const": {
+            "tstates": 8766000,
+            "invocations": 2000,
+            "tstates_per_invocation": 4383.0,
+            "leaf_body_tstates": 110000,
+            "leaf_body_tstates_per_invocation": 55.0
+          },
+          "pending_const": {
+            "tstates": 2950000,
+            "invocations": 2000,
+            "tstates_per_invocation": 1475.0,
+            "leaf_body_tstates": 110000,
+            "leaf_body_tstates_per_invocation": 55.0
+          }
+        }
+      },
+      {
+        "variant": "baseline",
+        "repeat": 3,
+        "tpa_bytes": 60672,
+        "segments": {
+          "raw_word_load": {
+            "tstates": 960000,
+            "invocations": 10000,
+            "tstates_per_invocation": 96.0,
+            "leaf_body_tstates": 550000,
+            "leaf_body_tstates_per_invocation": 55.0
+          },
+          "empty_const": {
+            "tstates": 8766000,
+            "invocations": 2000,
+            "tstates_per_invocation": 4383.0,
+            "leaf_body_tstates": 110000,
+            "leaf_body_tstates_per_invocation": 55.0
+          },
+          "pending_const": {
+            "tstates": 2950000,
+            "invocations": 2000,
+            "tstates_per_invocation": 1475.0,
+            "leaf_body_tstates": 110000,
+            "leaf_body_tstates_per_invocation": 55.0
+          }
+        }
+      },
+      {
+        "variant": "fast",
+        "repeat": 1,
+        "tpa_bytes": 60672,
+        "segments": {
+          "raw_word_load": {
+            "tstates": 790000,
+            "invocations": 10000,
+            "tstates_per_invocation": 79.0,
+            "leaf_body_tstates": 380000,
+            "leaf_body_tstates_per_invocation": 38.0
+          },
+          "empty_const": {
+            "tstates": 8732000,
+            "invocations": 2000,
+            "tstates_per_invocation": 4366.0,
+            "leaf_body_tstates": 76000,
+            "leaf_body_tstates_per_invocation": 38.0
+          },
+          "pending_const": {
+            "tstates": 2916000,
+            "invocations": 2000,
+            "tstates_per_invocation": 1458.0,
+            "leaf_body_tstates": 76000,
+            "leaf_body_tstates_per_invocation": 38.0
+          }
+        },
+        "exhaustive_words": 65536,
+        "af_sha256": "909e4fbabb9888d06f5d375dc0bdfbb83cfe1f64dacb470f2344f7c6f2c59fc0"
+      },
+      {
+        "variant": "fast",
+        "repeat": 2,
+        "tpa_bytes": 60672,
+        "segments": {
+          "raw_word_load": {
+            "tstates": 790000,
+            "invocations": 10000,
+            "tstates_per_invocation": 79.0,
+            "leaf_body_tstates": 380000,
+            "leaf_body_tstates_per_invocation": 38.0
+          },
+          "empty_const": {
+            "tstates": 8732000,
+            "invocations": 2000,
+            "tstates_per_invocation": 4366.0,
+            "leaf_body_tstates": 76000,
+            "leaf_body_tstates_per_invocation": 38.0
+          },
+          "pending_const": {
+            "tstates": 2916000,
+            "invocations": 2000,
+            "tstates_per_invocation": 1458.0,
+            "leaf_body_tstates": 76000,
+            "leaf_body_tstates_per_invocation": 38.0
+          }
+        }
+      },
+      {
+        "variant": "fast",
+        "repeat": 3,
+        "tpa_bytes": 60672,
+        "segments": {
+          "raw_word_load": {
+            "tstates": 790000,
+            "invocations": 10000,
+            "tstates_per_invocation": 79.0,
+            "leaf_body_tstates": 380000,
+            "leaf_body_tstates_per_invocation": 38.0
+          },
+          "empty_const": {
+            "tstates": 8732000,
+            "invocations": 2000,
+            "tstates_per_invocation": 4366.0,
+            "leaf_body_tstates": 76000,
+            "leaf_body_tstates_per_invocation": 38.0
+          },
+          "pending_const": {
+            "tstates": 2916000,
+            "invocations": 2000,
+            "tstates_per_invocation": 1458.0,
+            "leaf_body_tstates": 76000,
+            "leaf_body_tstates_per_invocation": 38.0
+          }
+        }
+      }
+    ],
+    "method": "Three fresh emulator processes per build. Breakpoint-delimited CPU cycles; leaf calls counted. Cursor disabled, no host keys during timing. Raw leaf and public CONST no-input/queued-input paths. Synthetic queued word0500h. Read-only disks. Not physical-hardware or host timings."
+  },
+  "canonical": {
+    "passed": true,
+    "comparison": {
+      "sequential_read": {
+        "baseline_tstates": 12442809,
+        "fast_tstates": 12442809,
+        "speedup": 1.0,
+        "cycle_reduction_percent": 0.0
+      },
+      "sequential_write_flush": {
+        "baseline_tstates": 11474070,
+        "fast_tstates": 11474070,
+        "speedup": 1.0,
+        "cycle_reduction_percent": 0.0
+      },
+      "print_1000": {
+        "baseline_tstates": 2088141,
+        "fast_tstates": 2088141,
+        "speedup": 1.0,
+        "cycle_reduction_percent": 0.0
+      },
+      "erase_1999_cells_10_times": {
+        "baseline_tstates": 788476,
+        "fast_tstates": 788476,
+        "speedup": 1.0,
+        "cycle_reduction_percent": 0.0
+      },
+      "scroll_100_times": {
+        "baseline_tstates": 13609466,
+        "fast_tstates": 13609466,
+        "speedup": 1.0,
+        "cycle_reduction_percent": 0.0
+      },
+      "clear_screen_100_times": {
+        "baseline_tstates": 7179540,
+        "fast_tstates": 7179540,
+        "speedup": 1.0,
+        "cycle_reduction_percent": 0.0
+      }
+    },
+    "method": "Three fresh emulator processes per build; identical 600-record COM workload; CPU total_cycles between execution breakpoints, includes open/close and explicit write flush, excludes typing/CCP load; unaligned DMA4001h. ATA calls counted with PC profiler. Emulator cycles, not physical hardware or host wall time.",
+    "results": [
+      {
+        "variant": "baseline",
+        "repeat": 1,
+        "application_ceiling": 60928,
+        "application_tpa_bytes": 60672,
+        "ccp_tpa_bytes": 60672,
+        "layout": [
+          {
+            "module": "BNKBIOS3",
+            "base": 63488,
+            "bytes": 2048
+          },
+          {
+            "module": "BNKBIOS3",
+            "base": 42496,
+            "bytes": 6656
+          },
+          {
+            "module": "RESBDOS3",
+            "base": 61952,
+            "bytes": 1536
+          },
+          {
+            "module": "BNKBDOS3",
+            "base": 30720,
+            "bytes": 11776
+          }
+        ],
+        "segments": {
+          "sequential_read": {
+            "tstates": 12442809,
+            "ata_commands": {
+              "ata_read": 162,
+              "ata_write": 0,
+              "bank_raw": 1528,
+              "map_first": 1204,
+              "move": 600
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 1232071,
+              "tstates": 12442809,
+              "wait": 0,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 12442809,
+              "unique_pcs": 1562
+            },
+            "bytes": 76800
+          },
+          "sequential_write_flush": {
+            "tstates": 11474070,
+            "ata_commands": {
+              "ata_read": 26,
+              "ata_write": 156,
+              "bank_raw": 1570,
+              "map_first": 1206,
+              "move": 600
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 1071102,
+              "tstates": 11474070,
+              "wait": 0,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 11474070,
+              "unique_pcs": 2183
+            },
+            "bytes": 76800
+          },
+          "print_1000": {
+            "tstates": 2088141,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 221073,
+              "tstates": 2088141,
+              "wait": 0,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 2088141,
+              "unique_pcs": 204
+            },
+            "characters": 1000
+          },
+          "erase_1999_cells_10_times": {
+            "tstates": 788476,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 32381,
+              "tstates": 788476,
+              "wait": 350294,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 788476,
+              "unique_pcs": 285
+            },
+            "cells_per_erase": 1999,
+            "erasures": 10
+          },
+          "scroll_100_times": {
+            "tstates": 13609466,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 448101,
+              "tstates": 13609466,
+              "wait": 6808364,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 13609466,
+              "unique_pcs": 239
+            },
+            "scrolls": 100
+          },
+          "clear_screen_100_times": {
+            "tstates": 7179540,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 238701,
+              "tstates": 7179540,
+              "wait": 3576638,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 7179540,
+              "unique_pcs": 177
+            },
+            "clears": 100,
+            "physical_character_cells": 2048
+          }
+        },
+        "host_file_verification": true,
+        "gate_stack_watermark_bytes": 18
+      },
+      {
+        "variant": "baseline",
+        "repeat": 2,
+        "application_ceiling": 60928,
+        "application_tpa_bytes": 60672,
+        "ccp_tpa_bytes": 60672,
+        "layout": [
+          {
+            "module": "BNKBIOS3",
+            "base": 63488,
+            "bytes": 2048
+          },
+          {
+            "module": "BNKBIOS3",
+            "base": 42496,
+            "bytes": 6656
+          },
+          {
+            "module": "RESBDOS3",
+            "base": 61952,
+            "bytes": 1536
+          },
+          {
+            "module": "BNKBDOS3",
+            "base": 30720,
+            "bytes": 11776
+          }
+        ],
+        "segments": {
+          "sequential_read": {
+            "tstates": 12442809,
+            "ata_commands": {
+              "ata_read": 162,
+              "ata_write": 0,
+              "bank_raw": 1528,
+              "map_first": 1204,
+              "move": 600
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 1232071,
+              "tstates": 12442809,
+              "wait": 0,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 12442809,
+              "unique_pcs": 1562
+            },
+            "bytes": 76800
+          },
+          "sequential_write_flush": {
+            "tstates": 11474070,
+            "ata_commands": {
+              "ata_read": 26,
+              "ata_write": 156,
+              "bank_raw": 1570,
+              "map_first": 1206,
+              "move": 600
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 1071102,
+              "tstates": 11474070,
+              "wait": 0,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 11474070,
+              "unique_pcs": 2183
+            },
+            "bytes": 76800
+          },
+          "print_1000": {
+            "tstates": 2088141,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 221073,
+              "tstates": 2088141,
+              "wait": 0,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 2088141,
+              "unique_pcs": 204
+            },
+            "characters": 1000
+          },
+          "erase_1999_cells_10_times": {
+            "tstates": 788476,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 32381,
+              "tstates": 788476,
+              "wait": 350294,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 788476,
+              "unique_pcs": 285
+            },
+            "cells_per_erase": 1999,
+            "erasures": 10
+          },
+          "scroll_100_times": {
+            "tstates": 13609466,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 448101,
+              "tstates": 13609466,
+              "wait": 6808364,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 13609466,
+              "unique_pcs": 239
+            },
+            "scrolls": 100
+          },
+          "clear_screen_100_times": {
+            "tstates": 7179540,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 238701,
+              "tstates": 7179540,
+              "wait": 3576638,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 7179540,
+              "unique_pcs": 177
+            },
+            "clears": 100,
+            "physical_character_cells": 2048
+          }
+        },
+        "host_file_verification": true,
+        "gate_stack_watermark_bytes": 18
+      },
+      {
+        "variant": "baseline",
+        "repeat": 3,
+        "application_ceiling": 60928,
+        "application_tpa_bytes": 60672,
+        "ccp_tpa_bytes": 60672,
+        "layout": [
+          {
+            "module": "BNKBIOS3",
+            "base": 63488,
+            "bytes": 2048
+          },
+          {
+            "module": "BNKBIOS3",
+            "base": 42496,
+            "bytes": 6656
+          },
+          {
+            "module": "RESBDOS3",
+            "base": 61952,
+            "bytes": 1536
+          },
+          {
+            "module": "BNKBDOS3",
+            "base": 30720,
+            "bytes": 11776
+          }
+        ],
+        "segments": {
+          "sequential_read": {
+            "tstates": 12442809,
+            "ata_commands": {
+              "ata_read": 162,
+              "ata_write": 0,
+              "bank_raw": 1528,
+              "map_first": 1204,
+              "move": 600
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 1232071,
+              "tstates": 12442809,
+              "wait": 0,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 12442809,
+              "unique_pcs": 1562
+            },
+            "bytes": 76800
+          },
+          "sequential_write_flush": {
+            "tstates": 11474070,
+            "ata_commands": {
+              "ata_read": 26,
+              "ata_write": 156,
+              "bank_raw": 1570,
+              "map_first": 1206,
+              "move": 600
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 1071102,
+              "tstates": 11474070,
+              "wait": 0,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 11474070,
+              "unique_pcs": 2183
+            },
+            "bytes": 76800
+          },
+          "print_1000": {
+            "tstates": 2088141,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 221073,
+              "tstates": 2088141,
+              "wait": 0,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 2088141,
+              "unique_pcs": 204
+            },
+            "characters": 1000
+          },
+          "erase_1999_cells_10_times": {
+            "tstates": 788476,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 32381,
+              "tstates": 788476,
+              "wait": 350294,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 788476,
+              "unique_pcs": 285
+            },
+            "cells_per_erase": 1999,
+            "erasures": 10
+          },
+          "scroll_100_times": {
+            "tstates": 13609466,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 448101,
+              "tstates": 13609466,
+              "wait": 6808364,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 13609466,
+              "unique_pcs": 239
+            },
+            "scrolls": 100
+          },
+          "clear_screen_100_times": {
+            "tstates": 7179540,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 238701,
+              "tstates": 7179540,
+              "wait": 3576638,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 7179540,
+              "unique_pcs": 177
+            },
+            "clears": 100,
+            "physical_character_cells": 2048
+          }
+        },
+        "host_file_verification": true,
+        "gate_stack_watermark_bytes": 18
+      },
+      {
+        "variant": "fast",
+        "repeat": 1,
+        "application_ceiling": 60928,
+        "application_tpa_bytes": 60672,
+        "ccp_tpa_bytes": 60672,
+        "layout": [
+          {
+            "module": "BNKBIOS3",
+            "base": 63488,
+            "bytes": 2048
+          },
+          {
+            "module": "BNKBIOS3",
+            "base": 42496,
+            "bytes": 6656
+          },
+          {
+            "module": "RESBDOS3",
+            "base": 61952,
+            "bytes": 1536
+          },
+          {
+            "module": "BNKBDOS3",
+            "base": 30720,
+            "bytes": 11776
+          }
+        ],
+        "segments": {
+          "sequential_read": {
+            "tstates": 12442809,
+            "ata_commands": {
+              "ata_read": 162,
+              "ata_write": 0,
+              "bank_raw": 1528,
+              "map_first": 1204,
+              "move": 600
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 1232071,
+              "tstates": 12442809,
+              "wait": 0,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 12442809,
+              "unique_pcs": 1562
+            },
+            "bytes": 76800
+          },
+          "sequential_write_flush": {
+            "tstates": 11474070,
+            "ata_commands": {
+              "ata_read": 26,
+              "ata_write": 156,
+              "bank_raw": 1570,
+              "map_first": 1206,
+              "move": 600
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 1071102,
+              "tstates": 11474070,
+              "wait": 0,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 11474070,
+              "unique_pcs": 2183
+            },
+            "bytes": 76800
+          },
+          "print_1000": {
+            "tstates": 2088141,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 221073,
+              "tstates": 2088141,
+              "wait": 0,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 2088141,
+              "unique_pcs": 204
+            },
+            "characters": 1000
+          },
+          "erase_1999_cells_10_times": {
+            "tstates": 788476,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 32381,
+              "tstates": 788476,
+              "wait": 350294,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 788476,
+              "unique_pcs": 285
+            },
+            "cells_per_erase": 1999,
+            "erasures": 10
+          },
+          "scroll_100_times": {
+            "tstates": 13609466,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 448101,
+              "tstates": 13609466,
+              "wait": 6808364,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 13609466,
+              "unique_pcs": 239
+            },
+            "scrolls": 100
+          },
+          "clear_screen_100_times": {
+            "tstates": 7179540,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 238701,
+              "tstates": 7179540,
+              "wait": 3576638,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 7179540,
+              "unique_pcs": 177
+            },
+            "clears": 100,
+            "physical_character_cells": 2048
+          }
+        },
+        "host_file_verification": true,
+        "gate_stack_watermark_bytes": 18
+      },
+      {
+        "variant": "fast",
+        "repeat": 2,
+        "application_ceiling": 60928,
+        "application_tpa_bytes": 60672,
+        "ccp_tpa_bytes": 60672,
+        "layout": [
+          {
+            "module": "BNKBIOS3",
+            "base": 63488,
+            "bytes": 2048
+          },
+          {
+            "module": "BNKBIOS3",
+            "base": 42496,
+            "bytes": 6656
+          },
+          {
+            "module": "RESBDOS3",
+            "base": 61952,
+            "bytes": 1536
+          },
+          {
+            "module": "BNKBDOS3",
+            "base": 30720,
+            "bytes": 11776
+          }
+        ],
+        "segments": {
+          "sequential_read": {
+            "tstates": 12442809,
+            "ata_commands": {
+              "ata_read": 162,
+              "ata_write": 0,
+              "bank_raw": 1528,
+              "map_first": 1204,
+              "move": 600
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 1232071,
+              "tstates": 12442809,
+              "wait": 0,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 12442809,
+              "unique_pcs": 1562
+            },
+            "bytes": 76800
+          },
+          "sequential_write_flush": {
+            "tstates": 11474070,
+            "ata_commands": {
+              "ata_read": 26,
+              "ata_write": 156,
+              "bank_raw": 1570,
+              "map_first": 1206,
+              "move": 600
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 1071102,
+              "tstates": 11474070,
+              "wait": 0,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 11474070,
+              "unique_pcs": 2183
+            },
+            "bytes": 76800
+          },
+          "print_1000": {
+            "tstates": 2088141,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 221073,
+              "tstates": 2088141,
+              "wait": 0,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 2088141,
+              "unique_pcs": 204
+            },
+            "characters": 1000
+          },
+          "erase_1999_cells_10_times": {
+            "tstates": 788476,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 32381,
+              "tstates": 788476,
+              "wait": 350294,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 788476,
+              "unique_pcs": 285
+            },
+            "cells_per_erase": 1999,
+            "erasures": 10
+          },
+          "scroll_100_times": {
+            "tstates": 13609466,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 448101,
+              "tstates": 13609466,
+              "wait": 6808364,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 13609466,
+              "unique_pcs": 239
+            },
+            "scrolls": 100
+          },
+          "clear_screen_100_times": {
+            "tstates": 7179540,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 238701,
+              "tstates": 7179540,
+              "wait": 3576638,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 7179540,
+              "unique_pcs": 177
+            },
+            "clears": 100,
+            "physical_character_cells": 2048
+          }
+        },
+        "host_file_verification": true,
+        "gate_stack_watermark_bytes": 18
+      },
+      {
+        "variant": "fast",
+        "repeat": 3,
+        "application_ceiling": 60928,
+        "application_tpa_bytes": 60672,
+        "ccp_tpa_bytes": 60672,
+        "layout": [
+          {
+            "module": "BNKBIOS3",
+            "base": 63488,
+            "bytes": 2048
+          },
+          {
+            "module": "BNKBIOS3",
+            "base": 42496,
+            "bytes": 6656
+          },
+          {
+            "module": "RESBDOS3",
+            "base": 61952,
+            "bytes": 1536
+          },
+          {
+            "module": "BNKBDOS3",
+            "base": 30720,
+            "bytes": 11776
+          }
+        ],
+        "segments": {
+          "sequential_read": {
+            "tstates": 12442809,
+            "ata_commands": {
+              "ata_read": 162,
+              "ata_write": 0,
+              "bank_raw": 1528,
+              "map_first": 1204,
+              "move": 600
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 1232071,
+              "tstates": 12442809,
+              "wait": 0,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 12442809,
+              "unique_pcs": 1562
+            },
+            "bytes": 76800
+          },
+          "sequential_write_flush": {
+            "tstates": 11474070,
+            "ata_commands": {
+              "ata_read": 26,
+              "ata_write": 156,
+              "bank_raw": 1570,
+              "map_first": 1206,
+              "move": 600
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 1071102,
+              "tstates": 11474070,
+              "wait": 0,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 11474070,
+              "unique_pcs": 2183
+            },
+            "bytes": 76800
+          },
+          "print_1000": {
+            "tstates": 2088141,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 221073,
+              "tstates": 2088141,
+              "wait": 0,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 2088141,
+              "unique_pcs": 204
+            },
+            "characters": 1000
+          },
+          "erase_1999_cells_10_times": {
+            "tstates": 788476,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 32381,
+              "tstates": 788476,
+              "wait": 350294,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 788476,
+              "unique_pcs": 285
+            },
+            "cells_per_erase": 1999,
+            "erasures": 10
+          },
+          "scroll_100_times": {
+            "tstates": 13609466,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 448101,
+              "tstates": 13609466,
+              "wait": 6808364,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 13609466,
+              "unique_pcs": 239
+            },
+            "scrolls": 100
+          },
+          "clear_screen_100_times": {
+            "tstates": 7179540,
+            "ata_commands": {
+              "ata_read": 0,
+              "ata_write": 0,
+              "bank_raw": 0,
+              "map_first": 0,
+              "move": 0
+            },
+            "profiler": {
+              "active": false,
+              "instructions": 238701,
+              "tstates": 7179540,
+              "wait": 3576638,
+              "halt_idle": 0,
+              "other_tstates": 0,
+              "elapsed_tstates": 7179540,
+              "unique_pcs": 177
+            },
+            "clears": 100,
+            "physical_character_cells": 2048
+          }
+        },
+        "host_file_verification": true,
+        "gate_stack_watermark_bytes": 18
+      }
+    ]
+  }
+}

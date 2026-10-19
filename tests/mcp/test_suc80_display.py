@@ -137,7 +137,9 @@ def main():
     vram = bytearray(((i*17+i//31) & 255) for i in range(4096))
     vram[0x400] = 255  # Unused leading byte of the odd-character bank.
     for fitted in (False, True):
-        e = Emu(exe, work/('fitted' if fitted else 'stock'), fitted)
+        e = Emu(exe, work/('fitted' if fitted else 'stock'), fitted,
+                '[VIDEO_MZ700]\nsuc80_enabled=' + str(int(fitted)) +
+                '\nsuc80_kp_interface=1\n')
         try:
             e.call('mem_write', {'addr': 0xd000, 'data_hex': vram.hex()})
             e.call('run', {'frames': 3})
@@ -149,6 +151,13 @@ def main():
             checks.append('All four register addresses latch D4, or ignore writes when absent')
             if not fitted:
                 continue
+            # Retired K&P options must not re-enable port access or ASCII rendering.
+            # The former R1=40 write switched modes; R31/data writes changed VRAM.
+            e.cpu(bytes.fromhex('3e01d3723e28d3733e1fd3723e41d371'))
+            actual = e.call('mem_read', {'addr': 0xd000, 'len': 4096})
+            assert base64.b64decode(actual['data_b64']) == vram
+            assert_canvas(e, vram, 80)
+            checks.append('Legacy K&P config is ignored; ports 70h–73h leave SUC mode/VRAM unchanged')
             e.call('screenshot_save_to_file', {'path': str(e.folder/'80-columns.png'), 'scale': '2'})
             snap = e.folder/'80-columns.mzs'
             e.call('snapshot_save', {'path': str(snap)})

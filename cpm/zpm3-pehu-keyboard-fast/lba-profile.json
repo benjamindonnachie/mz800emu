@@ -1,0 +1,22 @@
+{
+  "source": "Canonical current-application-disk Fast baseline profiler CSV,600records per workload",
+  "bios_current_ata_mode": "LBA28",
+  "native_geometry_wrapper": "(track << 5) + sector; D partition bit6 of high byte",
+  "private_lba_patch_compatible": false,
+  "reason": "Earlier private USERF address ABI is paired with DRI BDOS source; current N10 supplied as SPR binaries with relocation maps.",
+  "measurements": {
+    "sequential_read": {
+      "total_tstates": 16418125,
+      "bios_address_conversion_tstates": 36288,
+      "bios_address_conversion_percent": 0.2210240207088203,
+      "physical_address_calls": 162
+    },
+    "sequential_write_flush": {
+      "total_tstates": 15614131,
+      "bios_address_conversion_tstates": 40320,
+      "bios_address_conversion_percent": 0.2582276272691705,
+      "physical_address_calls": 180
+    }
+  },
+  "current_preserved_n10_includes_bdos_source": false
+}

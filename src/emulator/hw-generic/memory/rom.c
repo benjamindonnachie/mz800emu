@@ -101,6 +101,40 @@ int rom_user_defined_rom_area_load ( st_ROM_AREA *dst, en_ROM_BOOL allinone, cha
 }
 
 
+#if MZARCH == 700
+/* Separate expansion ROM images are assembled for their actual addresses. */
+static int rom_boot_read(int mode, uint8_t *bytes) {
+    if (mode < 1 || mode > 2) return EXIT_FAILURE;
+    char *path = mode == 1 ? g_rom.boot_rom_f000_fp : g_rom.boot_rom_e800_fp;
+    uint32_t size = mode == 1 ? 4096 : 2048;
+    if (!path || !*path) return EXIT_FAILURE;
+    FILE *fh;
+    FS_LAYER_FOPEN(fh, path, FS_LAYER_FMODE_RO);
+    if (!fh) return EXIT_FAILURE;
+    FS_LAYER_FSEEK_END(fh, 0);
+    uint32_t length = FS_LAYER_FTELL(fh);
+    if (length != size) { FS_LAYER_FCLOSE(fh); return EXIT_FAILURE; }
+    FS_LAYER_FSEEK(fh, 0);
+    uint32_t readlen = 0;
+    int result = FS_LAYER_FREAD(fh, bytes, size, &readlen);
+    FS_LAYER_FCLOSE(fh);
+    return result == FS_LAYER_FR_OK && readlen == size && bytes[0] == 0
+        ? EXIT_SUCCESS : EXIT_FAILURE;
+}
+
+static void rom_boot_install(void) {
+    if (!g_rom.boot_rom_mode) return;
+    uint8_t bytes[4096];
+    if (rom_boot_read(g_rom.boot_rom_mode, bytes) != EXIT_SUCCESS) {
+        fprintf(stderr, "Boot ROM: invalid image; expected 4096 bytes for F000 or 2048 bytes for E800, starting with 00.\n");
+        return;
+    }
+    unsigned offset = g_rom.boot_rom_mode == 1 ? 0x3000 : 0x2800;
+    unsigned size = g_rom.boot_rom_mode == 1 ? 4096 : 2048;
+    memcpy(g_memory.ROM + offset, bytes, size);
+}
+#endif
+
 static void rom_cmthack_is_not_compatibile ( void ) {
     if ( CMTHACK_TEST_IS_INSTALLED ) {
         printf ( "CMTHACK is not compatibile with selected ROM - CMTHACK DISABLED\n" );
@@ -200,8 +234,25 @@ static void rom_install ( st_ROM_CONFIG_ROW *row ) {
     } else {
         g_rom.rom_cfg = row;
     };
+#if MZARCH == 700
+    rom_boot_install();
+#endif
 }
 
+
+int rom_boot_set_mode(int mode) {
+#if MZARCH == 700
+    uint8_t bytes[4096];
+    if (mode < 0 || mode > 2 || (mode && rom_boot_read(mode, bytes) != EXIT_SUCCESS))
+        return EXIT_FAILURE;
+    g_rom.boot_rom_mode = mode;
+    rom_reinstall(g_rom.rom_cfg);
+    return EXIT_SUCCESS;
+#else
+    (void)mode;
+    return EXIT_FAILURE;
+#endif
+}
 
 void rom_reinstall ( st_ROM_CONFIG_ROW *row ) {
     rom_install ( row );
@@ -359,6 +410,15 @@ void rom_init ( void ) {
     elm = cfgmodule_register_new_element ( cmod, "user_defined_cmthack_mz800_filepath", CFGENTYPE_TEXT, "" );
     cfgelement_set_pointers ( elm, (void*) &g_rom.user_defined_cmthack_mz800_fp, (void*) &g_rom.user_defined_cmthack_mz800_fp );
 
+#if MZARCH == 700
+    elm = cfgmodule_register_new_element(cmod, "boot_rom_mode", CFGENTYPE_KEYWORD, 0,
+        0, "DISABLED", 1, "F000", 2, "E800", -1);
+    cfgelement_set_handlers(elm, &g_rom.boot_rom_mode, &g_rom.boot_rom_mode);
+    elm = cfgmodule_register_new_element(cmod, "boot_rom_f000_filepath", CFGENTYPE_TEXT, "");
+    cfgelement_set_pointers(elm, &g_rom.boot_rom_f000_fp, &g_rom.boot_rom_f000_fp);
+    elm = cfgmodule_register_new_element(cmod, "boot_rom_e800_filepath", CFGENTYPE_TEXT, "");
+    cfgelement_set_pointers(elm, &g_rom.boot_rom_e800_fp, &g_rom.boot_rom_e800_fp);
+#endif
     cfgmodule_parse ( cmod );
     cfgmodule_propagate ( cmod );
 

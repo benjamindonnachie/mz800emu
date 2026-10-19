@@ -85,3 +85,11 @@ target_include_directories(test_gide_core PRIVATE ${CMAKE_SOURCE_DIR}/src/emulat
 target_compile_options(test_gide_core PRIVATE -UNDEBUG)
 add_test(NAME gide_core COMMAND test_gide_core)
 set_tests_properties(gide_core PROPERTIES LABELS "peripherals;gide" TIMEOUT 30)
+
+add_executable(test_gide_rtc test_gide_rtc.c
+    ${CMAKE_SOURCE_DIR}/src/emulator/hw-generic/gide/gide_core.c)
+target_include_directories(test_gide_rtc PRIVATE ${CMAKE_SOURCE_DIR}/src/emulator)
+target_compile_options(test_gide_rtc PRIVATE -UNDEBUG)
+target_compile_definitions(test_gide_rtc PRIVATE time=gide_test_time)
+add_test(NAME gide_rtc COMMAND test_gide_rtc)
+set_tests_properties(gide_rtc PROPERTIES LABELS "peripherals;gide;rtc" TIMEOUT 30)

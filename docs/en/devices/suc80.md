@@ -1,8 +1,8 @@
 # MZ-700 SUC 40/80-column display
 
 The optional John Edwards / Sharp Users Club expansion is available in
-the dedicated MZ-700 build. An alternative K&P I/O protocol uses this same
-SUC display and video RAM; it does not install a second video card.
+the dedicated MZ-700 build. Software accesses the display through the
+original memory-mapped SUC interface.
 
 Enable **HW & Devices > SUC 80-column expansion**, or use:
 
@@ -76,88 +76,11 @@ in the Sharp Users Club magazine, May 2015, printed pages 13–19 (PDF pages
 the D4 latch and shared RAM-address selection are in the circuit on
 printed page 18. The project preservation collection retains that PDF.
 
-## Alternative K&P interface
+## Retired experimental interface
 
-Enable the expansion, then select **HW & Devices > SUC display interface >
-K&P I/O interface** before starting K&P software. Select **SUC memory
-interface** for the existing SUC CP/M boot media. Interface changes retain
-VRAM but reset the CRTC registers and return to 40 columns. The selected
-interface is saved in configuration; normal reset retains that selection.
-
-```ini
-[VIDEO_MZ700]
-suc80_enabled = 1
-suc80_kp_interface = 1
-```
-
-The default is 0 (SUC). The expansion must be enabled separately.
-The K&P ports are unclaimed when that interface or the expansion is off.
-Only the low I/O address byte is decoded, so Z80 OUT(C),r/OTIR and immediate
-OUT instructions may use arbitrary high bytes.
-
-| Port | Read | Write |
-| --- | --- | --- |
-|70h|Raw byte at current VRAM address; no increment|Ignored|
-|71h|FFh|Write raw character, then increment 14-bit address|
-|72h|Status: bit 7 ready; bit 5 follows SUC vertical blanking|Select register 0–31|
-|73h|Selected register value|Write selected register|
-
-R18/R19 hold the staged transparent address; selectingR31 latches that
-pair as the live VRAM address. Sequential writes update both the live
-address andR18/R19. Reads do not increment. Stage a new pair and selectR31
-for a different read address. R12/R13 set the display start for circular
-scrolling. R14/R15 set the cursor address; R10/R11 select its shape and
-steady, disabled, 16-frame or 32-frame blinking mode. R16/R17 light-pen
-registers are read-only zero; no light-pen device is attached. Registers
-outside 0–19 return zero and ignore data writes. R1=80 enables 80 columns;
-other geometries and CRTC sync timings are not simulated.
-
-This is an interface adaptation for SUC's 80×25/640×200 display, rather
-than emulation of a separate SY6845E card's 640×250 raster. Cursor scanlines
-are scaled into the existing 8-line SUC character cell. Transfers complete
-synchronously: software can poll bit 7, but precise transparent-access or
-blanking delays are not reproduced. SUC's E00C–E00F mode latch still works.
-
-There is no second character buffer. All2048 logical addresses map bijectively
-to the original character RAM using:
-
-```c
-odd = address & 1;
-offset = (((address >> 1) + odd) & 0x3ff) | (odd << 10);
-```
-
-Thus addresses 0,1,2,3 use D000,D401,D001,D402. Address 2047 uses the otherwise
-unused D400 byte, never D800 attribute RAM. R12/R13 scrolling wraps modulo 2048.
-CPU banking does not restrict these I/O writes; hidden main RAM is untouched.
-Each K&P data write puts the original 8-bit byte directly into shared VRAM
-and sets its SUC attribute to 70h (white on black). Port 70 reads it unchanged,
-including bit 7. Direct memory writes and port reads see the same storage.
-Native memory writes can subsequently edit the associated colours.
-
-K&P uses ASCII-like character codes; the renderer maps printable ASCII
-onto the existing European Sharp font in this interface. Glyph selection
-ignores bit 7. Upper/lower-case letters, digits and ordinary punctuation are
-supported. K&P-specific control-code graphics, German substitutions and its
-original 10-row character ROM are not reproduced exactly. This restriction
-concerns glyph appearance, not the stored bytes or port readback. Select
-SUC memory interface for software writing native Sharp display codes.
-
-Snapshots preserve the selected interface, all registers, staged/live
-addresses and the shared VRAM. Snapshots predating this interface restore
-SUC mode with cleared K&P state. Reset clears the registers/live address
-and selects 40 columns; the guest's normal CRTC initialisation selects 80.
-
-The native test `mcp_kp80_suc` checks full VRAM mapping, raw readback, banking,
-address staging/wrap, pixel-exact shared scanout and circular scrolling,
-cursor steady/off/blink, snapshots and reset. The project's preserved BKK
-MZF demo is also executed unmodified when that reference is present.
-Existing `mcp_suc80_display`, `mcp_gide` and `gide_core` remain regressions.
-
-Programming references: Bernd Krueger-Knauber's [K&P interface description
-and original source library](https://idealine.info/sharpmz/mz-700/80zkup.htm).
-Use the 72h status port shown in its code examples: one explanatory sentence
-on that page incorrectly refers to 70h as the status port. The linked CAST
-PDF describes a C6845-compatible core and does not specify the K&P extended
-R18/R19/R31 protocol; the author's interface description/library establish
-those accesses. Source documents and hashes are retained in sources/kp80
-in the project preservation workspace.
+The experimental K&P I/O adapter and the **SUC display interface** submenu
+have been removed. Ports 70h–73h are no longer claimed by a display device.
+The old `suc80_kp_interface` configuration key and K&P snapshot fields are
+ignored; SUC mode and video RAM remain supported. Historical K&P snapshots
+retain their stored bytes but no longer reproduce K&P rendering or cursor
+registers. The preserved K&P reference documents remain in `sources/kp80`.

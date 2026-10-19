@@ -1,0 +1,25 @@
+Sharp archive applications on MZ-700 banked ZPM3
+
+Choose D0:, D1:, etc. Return to the operating-system utilities with C0:.
+TPA is unchanged at60,672bytes. The operating system and RTC are unchanged.
+
+D0: WordStar3.30 (H19/VT52): WS SHARPNEW.TXT. Ctrl-K X saves and exits.
+D1: dBASEII: DBASE; Return skips optional date. QUIT exits.
+D2: Hi-TechC3.09: C HELLO.C; HELLO. C IOCHECK.C; IOCHECK tests file I/O.
+D3: Microsoft Multiplan1.06: MP. V enters values; GR selects row/column.
+Use CTRL-I to move between fields. Formula R1C1+R1C2; TS saves, TL loads.
+SHARP is a saved example:42+58=100. Q then Y quits.
+D4: Microsoft BASIC5.21 / BASCOM5.30a: MBASIC; PRINT 6*7; SYSTEM exits.
+Compile BDEMO.BAS: BASCOM =BDEMO /O/E then L80 BDEMO,BDEMO/N/E.
+Run BDEMO. /O selects a standalone executable using the supplied library.
+D5: Turbo Pascal3.00a: TURBO. HELLO.PAS is a simple example.
+D6: CP/M games: ADV, LADDER, OTHELLO, SARGON, ZORK1..3 and others.
+
+Programme bytes come from the archived Sharp/TZFS CP/M disk collection.
+Collection membership does not mean every programme is a Sharp-specific port.
+Terminal configurations, where needed, are recorded separately from originals.
+MZ-800/Unicard hardware tools and operating systems were not installed.
+Games are included as archive copies; individual compatibility is not assumed.
+
+The previous WordStar3/BDSC/SuperCalc/Monopoly application image is preserved
+on the host under build-records/mz800emu/zpm3-pehu-sharp-apps/restore-point.

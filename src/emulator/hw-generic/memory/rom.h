@@ -75,6 +75,9 @@ typedef struct st_ROM
     st_ROM_AREA rom_user_defined;
     st_ROM_AREA rom_user_defined_cmthack;
     en_ROM_BOOL user_defined_rom_loaded;
+    int boot_rom_mode; /* 0=disabled, 1=F000 manual, 2=E800 automatic. */
+    char *boot_rom_f000_fp;
+    char *boot_rom_e800_fp;
 } st_ROM;
 
 extern st_ROM g_rom;
@@ -90,6 +93,7 @@ extern "C"
 #endif
 
     void rom_init(void);
+    int rom_boot_set_mode(int mode);
     void rom_reinstall(st_ROM_CONFIG_ROW *row);
     int rom_user_defined_check_filepath(char **filepath, en_ROM_BOOL clear);
     int rom_user_defined_check_size(char **filepath, uint32_t size, en_ROM_BOOL clear);

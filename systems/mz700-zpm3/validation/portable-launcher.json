@@ -1,0 +1,20 @@
+{
+  "passed": true,
+  "images": [
+    {
+      "image": "sharp-applications",
+      "boot": true,
+      "application_tpa": 60672,
+      "image_unchanged": true,
+      "existing_copy_preserved": true
+    },
+    {
+      "image": "keyboard-fast-factory",
+      "boot": true,
+      "application_tpa": 60672,
+      "image_unchanged": true,
+      "existing_copy_preserved": true
+    }
+  ],
+  "corruption_rejected": true
+}

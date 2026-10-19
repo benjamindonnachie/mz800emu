@@ -298,14 +298,6 @@ static inline void gdg_process_events(void)
             mz800_main_event_callback_screen_done();
 
             gdg_on_screen_done_event();
-            /* A hardware cursor can change without a VRAM write. Redraw only
-             * at its16/32-frame blink transitions, retaining the SUC raster. */
-            if (g_gdg.suc80_enabled && g_gdg.suc80_mode80 && g_gdg.suc80_kp_interface) {
-                unsigned mode = (g_gdg.kp80_registers[10] >> 5) & 3u;
-                unsigned period = mode == 2 ? 16u : 32u;
-                if (mode >= 2 && !(g_mzarch_main.cursor_timer & (period - 1)))
-                    g_framebuffer.screen_changes = SCRSTS_THIS_IS_CHANGED;
-            }
 
 
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
