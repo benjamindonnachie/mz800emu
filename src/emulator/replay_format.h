@@ -2,15 +2,18 @@
  * @file   replay_format.h
  * @brief  Formát záznamu vstupů `.mzr`: datový model, zápis a čtení.
  *
- * Záznam je ZIP archiv (přes snapshot_io, stejně jako snapshot `.mzs`)
- * se čtyřmi soubory:
+ * Záznam je ZIP archiv (přes snapshot_io, stejně jako snapshot `.mzs`):
  *
  * | Soubor | Obsah |
  * |--------|-------|
- * | `manifest.json` | formát, verze, platforma, délka, interval hashů, varování |
+ * | `manifest.json` | formát, verze, platforma, délka, interval hashů, varování, média, kazeta, RTC, joystick |
  * | `start.mzs`     | startovní snapshot (kompletní, vždy s RAMdiskem) |
  * | `inputs.jsonl`  | události (jeden řádek = jedna událost), poslední řádek `end` |
- * | `hashes.csv`    | periodické hashe částí stavu |
+ * | `hashes.csv`    | periodické hashe částí stavu (sloupce podle hlavičky) |
+ * | `media/<slot>.bin` | obsah obrazu média (jen u médií s `embedded`) |
+ *
+ * Pole médií, kazety, RTC a joysticku i sloupec `periph` jsou volitelná:
+ * záznam bez nich se načte (formát verze 1 je stejný, jen rozšířený).
  *
  * Čas události je číslo snímku `f` od startu záznamu (f = 0 je okamžik
  * startu) a poloha `at` v rámci snímku:
@@ -59,6 +62,12 @@ extern "C"
 /** @brief Délka hex zápisu SHA-256 bez koncové nuly. */
 #define REPLAY_HASH_HEX_LEN 64
 
+/** @brief Strop součtu velikostí médií vložených do jednoho záznamu (64 MB). */
+#define REPLAY_MEDIA_EMBED_LIMIT (64u * 1024u * 1024u)
+
+/** @brief Hodnota v `joy_type` pro neuložený typ joysticku (starší záznam). */
+#define REPLAY_JOY_TYPE_UNKNOWN (-1)
+
     /**
      * @brief Druh události záznamu.
      */
@@ -69,6 +78,8 @@ extern "C"
         REPLAY_EV_AUTOTYPE, /**< `autotype`: start vkládání textu (text a časy stisku). */
         REPLAY_EV_RESET,    /**< `reset`: reset stroje. */
         REPLAY_EV_DBG,      /**< `dbg`: zásah debuggeru (jméno příkazu a argumenty). */
+        REPLAY_EV_CMT,      /**< `cmt`: ovládání kazety (`op`, `arg`, u `record` cesta v `text`). */
+        REPLAY_EV_CMTHACK,  /**< `cmthack`: soubor vybraný v dialogu CMT hacku (`arg` = index média, -1 = zrušeno; `text` = jméno). */
         REPLAY_EV_COUNT     /**< Počet druhů (není druh). */
     } en_REPLAY_EV_KIND;
 
@@ -100,11 +111,12 @@ extern "C"
         uint8_t kbd[REPLAY_KBD_COLS]; /**< `kbd`: matice po sloupcích 0-9. */
         uint8_t joy_port;          /**< `joy`: port 0 nebo 1. */
         uint8_t joy_state;         /**< `joy`: stav (0FFh = nic). */
-        char *text;                /**< `autotype`: text v kódování okna autotype (UTF-8). */
+        char *text;                /**< `autotype`: text (UTF-8); `cmt` `record`: cesta souboru; `cmthack`: jméno souboru. */
         uint32_t kd_ms;            /**< `autotype`: doba stisku v ms. */
         uint32_t ku_ms;            /**< `autotype`: doba uvolnění v ms. */
-        char *cmd;                 /**< `dbg`: jméno příkazu (`mem_write`, `set_reg`, ...). */
+        char *cmd;                 /**< `dbg`: jméno příkazu (`mem_write`, `set_reg`, ...); `cmt`: operace (`play`, `stop`, ...). */
         char *args_json;           /**< `dbg`: argumenty jako JSON objekt (text). */
+        int32_t arg;               /**< `cmt`: hodnota operace (`pause` 0/1, `seek` číslo bloku); `cmthack`: index média. */
     } st_REPLAY_EVENT;
 
     /**
@@ -117,6 +129,7 @@ extern "C"
         REPLAY_HASH_MEMEXT,  /**< `memext`: RAM MemExt (jen připojený). */
         REPLAY_HASH_VRAM,    /**< `vram`: VRAM platformy. */
         REPLAY_HASH_PCG,     /**< `pcg`: PCG (jen MZ-1500). */
+        REPLAY_HASH_PERIPH,  /**< `periph`: stav periferií (výstup jejich snapshot handlerů). */
         REPLAY_HASH_PART_COUNT /**< Počet částí (není část). */
     } en_REPLAY_HASH_PART;
 
@@ -124,7 +137,8 @@ extern "C"
      * @brief Řádek `hashes.csv`: hashe částí stavu na hranici snímku.
      *
      * @invariant `part[i]` je buď 64 hex znaků malými písmeny, nebo prázdný
-     *            řetězec (část na platformě nebo v sestavě chybí).
+     *            řetězec (část na platformě nebo v sestavě chybí, nebo ji
+     *            starší záznam nemá).
      */
     typedef struct st_REPLAY_HASH_ROW
     {
@@ -132,6 +146,25 @@ extern "C"
         uint64_t ticks;  /**< Takty GDG (`gdg_get_total_ticks()`) v tom bodě. */
         char part[REPLAY_HASH_PART_COUNT][REPLAY_HASH_HEX_LEN + 1]; /**< Hex hashe částí. */
     } st_REPLAY_HASH_ROW;
+
+    /**
+     * @brief Médium v záznamu (obraz disku, páska, soubor CMT hacku).
+     *
+     * @invariant `slot` je neprázdný řetězec z písmen, číslic, `.` a `_`
+     *            (jméno entry `media/<slot>.bin`), v záznamu jedinečný.
+     * @invariant `data` != NULL právě když je médium vložené; pak má `size`
+     *            bajtů a jeho SHA-256 je `sha256`.
+     * @invariant Řetězce a `data` vlastní st_REPLAY_DATA (replay_data_free()).
+     */
+    typedef struct st_REPLAY_MEDIA
+    {
+        char *slot;       /**< Slot: `fdc0.N`, `fdc1.N`, `qd`, `ide8.N`, `cmt`, `cmthack.N`. */
+        char *name;       /**< Cesta původního souboru při záznamu (jen pro informaci a jako jméno při přehrání). */
+        uint64_t size;    /**< Velikost obsahu v bajtech. */
+        char sha256[REPLAY_HASH_HEX_LEN + 1]; /**< SHA-256 obsahu (hex). */
+        bool readonly;    /**< Médium bylo při záznamu jen pro čtení. */
+        uint8_t *data;    /**< Obsah (g_malloc), NULL = nevložené (jen hash). */
+    } st_REPLAY_MEDIA;
 
     /**
      * @brief Celý záznam v paměti.
@@ -158,6 +191,11 @@ extern "C"
         size_t start_snapshot_size; /**< Velikost `start_snapshot` v bajtech. */
         GArray *events;           /**< Události (st_REPLAY_EVENT). */
         GArray *hashes;           /**< Řádky hashů (st_REPLAY_HASH_ROW). */
+        GPtrArray *media;         /**< Média (st_REPLAY_MEDIA *) v pořadí přidání. */
+        bool media_known;         /**< Manifest má seznam médií (i prázdný); false = starší záznam bez médií. */
+        char *rtc_base;           /**< Místní čas startu záznamu pro RTC (`YYYY-MM-DDTHH:MM:SS`), NULL = neuložen. */
+        char *cmt_json;           /**< Stav kazety při startu jako JSON objekt (text, obsah sestavuje replay.c), NULL = bez pásky. */
+        int joy_type[REPLAY_JOY_PORTS]; /**< Typ joysticku portu při záznamu (en_JOY_TYPE), REPLAY_JOY_TYPE_UNKNOWN = neuložen. */
     } st_REPLAY_DATA;
 
     /**
@@ -215,6 +253,42 @@ extern "C"
     void replay_data_add_warning(st_REPLAY_DATA *d, const char *warning);
 
     /**
+     * @brief Přidá médium (hluboká kopie řetězců a dat).
+     *
+     * @param d        Záznam.
+     * @param slot     Slot (viz st_REPLAY_MEDIA); existující slot se nahradí.
+     * @param name     Jméno souboru nebo NULL.
+     * @param data     Obsah nebo NULL (nevkládat, jen hash).
+     * @param size     Velikost obsahu.
+     * @param sha256   SHA-256 obsahu (hex); NULL = spočítat z @p data.
+     * @param readonly Médium jen pro čtení.
+     * @return Index média v `d->media`, nebo -1 při neplatném slotu nebo
+     *         chybějícím hashi (@p data i @p sha256 NULL).
+     * @post Při úspěchu `d->media_known` = true.
+     */
+    int replay_data_add_media(st_REPLAY_DATA *d, const char *slot, const char *name, const uint8_t *data,
+                              uint64_t size, const char *sha256, bool readonly);
+
+    /**
+     * @brief Médium podle slotu.
+     * @return Médium (vlastní ho záznam), nebo NULL.
+     */
+    const st_REPLAY_MEDIA *replay_data_find_media(const st_REPLAY_DATA *d, const char *slot);
+
+    /**
+     * @brief Součet velikostí vložených médií v bajtech.
+     */
+    uint64_t replay_data_embedded_size(const st_REPLAY_DATA *d);
+
+    /**
+     * @brief SHA-256 bloku dat jako 64 hex znaků malými písmeny.
+     * @param data Data (smí být NULL při @p size 0).
+     * @param size Délka v bajtech.
+     * @param[out] out Výstup, aspoň REPLAY_HASH_HEX_LEN + 1 znaků.
+     */
+    void replay_sha256_hex(const uint8_t *data, size_t size, char *out);
+
+    /**
      * @brief Převede události na text `inputs.jsonl` včetně řádku `end`.
      *
      * @return Nový řetězec (g_free); řádky končí `\n`.
@@ -248,7 +322,8 @@ extern "C"
     /**
      * @brief Načte záznam ze souboru `.mzr`.
      *
-     * Kontroluje formát a verzi manifestu, přítomnost všech souborů,
+     * Kontroluje formát a verzi manifestu, přítomnost všech souborů
+     * (i `media/<slot>.bin` vložených médií a shodu jejich SHA-256),
      * pořadí událostí a hashů (viz replay_data_inputs_from_jsonl()).
      * Platformu a délku snímku nekontroluje (to dělá přehrávač proti
      * běžícímu emulátoru).

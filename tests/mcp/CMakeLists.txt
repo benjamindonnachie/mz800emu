@@ -852,6 +852,26 @@ if(Python3_FOUND)
                    "(Python ${Python3_VERSION})")
 
     # -----------------------------------------------------------
+    # Média v záznamu vstupů (kazeta, disk) přes MCP (pipe)
+    # -----------------------------------------------------------
+    # Záznam začne uprostřed hrající kazety (boot z CMT) s DSK v mechanice,
+    # ovládání kazety přes MCP = události cmt; --replay-verify v novém
+    # procesu bez pásky a disku kód 0, záznam bez pásky kód 4, originální
+    # soubory beze změny.
+    add_test(
+        NAME    mcp_replay_media
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_replay_media.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_replay_media PROPERTIES
+        LABELS  "e2e;mcp;pipe;debugger;replay"
+        TIMEOUT 180
+    )
+    message(STATUS "  tests/mcp: registered mcp_replay_media "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
     # Regiony plné sestavy MZ-800 přes MCP (pipe)
     # -----------------------------------------------------------
     # MemExt Luftner + RAMdisk STD 16 MB + PEZIK 68h = 532 regionů:

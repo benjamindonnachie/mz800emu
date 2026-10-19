@@ -142,6 +142,31 @@ en_SNAPSHOT_RESULT snapshot_save_to_buffer(const char *description,
                                            size_t *out_size);
 
 /**
+ * @brief SHA-256 stavu vybraných komponent snapshotu (bez zápisu archivu).
+ *
+ * Zavolá save handlery komponent ze seznamu @p names (v pořadí registru
+ * podle priority) nad handlem v hashovacím režimu
+ * (@ref snapshot_io_open_hash) s `for_hash` v kontextu: handlery vynechají
+ * pole, která nejsou stavem stroje (plánovaná událost hlavní smyčky,
+ * průběh vykreslení obrazu). Komponenta, která v registru není (na
+ * platformě chybí), se přeskočí. Stejný stav komponent dá vždy stejný hash,
+ * nezávisle na čase, kompresi a tom, zda emulace právě stojí v pauze.
+ *
+ * @param names    Jména komponent (`"ctc8253"`, `"pio8255"`, ...).
+ * @param count    Počet jmen.
+ * @param out_hex  Výstup: 64 hex znaků a nula.
+ * @param out_size Velikost @p out_hex (aspoň 65).
+ * @return SNAPSHOT_OK; chyba handleru nebo SNAPSHOT_ERR_IO (pak je
+ *         @p out_hex prázdný).
+ *
+ * @pre Volá emu vlákno (nebo emulace stojí): handlery čtou stav bez zámku.
+ * @note Na rozdíl od @ref snapshot_save nekontroluje pauzu; volá ji replay
+ *       v bodě hranice snímku.
+ */
+en_SNAPSHOT_RESULT snapshot_hash_components(const char *const *names, size_t count,
+                                            char *out_hex, size_t out_size);
+
+/**
  * Načtení snapshotu z paměťového bufferu
  *
  * Funkčně ekvivalentní @ref snapshot_load, ale vstupem je in-memory ZIP

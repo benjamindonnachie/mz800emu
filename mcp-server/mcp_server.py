@@ -7762,14 +7762,18 @@ async def emu_replay_record_start(path: str, hash_interval: int = 50,
     """Start recording the emulator inputs into a replay file (``.mzr``).
 
     The recording starts from a complete snapshot of the machine (always
-    with the RAM disk) and stores every change of the keyboard matrix
-    and joystick state at a frame boundary, resets, autotype and debugger
-    writes (``emu_mem_write``, ``emu_set_register``, ``emu_io_write``,
-    region writes, IRQ / NMI injection), plus SHA-256 hashes of the CPU,
-    RAM, MemExt, VRAM and PCG every ``hash_interval`` frames. Play it
-    back with ``emu_replay_play``: the run repeats exactly, also in a new
-    process and at any speed, so you can repeat a bug with other
-    breakpoints, trace or ramlog.
+    with the RAM disk) plus the contents of the mounted disks and tape
+    (up to 64 MB together) and stores every change of the keyboard matrix
+    and joystick state at a frame boundary (host joystick read once per
+    frame), resets, autotype, tape control (``emu_cmt_play`` / ``_stop`` /
+    ``_pause`` / ``_eject``, ``emu_cmt_tape_seek``, ``emu_cmt_record``)
+    and debugger writes (``emu_mem_write``, ``emu_set_register``,
+    ``emu_io_write``, region writes, IRQ / NMI injection), plus SHA-256
+    hashes of the CPU, RAM, MemExt, VRAM, PCG and peripherals every
+    ``hash_interval`` frames. Play it back with ``emu_replay_play``: the
+    run repeats exactly, also in a new process without the media files
+    and at any speed, so you can repeat a bug with other breakpoints,
+    trace or ramlog.
 
     While recording:
 
@@ -7778,9 +7782,10 @@ async def emu_replay_record_start(path: str, hash_interval: int = 50,
       (after a step or a breakpoint) is refused - pause at a boundary
       with ``emu_run(frames=N)`` or a ``deadline`` first; while running,
       writes are taken at the frame boundary automatically,
-    * loading a snapshot, media, tape control, settings and Freeze Bytes
-      are refused (they cannot be repeated),
-    * the host joystick (type JOYSTICK) is not recorded (warning).
+    * tape control is recorded like a write (refused between boundaries),
+    * loading a snapshot, media, inserting a tape, tape speed / polarity,
+      the CMT hack, settings and Freeze Bytes are refused (they cannot be
+      repeated).
 
     When the emulation runs, it pauses at the next frame boundary, the
     recording starts and the emulation runs on; when paused it stays
@@ -7794,7 +7799,8 @@ async def emu_replay_record_start(path: str, hash_interval: int = 50,
     Returns:
         JSON with the replay status (see ``emu_replay_status``), or an
         error (``recording or playback is already running``, ``autotype
-        is running``, ``Freeze Bytes are active``, ...).
+        is running``, ``Freeze Bytes are active``, ``the tape is
+        recording``, ...).
     """
     data: dict[str, Any] = {"path": path, "hash_interval": hash_interval}
     if description is not None:
@@ -7828,14 +7834,17 @@ async def emu_replay_play(path: str, pause_after_load: bool = False) -> str:
     during playback. Every recorded hash is compared; the first frame
     where the state differs stops the playback (pause reason
     ``replay_desync``, ``outcome: "desync"``, ``desync_parts`` such as
-    ``cpu``, ``ram``, ``vram``, ``time``). At the end the emulation
+    ``cpu``, ``ram``, ``vram``, ``periph``, ``time``). The stored disks
+    and tape are mounted from copies (original files and INI unchanged,
+    the INI media return after the end). At the end the emulation
     pauses with reason ``replay_end`` (``outcome: "ended"``); wait for it
     with ``emu_wait_stop`` or poll ``emu_replay_status``.
 
     Breakpoints, trace and ramlog may stay on. A write to the machine
     during playback (``emu_mem_write``, a breakpoint ``poke`` / ``set``
-    action, Freeze Bytes, reset, loading a snapshot) marks the playback
-    as ``deviated``: it goes on, but hashes are no longer checked.
+    action, Freeze Bytes, reset, loading a snapshot, tape control) marks
+    the playback as ``deviated``: it goes on, but hashes are no longer
+    checked.
 
     Args:
         path: Replay file on the emulator host.
@@ -7845,7 +7854,9 @@ async def emu_replay_play(path: str, pause_after_load: bool = False) -> str:
     Returns:
         JSON status (``mode: "playing"``, ``frames``), or an error (file
         not readable, other platform or TV system, replay with debugger
-        events in a build without the debugger).
+        events in a build without the debugger, a joystick port connected
+        only in one of the two, the CMT hack set differently, an image not
+        stored in the replay that differs from the mounted one).
     """
     resp = await _send_request("replay_play",
                                {"path": path, "pause_after_load": pause_after_load},

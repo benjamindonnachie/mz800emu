@@ -211,6 +211,46 @@ int ide8_drive_open_image(st_IDE8_DRIVE *drive, char *filepath)
     return EXIT_SUCCESS;
 }
 
+uint64_t ide8_drive_image_size(en_IDE8_DRIVE drive_id)
+{
+    if (drive_id >= IDE8_DRIVES_COUNT)
+        return 0;
+    st_IDE8_DRIVE *drive = &g_ide8.drive[drive_id];
+    if (!drive->connected || !drive->fp)
+        return 0;
+    FS_LAYER_FSYNC(drive->fp);
+    if (0 != FS_LAYER_FSEEK_END(drive->fp, 0))
+        return 0;
+    long end = FS_LAYER_FTELL(drive->fp);
+    return (end > 0) ? (uint64_t)end : 0;
+}
+
+int ide8_drive_read_image(en_IDE8_DRIVE drive_id, ide8_image_chunk_cb cb, void *user)
+{
+    uint64_t len = ide8_drive_image_size(drive_id);
+    if (!cb || len == 0)
+        return EXIT_FAILURE;
+    st_IDE8_DRIVE *drive = &g_ide8.drive[drive_id];
+    enum { CHUNK = 256 * 1024 };
+    uint8_t *buf = g_malloc(CHUNK);
+    FS_LAYER_FSEEK(drive->fp, 0);
+    int ret = EXIT_SUCCESS;
+    for (uint64_t pos = 0; pos < len;)
+    {
+        unsigned want = (len - pos > CHUNK) ? CHUNK : (unsigned)(len - pos);
+        unsigned readlen = 0;
+        if ((FS_LAYER_FR_OK != FS_LAYER_FREAD(drive->fp, buf, want, &readlen)) || (readlen != want))
+        {
+            ret = EXIT_FAILURE;
+            break;
+        }
+        cb(buf, want, user);
+        pos += want;
+    }
+    g_free(buf);
+    return ret;
+}
+
 void ide8_init(void)
 {
 

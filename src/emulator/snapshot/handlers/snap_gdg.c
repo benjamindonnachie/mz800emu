@@ -71,13 +71,16 @@ static en_SNAPSHOT_RESULT snap_gdg_save(st_SNAPSHOT_CONTEXT *ctx)
     snapshot_xml_write_uint(w, "vbln", g_gdg.vbln);
     snapshot_xml_close_element(w); /* sync_signals */
 
-    /* Stav renderování */
-    snapshot_xml_write_uint(w, "screen_is_already_rendered_at_beam_pos",
-                            g_gdg.screen_is_already_rendered_at_beam_pos);
-    snapshot_xml_write_uint(w, "screen_need_update_from",
-                            g_gdg.screen_need_update_from);
-    snapshot_xml_write_uint(w, "last_updated_border_pixel",
-                            g_gdg.last_updated_border_pixel);
+    /* Stav renderování - průběh vykreslení obrazu pro hostitele, ne stav
+     * stroje (posune ho např. překreslení v pauze); hash ho vynechá. */
+    if (!ctx->for_hash) {
+        snapshot_xml_write_uint(w, "screen_is_already_rendered_at_beam_pos",
+                                g_gdg.screen_is_already_rendered_at_beam_pos);
+        snapshot_xml_write_uint(w, "screen_need_update_from",
+                                g_gdg.screen_need_update_from);
+        snapshot_xml_write_uint(w, "last_updated_border_pixel",
+                                g_gdg.last_updated_border_pixel);
+    }
 
 #if MZARCH == 1500
     /* MZ-1500 specifické: barevná paleta */

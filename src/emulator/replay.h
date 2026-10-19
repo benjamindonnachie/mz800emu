@@ -297,6 +297,88 @@ extern "C"
     uint32_t replay_current_frame(void);
 
     /**
+     * @brief Operace kazety, kterou záznam umí zaznamenat a přehrát.
+     *
+     * Jména (replay_cmt_op_name()) jsou hodnota `op` události `cmt`.
+     */
+    typedef enum en_REPLAY_CMT_OP
+    {
+        REPLAY_CMT_PLAY = 0,       /**< `play`: cmt_play(). */
+        REPLAY_CMT_PLAY_PAUSED,    /**< `play_paused`: cmt_play_paused(). */
+        REPLAY_CMT_STOP,           /**< `stop`: cmt_stop() (MCP). */
+        REPLAY_CMT_STOP_BUTTON,    /**< `stop_button`: cmt_stop_button() (okno; při nahrávání uloží a znovu vloží pásku). */
+        REPLAY_CMT_PAUSE,          /**< `pause`: cmt_pause(arg). */
+        REPLAY_CMT_EJECT,          /**< `eject`: cmt_eject(). */
+        REPLAY_CMT_SEEK,           /**< `seek`: otevření bloku arg (MCP `cmt_tape_seek`). */
+        REPLAY_CMT_SELECT,         /**< `select`: cmt_tape_select_block(arg, 0) (kliknutí v seznamu bloků). */
+        REPLAY_CMT_SELECT_FORCED,  /**< `select_forced`: cmt_tape_select_block(arg, 1) (dvojklik). */
+        REPLAY_CMT_NEXT,           /**< `next`: cmt_tape_step_block(1). */
+        REPLAY_CMT_PREV,           /**< `prev`: cmt_tape_step_block(0). */
+        REPLAY_CMT_RECORD,         /**< `record`: cmt_record_to_file(path); při přehrání do dočasného souboru. */
+        REPLAY_CMT_OP_COUNT        /**< Počet operací (není operace). */
+    } en_REPLAY_CMT_OP;
+
+    /**
+     * @brief Jméno operace kazety (`play`, `stop_button`, ...).
+     * @return Statický řetězec; mimo rozsah "unknown".
+     */
+    const char *replay_cmt_op_name(en_REPLAY_CMT_OP op);
+
+    /**
+     * @brief Operace kazety z okna Virtual CMT / Tape Filelist (UI vlákno).
+     *
+     * Operaci provede emu vlákno: za běhu v nejbližším bodě hranice snímku,
+     * v pauze v paused smyčce (do ~20 ms). Při záznamu se zapíše jako
+     * událost `cmt` (v pauze mimo hranici snímku čeká na další hranici, jako
+     * reset). Při přehrávání se zahodí (okna jsou zamčená).
+     *
+     * @param op   Operace.
+     * @param arg  Hodnota (pauza 0/1, číslo bloku), jinak 0.
+     * @param path Cesta souboru u REPLAY_CMT_RECORD, jinak NULL (zkopíruje se).
+     * @note Libovolné vlákno; pod zámkem fronty.
+     */
+    void replay_host_cmt(en_REPLAY_CMT_OP op, int32_t arg, const char *path);
+
+    /**
+     * @brief CMT hack při přehrávání: další soubor ze záznamu místo dialogu.
+     *
+     * Volá cmthack_load_file() před dialogem. Soubory se berou v pořadí
+     * výběrů při záznamu (ne podle snímku: výběr nastává uvnitř instrukce,
+     * kterou určuje běh programu). Chybějící soubor = přehrání odchýleno
+     * a načtení se zruší.
+     *
+     * @param[out] out_path Nová cesta dočasné kopie (g_free), NULL = zrušit
+     *                 načtení (v záznamu zrušeno, nebo soubor chybí).
+     * @return true = přehrávání odpovědělo (dialog neotevírat);
+     *         false = přehrávání neběží, otevřít dialog jako obvykle.
+     * @pre Emu vlákno (uvnitř instrukce OUT s CMT hackem).
+     */
+    bool replay_cmthack_playback(char **out_path);
+
+    /**
+     * @brief CMT hack při záznamu: zapíše soubor vybraný v dialogu.
+     * @param chosen Cesta souboru, NULL = dialog zrušen.
+     * @pre Emu vlákno.
+     */
+    void replay_cmthack_note(const char *chosen);
+
+    /**
+     * @brief Místní čas pro RTC Unicardu při záznamu a přehrávání.
+     *
+     * Čas = místní čas hostitele při startu záznamu (`rtc_base` v manifestu)
+     * + emulovaný čas od startu (takty GDG). Záznam i přehrání tak program
+     * vidí stejné hodiny; počítá se bez časového pásma (přehrání v jiném
+     * pásmu dá stejné hodnoty).
+     *
+     * @param[out] year, month, day, hour, min, sec Složky času (rok celý,
+     *             měsíc 1-12).
+     * @return true = vyplněno; false = záznam ani přehrání neběží, nebo
+     *         záznam čas nemá (starší soubor) - pak platí hostitelský čas.
+     * @pre Emu vlákno (čtení RTC programem).
+     */
+    bool replay_rtc_now(int *year, int *month, int *day, int *hour, int *min, int *sec);
+
+    /**
      * @brief Konec přehrávání ukončí proces (`--exit-at-replay-end`).
      *
      * @param enable true = na konci přehrávání (i po rozjetí) požádat

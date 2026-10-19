@@ -28,6 +28,7 @@
 
 #include <stdbool.h>
 #include "dbgapi_cmdrq.h"
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C"
@@ -81,6 +82,18 @@ extern "C"
      *      záznamu příkaz nepočítá jako živý zásah.
      */
     bool replay_dbg_execute(const char *cmd_name, const char *args_json, char **err);
+
+    /**
+     * @brief Příkaz kazety dbgapi jako operace záznamu (`cmt` událost).
+     *
+     * @param cmd      Příkaz (`DBGAPI_CMD_CMT_TRANSPORT`, `_TAPE_SEEK`, `_RECORD`).
+     * @param data_ptr Jeho parametry (po provedení).
+     * @param[out] op   en_REPLAY_CMT_OP.
+     * @param[out] arg  Hodnota (pauza, blok).
+     * @param[out] path Cesta u nahrávání (ukazatel do parametrů), jinak NULL.
+     * @return true = příkaz je operace kazety; false = jiný příkaz.
+     */
+    bool replay_dbg_cmt_op(en_DBGAPI_CMD cmd, const void *data_ptr, int *op, int32_t *arg, const char **path);
 
 #ifdef __cplusplus
 }

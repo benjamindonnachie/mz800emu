@@ -1318,11 +1318,15 @@ in [../replay.md](../replay.md) and in the MCP document
 `emulator://docs/replay`.
 
 A replay file (`.mzr`) holds a complete start snapshot (always with the
-RAM disk), every change of the keyboard matrix and joystick state at a
-frame boundary, resets, autotype, debugger writes, and SHA-256 hashes of
-the `cpu` (registers and hidden Z80 state), `ram`, `memext`, `vram` and
-`pcg` every N frames together with the emulated time. Playback compares
-the hashes and stops at the first frame that differs.
+RAM disk), the contents of the mounted disks and the tape (up to 64 MB
+together, larger images only as SHA-256), every change of the keyboard
+matrix and joystick state at a frame boundary (the host joystick is read
+once per frame), resets, autotype, tape control, debugger writes, and
+SHA-256 hashes of the `cpu` (registers and hidden Z80 state), `ram`,
+`memext`, `vram`, `pcg` and `periph` (CTC, PIO 8255, Z80 PIO, PSG, GDG,
+VRAM controller, floppy and Quick Disk controllers) every N frames
+together with the emulated time. Playback works on copies of the media,
+compares the hashes and stops at the first frame that differs.
 
 ### `emu_replay_record_start` (sensitive - creates / overwrites a file)
 
@@ -1338,11 +1342,15 @@ region writes, `emu_set_register`, CPU flags, `emu_io_write`,
 running (taken at the frame boundary) and while paused **at** a frame
 boundary (after `emu_run(frames=N)` or a `deadline`, or a pause sent
 while running). In a pause **between** frame boundaries (after a step or
-a breakpoint) they are refused with an explanation. Tools that change
-the machine in a way the replay cannot repeat are refused: snapshot
-load, media, tape control, settings, platform, peripherals, memory map,
-`emu_io_read` (side effects), `emu_freeze_add`. Starting is refused
-while autotype runs or Freeze Bytes are active. Breakpoint actions that
+a breakpoint) they are refused with an explanation. Tape control
+(`emu_cmt_play`, `emu_cmt_play_paused`, `emu_cmt_stop`, `emu_cmt_pause`,
+`emu_cmt_eject`, `emu_cmt_tape_seek`, `emu_cmt_record`) is recorded the
+same way. Tools that change the machine in a way the replay cannot
+repeat are refused: snapshot load, media, inserting a tape
+(`emu_cmt_open`), tape speed, pulses, polarity and boost, the CMT hack,
+block speed, settings, platform, peripherals, memory map, `emu_io_read`
+(side effects), `emu_freeze_add`. Starting is refused while autotype
+runs, Freeze Bytes are active or the tape records. Breakpoint actions that
 write (`poke`, `set`) are not recorded: the manifest gets a warning.
 
 Returns the status (see `emu_replay_status`).
@@ -1364,12 +1372,16 @@ then `emu_resume`). Live input (GUI keyboard, virtual keyboard, MCP
 keys) is ignored. The end pauses the emulation with reason `replay_end`
 (`outcome: "ended"`), the first differing hash with `replay_desync`
 (`outcome: "desync"`, `outcome_frame`, `desync_parts`: `cpu`, `ram`,
-`memext`, `vram`, `pcg`, `time`). A write into the machine during
-playback (debugger write, breakpoint `poke` / `set` action, Freeze
-Bytes, reset, snapshot load) marks the playback `deviated`: it goes on,
-but the hashes are no longer checked. Errors: unreadable file, other
-platform or TV system, a replay with debugger events in a build without
-the debugger.
+`memext`, `vram`, `pcg`, `periph`, `time`). A write into the machine
+during playback (debugger write, breakpoint `poke` / `set` action, Freeze
+Bytes, reset, snapshot load, tape control) marks the playback
+`deviated`: it goes on, but the hashes are no longer checked. The stored
+media are mounted from copies (the original files and the INI do not
+change; after the end the media from the INI return). Errors: unreadable
+file, other platform or TV system, a replay with debugger events in a
+build without the debugger, a joystick port connected only in one of the
+two, the CMT hack set differently, an image that is not stored in the
+replay and differs from the mounted one.
 
 ### `emu_replay_play_stop`
 

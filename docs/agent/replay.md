@@ -1,6 +1,6 @@
 ---
 title: Replay - record inputs once, repeat the run exactly
-description: How to record a run (keys, joystick, resets, debugger writes) into a .mzr file and play it back exactly in the same or a new process - repeat a bug with other breakpoints, trace or ramlog, find the first frame where two runs differ, check a run in CI (--replay-verify, exit code 4).
+description: How to record a run (keys, joysticks, resets, tape control, debugger writes, the mounted disks and tape) into a .mzr file and play it back exactly in the same or a new process - repeat a bug with other breakpoints, trace or ramlog, find the first frame where two runs differ, check a run in CI (--replay-verify, exit code 4).
 ---
 # Replay: record inputs once, repeat the run exactly
 
@@ -19,14 +19,28 @@ state with the same inputs (also in a new process and at any speed), so
 a replay repeats the run instruction for instruction.
 
 Recorded: keyboard matrix (GUI keyboard, virtual keyboard, `emu_input_*`
-and `emu_input_send_keys*` together), numeric keypad and MCP joystick,
-resets, autotype, debugger writes (`emu_mem_write`, `emu_mem_write_force`,
-region writes, `emu_set_register`, CPU flags, `emu_io_write`,
-`emu_irq_inject`, `emu_nmi_inject`). Hashed parts: `cpu` (registers and
-hidden Z80 state), `ram`, `memext`, `vram`, `pcg`, and the emulated time.
+and `emu_input_send_keys*` together), joysticks (host joystick read once
+per frame, numeric keypad, MCP), resets, autotype, tape control
+(`emu_cmt_play`, `_stop`, `_pause`, `_eject`, `emu_cmt_tape_seek`,
+`emu_cmt_record`, the tape windows), files chosen in the CMT hack dialog,
+debugger writes (`emu_mem_write`, `emu_mem_write_force`, region writes,
+`emu_set_register`, CPU flags, `emu_io_write`, `emu_irq_inject`,
+`emu_nmi_inject`). Stored at the start: contents of all mounted disks
+(FDC, FDC1, Quick Disk, IDE8) and the tape with its block and speed
+settings, up to 64 MB together (a larger image only as SHA-256: the
+playback needs the same image mounted). The Unicard clock runs from the
+emulated time. Hashed parts: `cpu` (registers and hidden Z80 state),
+`ram`, `memext`, `vram`, `pcg`, `periph` (CTC, PIO 8255, Z80 PIO, PSG,
+GDG, VRAM controller, floppy and Quick Disk controllers) and the emulated
+time.
 
-Not recorded: host joystick, contents of disk images, Unicard clock and
-SD directory, INI settings. Tape control, snapshot load, media and
+Playback works on copies of the media: the program may write to a disk
+or record to tape, the original files and the INI do not change, after
+the playback the media from the INI are mounted again.
+
+Not recorded: Unicard SD directory (warning), Quick Disk in directory
+mode (warning), INI settings. Snapshot load, inserting or ejecting media,
+inserting another tape, tape speed and polarity, the CMT hack switch and
 settings tools are refused while recording.
 
 ## Recipe: record a bug, then investigate it with other tools
@@ -57,7 +71,8 @@ settings tools are refused while recording.
 | write while paused at a frame boundary (after `emu_pause` sent while running, `emu_run(frames=N)`, a deadline, or right after the start) | recorded with position `p` |
 | write while paused **between** boundaries (after a step, a breakpoint, `emu_run_until_addr`) | refused: "changes the machine in a pause between frame boundaries" - run to a boundary first (`emu_run(frames=1)`) |
 | keys (`emu_input_*`, HID scripts) | taken from the key matrix at each frame boundary; in a pause only at a boundary |
-| `emu_snapshot_load*`, `emu_media_*` (except `emu_media_state`), `emu_cmt_*` that control the tape, `emu_settings_set`, `emu_platform_set`, `emu_periph_*`, `emu_memmap_set`, `emu_io_read`, `emu_freeze_add` | refused: "is not allowed while recording a replay" |
+| tape control (`emu_cmt_play`, `_play_paused`, `_stop`, `_pause`, `_eject`, `emu_cmt_tape_seek`, `emu_cmt_record`) | recorded as a `cmt` event like a debugger write (running: `d`, pause at a boundary: `p`, refused between boundaries) |
+| `emu_snapshot_load*`, `emu_media_*` (except `emu_media_state`), `emu_cmt_open`, `emu_cmt_set_*` (speed, pulses, polarity, boost), `emu_cmt_hack_set`, block speed, `emu_settings_set`, `emu_platform_set`, `emu_periph_*`, `emu_memmap_set`, `emu_io_read`, `emu_freeze_add` | refused: "is not allowed while recording a replay" |
 | reset (`emu_reset`, F12) | taken at the next frame boundary (in a pause at a boundary at once) |
 | breakpoint action `poke` / `set` | not recorded; warning in the manifest |
 
@@ -70,7 +85,7 @@ usual while recording.
 Playback reports the first frame with a hash difference: `emu_wait_stop`
 returns `reason: "replay_desync"`, `emu_replay_status` gives
 `outcome_frame` and `desync_parts` (`cpu`, `ram`, `memext`, `vram`,
-`pcg`, `time`). The emulation is paused at that frame boundary - read
+`pcg`, `periph`, `time`). The emulation is paused at that frame boundary - read
 memory and registers there. For a finer search record with a smaller
 `hash_interval` (down to 1 = every frame).
 
@@ -78,6 +93,7 @@ memory and registers there. For a finer search record with a smaller
 event and playing back shows what that input changed. Lines:
 `{"f":frame,"at":"b"|"d"|"p","k":"kbd","m":[10 column bytes]}`,
 `"k":"joy","p":port,"s":state`, `"k":"autotype"`, `"k":"reset"`,
+`"k":"cmt","op":"play"|"pause"|...,"v":value`, `"k":"cmthack","media":K`,
 `"k":"dbg","cmd":"mem_write_checked","args":{...}`, last
 `{"f":N,"k":"end"}`.
 
@@ -89,7 +105,9 @@ mz800emu --headless --replay bug.mzr --replay-verify --result-json result.json
 
 Exit code 0 = every hash matched (`reason: "replay_end"`), 4 = the state
 differs (`reason: "replay_desync"`, `replay.outcome_frame`,
-`replay.desync_parts`), 3 = the replay cannot start. `--replay-record
+`replay.desync_parts`), 3 = the replay cannot start (other platform or TV
+system, a joystick port or the CMT hack set differently, an image that
+is not stored in the replay and differs). `--replay-record
 FILE --exit-after-frames N` records a run of the command line. See
 `emulator://docs/unattended_runs`.
 

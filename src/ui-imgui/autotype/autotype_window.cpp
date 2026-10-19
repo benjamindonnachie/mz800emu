@@ -33,6 +33,7 @@ static int s_ku_ms = 20;       /* Key up prodleva v ms */
 static bool s_autotype_active = false;
 static char s_error_msg[256] = "";
 static int s_typed_bytes = 0;   /* Počet již zpracovaných bajtů */
+static bool s_seen_running = false; /* Autotype po aktivaci už opravdu běžel (záznam vstupů ho spouští až na hranici snímku) */
 
 /* Validace textu — kontrola, zda všechny znaky mají mapování v matici */
 static bool validate_text(const char *text) {
@@ -69,6 +70,7 @@ static void activate_autotype(void) {
      * záznam). */
     replay_host_autotype(s_text_buffer, (double)s_kd_ms, (double)s_ku_ms);
     s_autotype_active = true;
+    s_seen_running = false;
     s_typed_bytes = 0;
     s_error_msg[0] = '\0';
 }
@@ -136,24 +138,24 @@ extern "C" void imgui_autotype_window(bool *p_open) {
         return;
     }
 
-    /* Detekce dokončení autotypu — pointer dosáhl konce textu */
+    /* Průběh autotypu. Konec (vkbd_autotype = NULL) nastaví emulace sama
+     * na konci textu. Napsané bajty = délka textu - zbývající text: ukazatel
+     * nemusí mířit do s_text_buffer (záznam vstupů píše z vlastní kopie). */
     if (s_autotype_active) {
-        if (g_pio8255.vkbd_autotype == NULL) {
-            /* Deaktivováno externě */
-            s_autotype_active = false;
+        const char *rest = g_pio8255.vkbd_autotype;
+        int total = (int)strlen(s_text_buffer);
+        if (rest == NULL) {
+            /* Dopsáno, nebo zastaveno. Před prvním během ještě čeká na
+             * spuštění (záznam vstupů ho převezme na hranici snímku). */
+            if (s_seen_running) {
+                if (g_pio8255.vkbd_autotype_col == -1) s_typed_bytes = total;
+                s_autotype_active = false;
+            }
         } else {
-            /* Aktualizace počtu napsaných bajtů */
-            s_typed_bytes = (int)(g_pio8255.vkbd_autotype - s_text_buffer);
-            int total = (int)strlen(s_text_buffer);
+            s_seen_running = true;
+            s_typed_bytes = total - (int)strlen(rest);
             if (s_typed_bytes < 0) s_typed_bytes = 0;
             if (s_typed_bytes > total) s_typed_bytes = total;
-
-            /* Kontrola dokončení — pointer na konci textu a žádný znak se nezpracovává */
-            if (g_pio8255.vkbd_autotype[0] == '\0' && g_pio8255.vkbd_autotype_col == -1) {
-                s_typed_bytes = total;
-                s_autotype_active = false;
-                g_pio8255.vkbd_autotype = NULL;
-            }
         }
     }
 

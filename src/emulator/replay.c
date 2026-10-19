@@ -26,6 +26,7 @@
 
 #include "replay.h"
 #include "replay_format.h"
+#include "replay_media.h"
 #include "state_hash.h"
 #include "emulator.h"
 #include "cfgmain.h"
@@ -35,6 +36,8 @@
 #include "hw-generic/pio8255/pio8255.h"
 #include "hw-generic/joy/joy.h"
 #include "snapshot/snapshot.h"
+#include "hw-generic/unicard/unicard.h"
+#include "hw-generic/cmt/cmt.h"
 #include "automation.h"
 
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
@@ -51,6 +54,8 @@ int g_replay_frame_hook = 0;
 #define REPLAY_HOOK_ACTIVE 1
 /** @brief Bit g_replay_frame_hook: čeká požadavek. */
 #define REPLAY_HOOK_REQUEST 2
+/** @brief Bit g_replay_frame_hook: čeká operace kazety z UI (i mimo záznam). */
+#define REPLAY_HOOK_UI 4
 
 
 /** @brief Druh požadavku ve frontě. */
@@ -92,6 +97,15 @@ static bool s_pending_autotype = false;        /**< Autotype čeká na hranici s
 static char *s_pending_autotype_text = NULL;   /**< Jeho text ("" = zastavit). */
 static uint32_t s_pending_kd_ms = 0;           /**< Jeho doba stisku. */
 static uint32_t s_pending_ku_ms = 0;           /**< Jeho doba uvolnění. */
+static GQueue s_ui_cmt = G_QUEUE_INIT;          /**< Operace kazety z UI (st_REPLAY_UI_CMT *). */
+
+/** @brief Operace kazety z UI čekající na emu vlákno. */
+typedef struct st_REPLAY_UI_CMT
+{
+    en_REPLAY_CMT_OP op; /**< Operace. */
+    int32_t arg;         /**< Hodnota. */
+    char *path;          /**< Cesta (REPLAY_CMT_RECORD) nebo NULL. */
+} st_REPLAY_UI_CMT;
 
 /* ---- emu vlákno ---- */
 static st_REPLAY_DATA *s_rec = NULL;     /**< Probíhající záznam. */
@@ -110,6 +124,11 @@ static bool s_applying = false;          /**< Přehrávač právě provádí ulo
 static bool s_resume_after_request = false; /**< Pauzu vyvolal požadavek - po vyřízení rozběhnout. */
 static bool s_exit_at_end = false;       /**< --exit-at-replay-end. */
 static char *s_autotype_buf = NULL;      /**< Text autotype spuštěného záznamem / přehrávačem (žije, dokud ho nenahradí další). */
+static uint64_t s_start_ticks = 0;       /**< gdg_get_total_ticks() při startu záznamu / přehrávání. */
+static GDateTime *s_rtc_base = NULL;     /**< Základ RTC (složky místního času jako UTC, bez pásma), NULL = hostitelský čas. */
+static guint s_cmthack_cursor = 0;       /**< Přehrávání: další událost `cmthack` (podle pořadí, ne snímku). */
+static int s_cmthack_count = 0;          /**< Záznam: počet výběrů CMT hacku (index slotu `cmthack.K`). */
+static int s_record_count = 0;           /**< Přehrávání: počet nahrávání na kazetu (jméno dočasného souboru). */
 
 
 const char *replay_outcome_name(en_REPLAY_OUTCOME outcome)
@@ -125,6 +144,39 @@ const char *replay_outcome_name(en_REPLAY_OUTCOME outcome)
         default: break;
     };
     return "none";
+}
+
+
+const char *replay_cmt_op_name(en_REPLAY_CMT_OP op)
+{
+    switch (op)
+    {
+        case REPLAY_CMT_PLAY: return "play";
+        case REPLAY_CMT_PLAY_PAUSED: return "play_paused";
+        case REPLAY_CMT_STOP: return "stop";
+        case REPLAY_CMT_STOP_BUTTON: return "stop_button";
+        case REPLAY_CMT_PAUSE: return "pause";
+        case REPLAY_CMT_EJECT: return "eject";
+        case REPLAY_CMT_SEEK: return "seek";
+        case REPLAY_CMT_SELECT: return "select";
+        case REPLAY_CMT_SELECT_FORCED: return "select_forced";
+        case REPLAY_CMT_NEXT: return "next";
+        case REPLAY_CMT_PREV: return "prev";
+        case REPLAY_CMT_RECORD: return "record";
+        default: break;
+    };
+    return "unknown";
+}
+
+
+/** @brief Operace kazety podle jména, -1 = neznámá. */
+static int replay_cmt_op_from_name(const char *name)
+{
+    for (int i = 0; name && i < REPLAY_CMT_OP_COUNT; i++)
+    {
+        if (strcmp(name, replay_cmt_op_name((en_REPLAY_CMT_OP)i)) == 0) return i;
+    };
+    return -1;
 }
 
 
@@ -180,6 +232,41 @@ uint32_t replay_current_frame(void)
 bool replay_paused_at_boundary(void)
 {
     return EMULATOR_TEST_PAUSED && gdg_get_total_ticks() == s_boundary_ticks;
+}
+
+
+/**
+ * @brief Nastaví základ RTC z textu `YYYY-MM-DDTHH:MM:SS` (NULL / neplatný = žádný).
+ *
+ * Složky se uloží jako UTC: přičtení emulovaného času pak nezávisí na
+ * pásmu ani letním čase hostitele.
+ */
+static void replay_rtc_set_base(const char *text)
+{
+    if (s_rtc_base) g_date_time_unref(s_rtc_base);
+    s_rtc_base = NULL;
+    int y, mo, d, h, mi, se;
+    if (text && sscanf(text, "%d-%d-%dT%d:%d:%d", &y, &mo, &d, &h, &mi, &se) == 6)
+    {
+        s_rtc_base = g_date_time_new_utc(y, mo, d, h, mi, (gdouble)se);
+    };
+}
+
+
+bool replay_rtc_now(int *year, int *month, int *day, int *hour, int *min, int *sec)
+{
+    if (!s_rtc_base || (!s_rec && !s_play)) return false;
+    uint64_t elapsed = (gdg_get_total_ticks() - s_start_ticks) / (uint64_t)GDGCLK_BASE;
+    GDateTime *t = g_date_time_add_seconds(s_rtc_base, (gdouble)elapsed);
+    if (!t) return false;
+    *year = g_date_time_get_year(t);
+    *month = g_date_time_get_month(t);
+    *day = g_date_time_get_day_of_month(t);
+    *hour = g_date_time_get_hour(t);
+    *min = g_date_time_get_minute(t);
+    *sec = g_date_time_get_second(t);
+    g_date_time_unref(t);
+    return true;
 }
 
 
@@ -378,10 +465,30 @@ static void replay_apply_autotype(const char *text, uint32_t kd_ms, uint32_t ku_
 }
 
 
+/**
+ * @brief Komponenty snapshotu, ze kterých se počítá část `periph`.
+ *
+ * Jen stav čipů a řadičů, který načtení snapshotu obnoví celý; pole
+ * řízení emulátoru a průběhu vykreslení (plánovaná událost `mzarch`, stav
+ * renderování `gdg`) handlery při hashi vynechají (`for_hash`, viz
+ * snapshot_hash_components()): bez toho se záznam s pauzou po run(frames)
+ * rozjel na snímku pauzy a na závěrečném hashi (změřeno). Vynechané
+ * komponenty: `ide8` (cesta k obrazu, při přehrání dočasná kopie, načtení ji
+ * neobnoví), `unicard` (pracovní adresář hostitele), `cmt` (jméno souboru
+ * pásky), paměti a CPU (mají vlastní části) a zvuk, video a obraz (stav
+ * výstupu hostitele, ne stroje). `fdc` a `qdisk` cestu k obrazu zapisují,
+ * načtení snapshotu ji ale obnoví, takže se při přehrání shoduje.
+ */
+static const char *const s_periph_components[] = {
+    "mzarch", "ctc8253", "pio8255", "pioz80", "psg", "gdg", "vramctrl", "fdc", "qdisk",
+};
+
+
 /** @brief Hash všech částí do řádku (chybějící část = ""). */
 static void replay_compute_hash(st_REPLAY_HASH_ROW *row, uint32_t frame)
 {
-    static const en_STATE_HASH_PART map[REPLAY_HASH_PART_COUNT] = {
+    /* Části ze state_hash (pořadí en_REPLAY_HASH_PART od CPU po PCG). */
+    static const en_STATE_HASH_PART map[REPLAY_HASH_PCG + 1] = {
         [REPLAY_HASH_CPU] = STATE_HASH_CPU,
         [REPLAY_HASH_RAM] = STATE_HASH_RAM,
         [REPLAY_HASH_MEMEXT] = STATE_HASH_MEMEXT,
@@ -391,10 +498,44 @@ static void replay_compute_hash(st_REPLAY_HASH_ROW *row, uint32_t frame)
     memset(row, 0, sizeof(*row));
     row->frame = frame;
     row->ticks = gdg_get_total_ticks();
-    for (int p = 0; p < REPLAY_HASH_PART_COUNT; p++)
+    for (int p = 0; p <= REPLAY_HASH_PCG; p++)
     {
         if (!state_hash_part(map[p], row->part[p])) row->part[p][0] = '\0';
     };
+    if (snapshot_hash_components(s_periph_components, G_N_ELEMENTS(s_periph_components),
+                                 row->part[REPLAY_HASH_PERIPH], sizeof(row->part[REPLAY_HASH_PERIPH])) != SNAPSHOT_OK)
+    {
+        row->part[REPLAY_HASH_PERIPH][0] = '\0';
+    };
+}
+
+
+/**
+ * @brief Začátek / konec záznamu nebo přehrání pro joystick.
+ *
+ * Při aktivním replay čte joy_read_byte() port typu JOYSTICK ze
+ * `g_joy.dev[].state` (joy_host_latch()), který záznam jednou za snímek
+ * naplní ze SDL a přehrání z událostí.
+ */
+static void replay_joy_latch(bool on)
+{
+#ifdef HAVE_JOY
+    joy_host_latch(on);
+#else
+    (void)on;
+#endif
+}
+
+
+/** @brief Záznam: stav portů typu JOYSTICK ze SDL (jednou za snímek, krok 2 B_f). */
+static void replay_rec_sample_host_joystick(void)
+{
+#ifdef HAVE_JOY
+    for (int d = 0; d < JOY_DEVID_COUNT; d++)
+    {
+        if (g_joy.dev[d].type == JOY_TYPE_JOYSTICK) g_joy.dev[d].state = joy_host_scan((en_JOY_DEVID)d);
+    };
+#endif
 }
 
 
@@ -500,6 +641,52 @@ static void replay_rec_autotype(char *text, uint32_t kd_ms, uint32_t ku_ms, en_R
 }
 
 
+/** @brief Provede operaci kazety a při záznamu ji zapíše jako událost `cmt`. */
+static void replay_cmt_run(en_REPLAY_CMT_OP op, int32_t arg, const char *path, en_REPLAY_EV_AT at)
+{
+    (void)replay_media_cmt_execute(op, arg, path);
+    if (!s_rec) return;
+    st_REPLAY_EVENT ev;
+    memset(&ev, 0, sizeof(ev));
+    ev.kind = REPLAY_EV_CMT;
+    ev.cmd = (char *)replay_cmt_op_name(op);
+    ev.arg = arg;
+    ev.text = (char *)path;
+    replay_rec_log(&ev, at);
+}
+
+
+/**
+ * @brief Vyřídí operace kazety z UI.
+ *
+ * Mimo záznam je hned provede (tak jako dřív UI vlákno), při záznamu je
+ * zapíše s polohou @p at, při přehrávání je zahodí.
+ *
+ * @param at Poloha (B_f = `b`, pauza na hranici = `p`).
+ */
+static void replay_ui_cmt_drain(en_REPLAY_EV_AT at)
+{
+    while (1)
+    {
+        g_mutex_lock(&s_lock);
+        st_REPLAY_UI_CMT *u = (st_REPLAY_UI_CMT *)g_queue_pop_head(&s_ui_cmt);
+        if (g_queue_is_empty(&s_ui_cmt)) g_atomic_int_and((guint *)&g_replay_frame_hook, ~(guint)REPLAY_HOOK_UI);
+        g_mutex_unlock(&s_lock);
+        if (!u) break;
+        if (!s_play) replay_cmt_run(u->op, u->arg, u->path, at);
+        g_free(u->path);
+        g_free(u);
+    };
+}
+
+
+/** @brief true = z UI čeká operace kazety. */
+static bool replay_ui_cmt_pending(void)
+{
+    return (g_atomic_int_get(&g_replay_frame_hook) & REPLAY_HOOK_UI) != 0;
+}
+
+
 /** @brief Bod B_f při záznamu (kroky 1-5 z tabulky v hlavičce). */
 static void replay_rec_boundary(void)
 {
@@ -526,8 +713,10 @@ static void replay_rec_boundary(void)
     (void)joy_dev;
     (void)joy_state;
 #endif
+    replay_rec_sample_host_joystick();
 
     if (do_at) replay_rec_autotype(at_text, kd, ku, REPLAY_AT_BOUNDARY);
+    if (replay_ui_cmt_pending()) replay_ui_cmt_drain(REPLAY_AT_BOUNDARY);
 
     replay_rec_sample(REPLAY_AT_BOUNDARY, false);
 
@@ -554,6 +743,7 @@ static void replay_rec_paused(void)
         replay_rec_sample(REPLAY_AT_PAUSE, false);
     };
     if (do_at) replay_rec_autotype(at_text, kd, ku, REPLAY_AT_PAUSE);
+    if (replay_ui_cmt_pending()) replay_ui_cmt_drain(REPLAY_AT_PAUSE);
 }
 
 
@@ -562,6 +752,7 @@ static const char *replay_rec_start(const st_REPLAY_REQ *r, char *errbuf, size_t
 {
     if (!r->path || !r->path[0]) return "no file name";
     if (g_pio8255.vkbd_autotype) return "autotype is running; wait until it ends";
+    if (CMT_TEST_RECORD) return "the tape is recording; stop the tape recording first";
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
     if (freeze_count() > 0) return "Freeze Bytes are active; remove them first";
 #endif
@@ -593,25 +784,29 @@ static const char *replay_rec_start(const st_REPLAY_REQ *r, char *errbuf, size_t
     s_rec->screen_ticks = VIDEO_SCREEN_TICKS;
     GDateTime *now = g_date_time_new_now_local();
     s_rec->created = g_date_time_format_iso8601(now);
+    s_rec->rtc_base = g_date_time_format(now, "%Y-%m-%dT%H:%M:%S");
     g_date_time_unref(now);
+    replay_rtc_set_base(s_rec->rtc_base);
+    if (UNICARD_TEST_IS_CONNECTED)
+    {
+        replay_data_add_warning(s_rec, "the Unicard SD card is a host directory and is not part of the replay; "
+                                       "play it back with the same SD card contents");
+    };
     s_rec->description = g_strdup(r->description);
     s_rec->hash_interval = r->hash_interval ? r->hash_interval : REPLAY_DEFAULT_HASH_INTERVAL;
     s_rec->start_snapshot = snap;
     s_rec->start_snapshot_size = snap_size;
+    replay_media_capture(s_rec);
+    s_cmthack_count = 0;
 
 #ifdef HAVE_JOY
-    for (int d = 0; d < JOY_DEVID_COUNT; d++)
-    {
-        if (g_joy.dev[d].type == JOY_TYPE_JOYSTICK)
-        {
-            replay_data_add_warning(s_rec, "host joystick input is not recorded");
-        };
-    };
+    for (int d = 0; d < JOY_DEVID_COUNT && d < REPLAY_JOY_PORTS; d++) s_rec->joy_type[d] = (int)g_joy.dev[d].type;
 #endif
 
     s_start_screens = (uint64_t)g_gdg.total_elapsed.screens;
     s_frame = 0;
     s_boundary_ticks = gdg_get_total_ticks();
+    s_start_ticks = s_boundary_ticks;
 
     g_mutex_lock(&s_lock);
     memcpy(s_host_kbd, g_pio8255.keyboard_matrix, sizeof(s_host_kbd));
@@ -628,6 +823,8 @@ static const char *replay_rec_start(const st_REPLAY_REQ *r, char *errbuf, size_t
     g_mutex_unlock(&s_lock);
 
     replay_set_mode(REPLAY_MODE_RECORDING);
+    replay_joy_latch(true);
+    replay_rec_sample_host_joystick();
     replay_rec_sample(REPLAY_AT_BOUNDARY, true);
     replay_rec_hash();
     replay_publish();
@@ -660,6 +857,7 @@ static const char *replay_rec_stop(bool at_boundary, char *errbuf, size_t errsiz
     guint events = s_rec->events->len;
     replay_data_free(s_rec);
     s_rec = NULL;
+    replay_joy_latch(false);
     replay_set_mode(REPLAY_MODE_OFF);
     replay_publish();
     if (!ok)
@@ -740,6 +938,30 @@ static void replay_play_event(const st_REPLAY_EVENT *ev)
         case REPLAY_EV_RESET:
             mzarch_main_reset_now();
             break;
+        case REPLAY_EV_CMT:
+        {
+            int op = replay_cmt_op_from_name(ev->cmd);
+            if (op < 0)
+            {
+                replay_deviate("unknown tape operation in the replay");
+                break;
+            };
+            /* Nahrávání na kazetu při přehrání do dočasného souboru, ne
+             * do souboru uživatele. */
+            char *tmp = NULL;
+            if (op == REPLAY_CMT_RECORD)
+            {
+                char *name = g_strdup_printf("record%d.wav", ++s_record_count);
+                tmp = replay_media_tmp_file(name);
+                g_free(name);
+            };
+            (void)replay_media_cmt_execute((en_REPLAY_CMT_OP)op, ev->arg, tmp);
+            g_free(tmp);
+            break;
+        };
+        case REPLAY_EV_CMTHACK:
+            /* Spotřebuje replay_cmthack_playback() při instrukci CMT hacku. */
+            break;
         case REPLAY_EV_DBG:
         {
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
@@ -805,6 +1027,8 @@ static void replay_play_finish(en_REPLAY_OUTCOME outcome, const char *message, c
     uint32_t f = replay_current_frame();
     replay_data_free(s_play);
     s_play = NULL;
+    replay_media_restore();
+    replay_joy_latch(false);
     replay_set_mode(REPLAY_MODE_OFF);
     replay_publish();
     replay_publish_outcome(outcome, f, message, parts);
@@ -837,6 +1061,8 @@ static void replay_compare_hash(const st_REPLAY_HASH_ROW *want, char *parts, siz
     parts[0] = '\0';
     for (int p = 0; p < REPLAY_HASH_PART_COUNT; p++)
     {
+        /* Starší záznam část periph nemá - nic k porovnání. */
+        if (p == REPLAY_HASH_PERIPH && want->part[p][0] == '\0') continue;
         if (strcmp(now.part[p], want->part[p]) != 0)
         {
             if (parts[0]) g_strlcat(parts, ",", size);
@@ -958,9 +1184,36 @@ static const char *replay_play_start(const st_REPLAY_REQ *r, char *errbuf, size_
         return "the replay contains debugger events; it needs a build with the debugger";
     };
 #endif
+#ifdef HAVE_JOY
+    /* Port bez joysticku (NONE) čte 0FFh a rozhraní MZ-1X03 ho hlásí jako
+     * odpojený - jiný typ by přehrání rozjel. Typ je volba INI, přehrání ho
+     * nemění. */
+    for (int p = 0; p < JOY_DEVID_COUNT && p < REPLAY_JOY_PORTS; p++)
+    {
+        if (d->joy_type[p] == REPLAY_JOY_TYPE_UNKNOWN) continue;
+        bool rec_none = (d->joy_type[p] == JOY_TYPE_NONE);
+        bool now_none = (g_joy.dev[p].type == JOY_TYPE_NONE);
+        if (rec_none != now_none)
+        {
+            g_snprintf(errbuf, errsize, "joystick port %d was %s when recording, here it is %s; "
+                       "change the joystick settings", p + 1, rec_none ? "not connected" : "connected",
+                       now_none ? "not connected" : "connected");
+            replay_data_free(d);
+            return errbuf;
+        };
+    };
+#endif
+    /* Obrazy médií před snapshotem: snapshot obnoví stav řadičů nad nimi. */
+    const char *merr = replay_media_prepare(d, errbuf, errsize);
+    if (merr)
+    {
+        replay_data_free(d);
+        return merr;
+    };
     en_SNAPSHOT_RESULT sr = snapshot_load_from_buffer(d->start_snapshot, d->start_snapshot_size);
     if (sr != SNAPSHOT_OK)
     {
+        replay_media_restore();
         g_snprintf(errbuf, errsize, "start snapshot load failed: %s", snapshot_result_to_string(sr));
         replay_data_free(d);
         return errbuf;
@@ -969,12 +1222,16 @@ static const char *replay_play_start(const st_REPLAY_REQ *r, char *errbuf, size_
     s_play = d;
     s_ev_cursor = 0;
     s_hash_cursor = 0;
+    s_cmthack_cursor = 0;
+    s_record_count = 0;
     s_deviated = false;
     memset(s_play_kbd, 0xFF, sizeof(s_play_kbd));
     memset(s_play_joy, 0xFF, sizeof(s_play_joy));
     s_start_screens = (uint64_t)g_gdg.total_elapsed.screens;
     s_frame = 0;
     s_boundary_ticks = gdg_get_total_ticks();
+    s_start_ticks = s_boundary_ticks;
+    replay_rtc_set_base(d->rtc_base);
 
     g_mutex_lock(&s_lock);
     s_status.outcome = REPLAY_OUTCOME_NONE;
@@ -986,6 +1243,7 @@ static const char *replay_play_start(const st_REPLAY_REQ *r, char *errbuf, size_
     g_mutex_unlock(&s_lock);
 
     replay_set_mode(REPLAY_MODE_PLAYING);
+    replay_joy_latch(true);
     fprintf(stderr, "[REPLAY] playing '%s' (%u frames)\n", r->path, d->frames);
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
     if (freeze_count() > 0) replay_deviate("Freeze Bytes are active");
@@ -1022,6 +1280,8 @@ static void replay_pause_for_request(void)
 
 void replay_on_frame_boundary(void)
 {
+    /* Operace kazety z UI mimo záznam: provést hned na hranici snímku. */
+    if (!s_rec && !s_play && replay_ui_cmt_pending()) replay_ui_cmt_drain(REPLAY_AT_BOUNDARY);
     if (s_rec)
     {
         s_frame = replay_current_frame();
@@ -1067,6 +1327,8 @@ void replay_on_paused(void)
 {
     if (s_rec) replay_rec_paused();
     else if (s_play) replay_play_check_live_reset();
+    /* Mimo záznam operace kazety z UI hned, při přehrávání je zahodit. */
+    if (!s_rec && replay_ui_cmt_pending()) replay_ui_cmt_drain(REPLAY_AT_PAUSE);
 
     if (!replay_have_request()) return;
 
@@ -1156,8 +1418,19 @@ void replay_shutdown(void)
     {
         replay_data_free(s_play);
         s_play = NULL;
+        replay_media_restore();
     };
+    replay_joy_latch(false);
     replay_set_mode(REPLAY_MODE_OFF);
+    g_mutex_lock(&s_lock);
+    st_REPLAY_UI_CMT *u;
+    while ((u = (st_REPLAY_UI_CMT *)g_queue_pop_head(&s_ui_cmt)) != NULL)
+    {
+        g_free(u->path);
+        g_free(u);
+    };
+    g_atomic_int_and((guint *)&g_replay_frame_hook, ~(guint)REPLAY_HOOK_UI);
+    g_mutex_unlock(&s_lock);
     st_REPLAY_REQ *r;
     while ((r = replay_dequeue()) != NULL)
     {
@@ -1233,6 +1506,78 @@ void replay_host_autotype(const char *text, double kd_ms, double ku_ms)
 }
 
 
+void replay_host_cmt(en_REPLAY_CMT_OP op, int32_t arg, const char *path)
+{
+    if (op < 0 || op >= REPLAY_CMT_OP_COUNT) return;
+    if (g_atomic_int_get(&g_replay_mode) == REPLAY_MODE_PLAYING) return;
+    st_REPLAY_UI_CMT *u = g_new0(st_REPLAY_UI_CMT, 1);
+    u->op = op;
+    u->arg = arg;
+    u->path = g_strdup(path);
+    g_mutex_lock(&s_lock);
+    g_queue_push_tail(&s_ui_cmt, u);
+    g_atomic_int_or((guint *)&g_replay_frame_hook, REPLAY_HOOK_UI);
+    g_mutex_unlock(&s_lock);
+}
+
+
+void replay_cmthack_note(const char *chosen)
+{
+    if (!s_rec) return;
+    st_REPLAY_EVENT ev;
+    memset(&ev, 0, sizeof(ev));
+    ev.kind = REPLAY_EV_CMTHACK;
+    ev.arg = -1;
+    char *base = chosen ? g_path_get_basename(chosen) : g_strdup("");
+    ev.text = base;
+    if (chosen)
+    {
+        gchar *data = NULL;
+        gsize len = 0;
+        if (g_file_get_contents(chosen, &data, &len, NULL))
+        {
+            char slot[32];
+            g_snprintf(slot, sizeof(slot), "cmthack.%d", s_cmthack_count);
+            if (replay_data_add_media(s_rec, slot, chosen, (const uint8_t *)data, len, NULL, true) >= 0)
+            {
+                ev.arg = s_cmthack_count++;
+            };
+            g_free(data);
+        };
+        if (ev.arg < 0) replay_data_add_warning(s_rec, "cannot read a file chosen for the CMT hack");
+    };
+    replay_rec_log(&ev, REPLAY_AT_BOUNDARY);
+    g_free(base);
+}
+
+
+bool replay_cmthack_playback(char **out_path)
+{
+    *out_path = NULL;
+    if (!s_play) return false;
+    while (s_cmthack_cursor < s_play->events->len)
+    {
+        const st_REPLAY_EVENT *ev = &g_array_index(s_play->events, st_REPLAY_EVENT, s_cmthack_cursor++);
+        if (ev->kind != REPLAY_EV_CMTHACK) continue;
+        if (ev->arg < 0) return true; /* v záznamu zrušeno */
+        char slot[32];
+        g_snprintf(slot, sizeof(slot), "cmthack.%d", ev->arg);
+        const st_REPLAY_MEDIA *m = replay_data_find_media(s_play, slot);
+        char *tmp = (m && m->data) ? replay_media_tmp_file(ev->text && ev->text[0] ? ev->text : "cmthack.mzf") : NULL;
+        if (tmp && g_file_set_contents(tmp, (const gchar *)m->data, (gssize)m->size, NULL))
+        {
+            *out_path = tmp;
+            return true;
+        };
+        g_free(tmp);
+        replay_deviate("a CMT hack file of the replay is missing");
+        return true;
+    };
+    replay_deviate("the CMT hack asked for more files than the replay has");
+    return true;
+}
+
+
 bool replay_divert_reset_request(void)
 {
     int mode = g_atomic_int_get(&g_replay_mode);
@@ -1300,6 +1645,24 @@ void replay_dbg_after(struct st_DBGAPI_CMDRQ *rq, bool was_paused)
 
     if (s_rec)
     {
+        int cmt_op = -1;
+        int32_t cmt_arg = 0;
+        const char *cmt_path = NULL;
+        if (cls == REPLAY_DBG_RECORD && rq->success
+            && replay_dbg_cmt_op(cmd, rq->data_ptr, &cmt_op, &cmt_arg, &cmt_path))
+        {
+            /* Kazeta z MCP: událost `cmt` (přehraje ji i build bez
+             * debuggeru), ne `dbg`. Operace už proběhla v dispatch. */
+            st_REPLAY_EVENT ev;
+            memset(&ev, 0, sizeof(ev));
+            ev.kind = REPLAY_EV_CMT;
+            ev.cmd = (char *)replay_cmt_op_name((en_REPLAY_CMT_OP)cmt_op);
+            ev.arg = cmt_arg;
+            ev.text = (char *)cmt_path;
+            replay_rec_log(&ev, was_paused ? REPLAY_AT_PAUSE : REPLAY_AT_DRAIN);
+            replay_publish();
+            return;
+        };
         if (cls == REPLAY_DBG_RECORD && rq->success)
         {
             char *args = replay_dbg_args_to_json(cmd, rq->data_ptr);

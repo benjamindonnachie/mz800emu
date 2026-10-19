@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: mz800emu 1.0\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-18 23:04+0200\n"
+"POT-Creation-Date: 2026-10-19 08:43+0200\n"
 "PO-Revision-Date: 2026-03-11 22:00+0100\n"
 "Last-Translator: Claude Code\n"
 "Language-Team: Українська\n"
@@ -80,31 +80,31 @@ msgstr "Власна швидкість"
 msgid "Normal speed"
 msgstr "Нормальна швидкість"
 
-#: src/emulator/hw-generic/cmt/cmt.c:582
+#: src/emulator/hw-generic/cmt/cmt.c:584
 msgid "Create a new WAV file"
 msgstr "Створити новий WAV файл"
 
-#: src/emulator/hw-generic/cmt/cmt.c:582
+#: src/emulator/hw-generic/cmt/cmt.c:584
 msgid "newfile.wav"
 msgstr "newfile.wav"
 
-#: src/emulator/hw-generic/cmt/cmt.c:1043
+#: src/emulator/hw-generic/cmt/cmt.c:1131
 msgid "All Supported CMT Files"
 msgstr "Усі підтримувані CMT файли"
 
-#: src/emulator/hw-generic/cmt/cmt.c:1044
+#: src/emulator/hw-generic/cmt/cmt.c:1132
 msgid "Tape Files"
 msgstr "Файли стрічок"
 
-#: src/emulator/hw-generic/cmt/cmt.c:1121
+#: src/emulator/hw-generic/cmt/cmt.c:1209
 msgid "Select CMT file to open"
 msgstr "Виберіть CMT файл для відкриття"
 
-#: src/emulator/hw-generic/cmt/cmthack.c:216
+#: src/emulator/hw-generic/cmt/cmthack.c:240
 msgid "Select a MZF File"
 msgstr "Виберіть MZF файл"
 
-#: src/emulator/hw-generic/fdc/fdc.c:1140
+#: src/emulator/hw-generic/fdc/fdc.c:1220
 #, c-format
 msgid "Select DSK image file for FDC%u drive FD%d"
 msgstr "Виберіть файл образу DSK для FDC%u дисковод FD%d"
@@ -117,7 +117,7 @@ msgstr "Виберіть існуючий .MZQ файл або створіть 
 msgid "Select directory to mount as virtual Quick Disk"
 msgstr "Виберіть каталог для монтування як віртуальний Quick Disk"
 
-#: src/emulator/hw-generic/unicard/unicard.c:2299
+#: src/emulator/hw-generic/unicard/unicard.c:2312
 msgid "Select SD root directory for Unicard"
 msgstr "Виберіть кореневий каталог SD для Unicard"
 
@@ -545,40 +545,40 @@ msgstr "OK"
 msgid "Cancel"
 msgstr "Скасувати"
 
-#: src/ui-imgui/autotype/autotype_window.cpp:52
+#: src/ui-imgui/autotype/autotype_window.cpp:53
 msgid "Invalid character at position"
 msgstr "Недійсний символ на позиції"
 
-#: src/ui-imgui/autotype/autotype_window.cpp:164
+#: src/ui-imgui/autotype/autotype_window.cpp:166
 #: src/ui-imgui/topmenu/interface/menu_keyjoy.cpp:29
 msgid "Autotype Buffer"
 msgstr "Autotype buffer"
 
-#: src/ui-imgui/autotype/autotype_window.cpp:186
+#: src/ui-imgui/autotype/autotype_window.cpp:188
 msgid "Autotype!"
 msgstr "Autotype!"
 
-#: src/ui-imgui/autotype/autotype_window.cpp:187
+#: src/ui-imgui/autotype/autotype_window.cpp:189
 msgid "Stop!"
 msgstr "Stop!"
 
-#: src/ui-imgui/autotype/autotype_window.cpp:202
+#: src/ui-imgui/autotype/autotype_window.cpp:204
 msgid "Text buffer is empty"
 msgstr "Текстовий buffer je порожній"
 
-#: src/ui-imgui/autotype/autotype_window.cpp:216
+#: src/ui-imgui/autotype/autotype_window.cpp:218
 msgid "Key down"
 msgstr "Натиск клавіші"
 
-#: src/ui-imgui/autotype/autotype_window.cpp:235
+#: src/ui-imgui/autotype/autotype_window.cpp:237
 msgid "Key up"
 msgstr "Звільнення клавіші"
 
-#: src/ui-imgui/autotype/autotype_window.cpp:286
+#: src/ui-imgui/autotype/autotype_window.cpp:288
 msgid "Characters"
 msgstr "Символи"
 
-#: src/ui-imgui/autotype/autotype_window.cpp:296
+#: src/ui-imgui/autotype/autotype_window.cpp:298
 msgid "Typed"
 msgstr "Написано"
 
@@ -634,20 +634,20 @@ msgstr "Зберегти як"
 msgid "Save MZF file as"
 msgstr "Зберегти файл MZF як"
 
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:246
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:198
 msgid "Tape Filelist"
 msgstr "Список файлів стрічки"
 
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:284
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:308 src/ui-imgui/cmt/cmt_window.cpp:213
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:236
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:260 src/ui-imgui/cmt/cmt_window.cpp:213
 #: src/ui-imgui/debugger/sections/dbg_stack_panel.cpp:2677
 #: src/ui-imgui/debugger/vars/vars_window.cpp:1502
 #: src/ui-imgui/debugger/watch/watch_window.cpp:1696
 msgid "Name"
 msgstr "Ім'я"
 
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:285
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:311 src/ui-imgui/cmt/cmt_window.cpp:212
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:237
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:263 src/ui-imgui/cmt/cmt_window.cpp:212
 #: src/ui-imgui/debugger/memsearch_window/memsearch_window.cpp:576
 #: src/ui-imgui/debugger/watch/watch_window.cpp:1700
 #: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:132
@@ -657,8 +657,8 @@ msgstr "Ім'я"
 msgid "Type"
 msgstr "Тип"
 
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:286
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:314
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:238
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:266
 #: src/ui-imgui/filechooser/headers/CustomImGuiFileDialogConfig.h:133
 #: src/ui-imgui/snapshot/snapshot_load_dialog.cpp:209
 #: src/ui-imgui/snapshot/snapshot_load_dialog.cpp:211
@@ -667,25 +667,25 @@ msgstr "Тип"
 msgid "Size"
 msgstr "Розмір"
 
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:287
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:317
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:239
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:269
 #: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:416
 msgid "Start"
 msgstr "Початок"
 
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:288
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:320
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:240
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:272
 msgid "Exec"
 msgstr "Exec"
 
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:289
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:323 src/ui-imgui/cmt/cmt_window.cpp:214
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:241
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:275 src/ui-imgui/cmt/cmt_window.cpp:214
 #: src/ui-imgui/topmenu/menu_speed.cpp:27
 msgid "Speed"
 msgstr "Швидкість"
 
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:290
-#: src/ui-imgui/cmt/cmt_tape_index.cpp:326
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:242
+#: src/ui-imgui/cmt/cmt_tape_index.cpp:278
 msgid "Length"
 msgstr "Довжина"
 
@@ -697,7 +697,7 @@ msgstr "Час відтворення:"
 msgid "Remaining time:"
 msgstr "Час, що залишився:"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:81 src/ui-imgui/cmt/cmt_window.cpp:845
+#: src/ui-imgui/cmt/cmt_window.cpp:81 src/ui-imgui/cmt/cmt_window.cpp:789
 msgid "CMT Hack"
 msgstr "CMT Hack"
 
@@ -741,61 +741,69 @@ msgstr "Rate"
 msgid "SSize"
 msgstr "SSize"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:438
+#: src/ui-imgui/cmt/cmt_window.cpp:439
 msgid "Default MZ Speed:"
 msgstr "Стандартна швидкість MZ:"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:780
+#: src/ui-imgui/cmt/cmt_window.cpp:720
+msgid ""
+"Recording a replay: tape control is recorded; another tape and speed "
+"settings are not available."
+msgstr ""
+"Запис відтворення: керування касетою записується; інша стрічка та "
+"налаштування швидкості недоступні."
+
+#: src/ui-imgui/cmt/cmt_window.cpp:724
 msgid "Tape control is not available while a replay is recorded or played."
 msgstr "Керування касетою недоступне під час запису або відтворення введення."
 
-#: src/ui-imgui/cmt/cmt_window.cpp:817 src/ui-imgui/cmt/cmt_window.cpp:934
+#: src/ui-imgui/cmt/cmt_window.cpp:761 src/ui-imgui/cmt/cmt_window.cpp:878
 msgid "Virtual CMT"
 msgstr "Віртуальний CMT"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:854
+#: src/ui-imgui/cmt/cmt_window.cpp:798
 msgid "CMT Hack is activated!"
 msgstr "CMT Hack активовано!"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:855
+#: src/ui-imgui/cmt/cmt_window.cpp:799
 msgid "Virtual CMT is not available!"
 msgstr "Віртуальний CMT недоступний!"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:861
+#: src/ui-imgui/cmt/cmt_window.cpp:805
 #: src/ui-imgui/version_check/imgui_version_check.cpp:390
 msgid "Close"
 msgstr "Закрити"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:883
+#: src/ui-imgui/cmt/cmt_window.cpp:827
 msgid "No tape loaded"
 msgstr "Стрічку не завантажено"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:892
+#: src/ui-imgui/cmt/cmt_window.cpp:836
 #: src/ui-imgui/debugger/ramlog_window/ramlog_window.cpp:363
 msgid "Recording"
 msgstr "Запис"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:902
+#: src/ui-imgui/cmt/cmt_window.cpp:846
 msgid "Playing"
 msgstr "Відтворення"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:917
+#: src/ui-imgui/cmt/cmt_window.cpp:861
 msgid "Stopped - Ready to Play"
 msgstr "Зупинено - Готовий до відтворення"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:924
+#: src/ui-imgui/cmt/cmt_window.cpp:868
 msgid "(paused)"
 msgstr "(призупинено)"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:946
+#: src/ui-imgui/cmt/cmt_window.cpp:890
 msgid "*** Empty ***"
 msgstr "*** Порожньо ***"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:952
+#: src/ui-imgui/cmt/cmt_window.cpp:896
 msgid "Recording (paused)"
 msgstr "Запис (призупинено)"
 
-#: src/ui-imgui/cmt/cmt_window.cpp:956
+#: src/ui-imgui/cmt/cmt_window.cpp:900
 msgid "Recording.."
 msgstr "Запис.."
 

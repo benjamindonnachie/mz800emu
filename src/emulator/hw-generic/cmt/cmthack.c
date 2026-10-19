@@ -41,6 +41,7 @@
 #include "memory/memory.h"
 #include "mzarch/mzarch.h"
 #include "cmt.h"
+#include "replay.h"
 
 #include "iface/iface_audio.h"
 #include "hw-generic/gdg/framebuffer.h"
@@ -190,6 +191,11 @@ void cmthack_result(en_LOADRET result)
  * varování a emulace běží dál. Načíst pásku v takovém režimu lze reálnou
  * páskou (CMT hack vypnout, [CMTHACK] enable = 0 nebo MCP cmt_hack_set).
  *
+ * Záznam vstupů: výběr v dialogu (i zrušení a headless Break) se zapíše do
+ * záznamu i s obsahem souboru (replay_cmthack_note()); při přehrávání se
+ * dialog neotevře a použije se další soubor ze záznamu
+ * (replay_cmthack_playback()), i bez GUI.
+ *
  * @pre EMU vlákno, uvnitř instrukce OUT (01h) se zapnutým CMT hack patchem.
  * @post Hlavička je v RAM na adrese z HL a ROM dostala výsledek OK, nebo ROM
  *       dostala Break či chybu. Zvuk a měření MAX SPEED jsou obnovené.
@@ -198,12 +204,30 @@ void cmthack_result(en_LOADRET result)
  */
 void cmthack_load_file(void)
 {
+    /* Přehrání vstupů: soubor ze záznamu místo dialogu (i bez GUI). */
+    char *replay_file = NULL;
+    if (replay_cmthack_playback(&replay_file))
+    {
+        const char *ext = replay_file ? cmtext_get_filename_extension(replay_file) : NULL;
+        if (ext && ((0 == strcasecmp(ext, "mzf")) || (0 == strcasecmp(ext, "m12"))))
+        {
+            cmthack_load_mzf_filename(replay_file);
+        }
+        else
+        {
+            cmthack_result(LOADRET_BREAK);
+        };
+        g_free(replay_file);
+        return;
+    };
+
     if (!baseui_filechooser_can_wait())
     {
         /* Headless: dialog by nikdo nezavřel a EMU vlákno by stálo navždy. */
         fprintf(stderr, "WARNING: CMT hack needs the GUI file dialog to load a tape file; "
                         "no GUI in headless mode, load cancelled (Break). "
                         "Disable the CMT hack to load from the virtual tape.\n");
+        replay_cmthack_note(NULL);
         cmthack_result(LOADRET_BREAK);
         return;
     };
@@ -214,6 +238,8 @@ void cmthack_load_file(void)
     framebuffer_flush_full_screen();
 
     char *filename = baseui_filechooser_open_file_wait(BASEUI_FCHOOSER_CAT_MZF, _("Select a MZF File"), ".mzf, .m12, .*", NULL, NULL, g_cmthack.last_filename, NULL);
+    /* Záznam vstupů: výběr (i zrušení) se uloží i s obsahem souboru. */
+    replay_cmthack_note(filename);
 
     if (filename == NULL)
     {

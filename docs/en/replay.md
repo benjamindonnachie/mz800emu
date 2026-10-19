@@ -16,23 +16,34 @@ only in the binary of the same platform and TV system.
 
 A recording starts from a complete snapshot of the machine (always with
 the RAM disk, whatever the snapshot settings say), taken and loaded back
-at the start. From then on it stores, in emulated frames:
+at the start. Together with it the recording stores the contents of the
+mounted media (see [Media](#media)). From then on it stores, in emulated
+frames:
 
 - every change of the keyboard (the whole key matrix, keyboard of the
-  host, virtual keyboard window and MCP keys together), of the joystick
-  from the numeric keypad and of the MCP joystick,
+  host, virtual keyboard window and MCP keys together) and of the
+  joysticks (host joystick, numeric keypad, MCP),
 - resets and autotype,
+- tape control (play, stop, pause, eject, block selection, recording to
+  tape) and the files chosen in the CMT hack dialog,
 - writes of the debugger and of MCP tools (memory, memory regions,
   registers, CPU flags, I/O ports, injected IRQ and NMI),
 - every N frames (default 50, one second on PAL) a SHA-256 hash of the
   CPU (registers including the hidden Z80 state), the RAM, the MemExt
-  RAM, the VRAM and the PCG, together with the emulated time.
+  RAM, the VRAM, the PCG and the peripherals (CTC 8253, PIO 8255, Z80
+  PIO, PSG, GDG, VRAM controller, floppy and Quick Disk controllers),
+  together with the emulated time.
 
 All inputs are taken at the boundary of a frame: a key pressed in the
 middle of a frame reaches the emulated computer at the end of that frame,
-both while recording and while playing back. Playback loads the start
-snapshot, applies the inputs at the same places and compares the hashes.
-The first frame whose state differs stops the playback.
+both while recording and while playing back. The host joystick is read
+once per frame as well. Playback loads the start snapshot, applies the
+inputs at the same places and compares the hashes. The first frame whose
+state differs stops the playback.
+
+The Unicard clock shows, while recording and playing back, the time of
+the start of the recording plus the emulated time, so the program sees
+the same clock in the playback.
 
 ## Recording
 
@@ -49,22 +60,26 @@ left corner of the picture shows **REPLAY REC** and the frame number.
 While recording:
 
 - **Machine settings** (the Devices menu, platform, peripherals, memory
-  expansions, ROM), **loading a snapshot** and **tape control** (the
-  Virtual CMT and Tape Filelist windows) are not available: the replay
-  could not repeat them. Over MCP the tools that change the
-  machine this way (snapshot load, media, tape control, settings) are
-  refused with an explanation.
+  expansions, ROM) and **loading a snapshot** are not available: the
+  replay could not repeat them. Over MCP the tools that change the
+  machine this way (snapshot load, media, settings) are refused with an
+  explanation.
+- **The tape** can be controlled as usual (Virtual CMT and Tape Filelist
+  windows, MCP `emu_cmt_*` transport, block seek and recording to tape).
+  Inserting another tape, the tape speed, custom pulses, polarity and the
+  CMT hack switch are not available while recording.
 - **Writes of the debugger** are recorded while the emulation runs and
   while it is paused at a frame boundary - after a pause (the pause
   button or MCP `emu_pause` pause at the end of the frame), after
   `emu_run(frames=N)` or a deadline. In a pause between frame boundaries
   (after a step or a breakpoint) a write is refused: run to the next
-  frame boundary first.
+  frame boundary first. Tape control and a reset from such a pause wait
+  for the next frame boundary.
 - **Breakpoint actions** that write (`poke`, `set`) are not recorded;
   the recording gets a warning and plays back correctly only with the
   same breakpoints.
-- Recording does not start while autotype runs or Freeze Bytes are
-  active.
+- Recording does not start while autotype runs, Freeze Bytes are active
+  or the tape records.
 
 ## Playback
 
@@ -75,22 +90,55 @@ While recording:
 | MCP | `emu_replay_play` (`pause_after_load` to set breakpoints before it runs), `emu_replay_play_stop`, `emu_replay_status`; the end is a pause with reason `replay_end` or `replay_desync` (`emu_wait_stop`). |
 
 While playing back, the picture shows **REPLAY PLAY** with the frame and
-the length of the replay. Live input (keyboard, virtual keyboard, MCP
-keys) is ignored. Breakpoints, trace, the RAM Write Log, screenshots and
-video recording work as usual; pausing and stepping do not change the
-result.
+the length of the replay. Live input (keyboard, virtual keyboard, host
+joystick, MCP keys) is ignored and the tape windows are disabled - the
+replay controls the tape. Breakpoints, trace, the RAM Write Log,
+screenshots and video recording work as usual; pausing and stepping do
+not change the result.
 
 At the end the emulation pauses and a notification shows the result:
 
 | Result | Meaning |
 |--------|---------|
 | ended | the replay was played to its end, every hash matched |
-| differs at frame N | the state differs from the recording; the notification names the parts (`cpu`, `ram`, `memext`, `vram`, `pcg`, `time`) |
+| differs at frame N | the state differs from the recording; the notification names the parts (`cpu`, `ram`, `memext`, `vram`, `pcg`, `periph`, `time`) |
 | deviated | something wrote into the machine during playback (a debugger write, a breakpoint action `poke` / `set`, Freeze Bytes, a reset); the playback went on to the end, but the hashes were not checked after that |
 
 A difference means that the emulated computer does not behave as during
-the recording: other emulator version or settings, a disk image that
-changed since the recording, or input that is not recorded (see below).
+the recording: other emulator version or settings, or input that is not
+recorded (see below).
+
+Playback does not start when a joystick port is connected in the
+recording and not here (or the other way round), or when the CMT hack is
+switched on in one of them and off in the other: change the setting and
+play it again.
+
+## Media
+
+At the start of a recording the contents of all mounted media are stored
+in the replay file:
+
+| Medium | Stored |
+|--------|--------|
+| floppy disks (all drives of FDC and of the second controller FDC1) | the image as the emulator holds it, including changes not yet saved to the file |
+| Quick Disk | the image (also the Unicard loader image) |
+| IDE8 disks | the image file |
+| tape | the tape file, the current block, the tape speed, custom pulses, polarity and block speeds |
+| files chosen in the CMT hack dialog | each chosen file |
+
+Playback mounts copies of these media - also in a new process without
+the original files - and works on the copies: the emulated program can
+write to a disk or record to tape, the original files never change and
+the emulator settings (INI) stay as they are. Drives that were empty in
+the recording are empty during the playback. After the playback the
+media from the settings are mounted again; a tape that was inserted is
+inserted again from its beginning.
+
+All stored media of one recording together may have up to 64 MB. A
+larger image (typically an IDE8 disk) is stored only as a SHA-256 hash
+and the recording gets a warning; the playback then needs the same image
+mounted (it checks the hash and refuses to start otherwise) and works on
+a copy of it.
 
 ## Checking a replay in CI
 
@@ -102,7 +150,8 @@ mz800emu --headless --replay run.mzr --replay-verify --result-json result.json
 its end: exit code 0 when every hash matched (`reason: "replay_end"`),
 4 when the state differs (`replay_desync`, `replay.outcome_frame` and
 `replay.desync_parts` in `result.json`), 3 when the replay cannot be
-started (unreadable file, other platform or TV system). See
+started (unreadable file, other platform or TV system, other joystick
+or CMT hack setting, an image that is not stored and differs). See
 [`mcp-server/headless-mode.md`](mcp-server/headless-mode.md).
 
 Note: a correction of the emulator that changes timing changes the
@@ -113,10 +162,9 @@ changed", not necessarily a bug.
 
 | Input | What to do |
 |-------|------------|
-| host joystick (joystick type JOYSTICK) | use the numeric keypad joystick or MCP; the recording gets a warning |
-| contents of disk, Quick Disk and IDE8 images | keep the images unchanged between recording and playback (a program that writes to a disk changes the image) |
-| tape buttons (play, stop, record) | not available while recording or playing (the Virtual CMT and Tape Filelist windows are disabled, MCP refuses it); start the tape before the recording |
-| Unicard clock and SD card directory | values come from the host |
+| inserting or ejecting a medium during the recording | not available while recording (the Devices menu is disabled, MCP refuses it); mount the media before the recording |
+| Unicard SD card (a directory of the host) | play back with the same SD card contents; the recording gets a warning when the Unicard is connected |
+| Quick Disk in the virtual (directory) mode | play back with the same directory; the recording gets a warning |
 | emulator settings outside the snapshot (INI) | play back with the same settings |
 
 ## Replay file
@@ -125,10 +173,11 @@ A `.mzr` file is a ZIP archive:
 
 | File | Content |
 |------|---------|
-| `manifest.json` | format, version, platform, frame length of the TV system (`screen_ticks`), length, hash interval, warnings |
+| `manifest.json` | format, version, platform, frame length of the TV system (`screen_ticks`), length, hash interval, warnings, list of media (`media`: slot, file, size, SHA-256, whether it is stored), tape state (`cmt`), start time of the Unicard clock (`rtc_base`), joystick types (`joystick_types`) |
 | `start.mzs` | the start snapshot |
-| `inputs.jsonl` | one event per line: frame `f`, position `at` (`b` frame boundary, `d` debugger write while running, `p` pause at a frame boundary), kind `k` (`kbd`, `joy`, `autotype`, `reset`, `dbg`) and its data; the last line is `end` |
-| `hashes.csv` | `frame,ticks,cpu,ram,memext,vram,pcg` |
+| `inputs.jsonl` | one event per line: frame `f`, position `at` (`b` frame boundary, `d` debugger write while running, `p` pause at a frame boundary), kind `k` (`kbd`, `joy`, `autotype`, `reset`, `cmt`, `cmthack`, `dbg`) and its data; the last line is `end` |
+| `hashes.csv` | `frame,ticks,cpu,ram,memext,vram,pcg,periph` |
+| `media/<slot>.bin` | contents of a stored medium (`fdc0.0`, `qd`, `ide8.0`, `cmt`, ...) |
 
 `inputs.jsonl` is text: an event can be removed or moved to see what a
 key changed. The hashes then show where the run differs.

@@ -1285,11 +1285,15 @@ ověřit běh v CI. Celý návod je v [../replay.md](../replay.md)
 a v dokumentu MCP `emulator://docs/replay`.
 
 Soubor záznamu (`.mzr`) obsahuje kompletní startovní snapshot (vždy
-s RAMdiskem), každou změnu klávesnicové matice a stavu joysticku na
-hranici snímku, resety, autotype, zápisy debuggeru a každých N snímků
+s RAMdiskem), obsah vložených disků a pásky (dohromady nejvýš 64 MB,
+větší obrazy jen jako SHA-256), každou změnu klávesnicové matice a stavu
+joysticku na hranici snímku (joystick hostitele se čte jednou za snímek),
+resety, autotype, ovládání kazety, zápisy debuggeru a každých N snímků
 SHA-256 částí `cpu` (registry a skrytý stav Z80), `ram`, `memext`,
-`vram` a `pcg` spolu s emulovaným časem. Přehrávání hashe porovnává
-a zastaví se na prvním snímku, který se liší.
+`vram`, `pcg` a `periph` (CTC, PIO 8255, Z80 PIO, PSG, GDG, řadič VRAM,
+řadiče disket a Quick Disku) spolu s emulovaným časem. Přehrávání
+pracuje nad kopiemi médií, hashe porovnává a zastaví se na prvním
+snímku, který se liší.
 
 ### `emu_replay_record_start` (sensitive - vytvoří / přepíše soubor)
 
@@ -1305,11 +1309,14 @@ regionu, `emu_set_register`, příznaky CPU, `emu_io_write`,
 za běhu (převzaté na hranici snímku) a v pauze **na** hranici snímku (po
 `emu_run(frames=N)` nebo `deadline`, nebo po pauze poslané za běhu).
 V pauze **mezi** hranicemi snímků (po kroku nebo breakpointu) se odmítnou
-s vysvětlením. Nástroje, které stroj mění tak, že to záznam nezopakuje,
-se odmítnou: načtení snapshotu, média, ovládání kazety, nastavení,
-platforma, periferie, mapa paměti, `emu_io_read` (vedlejší efekty),
-`emu_freeze_add`. Start se odmítne při běžícím autotype nebo aktivních
-Freeze Bytes. Zapisující akce breakpointů (`poke`, `set`) se
+s vysvětlením. Ovládání kazety (`emu_cmt_play`, `emu_cmt_play_paused`,
+`emu_cmt_stop`, `emu_cmt_pause`, `emu_cmt_eject`, `emu_cmt_tape_seek`,
+`emu_cmt_record`) se zaznamená stejně. Nástroje, které stroj mění tak,
+že to záznam nezopakuje, se odmítnou: načtení snapshotu, média, vložení
+pásky (`emu_cmt_open`), rychlost, pulzy, polarita a boost pásky, CMT
+hack, rychlost bloku, nastavení, platforma, periferie, mapa paměti,
+`emu_io_read` (vedlejší efekty), `emu_freeze_add`. Start se odmítne při
+běžícím autotype, aktivních Freeze Bytes nebo nahrávající kazetě. Zapisující akce breakpointů (`poke`, `set`) se
 nezaznamenají: manifest dostane varování.
 
 Vrací stav (viz `emu_replay_status`).
@@ -1330,12 +1337,15 @@ breakpointy, pak `emu_resume`). Živý vstup (klávesnice GUI, virtuální
 klávesnice, klávesy z MCP) se ignoruje. Konec pozastaví emulaci
 s důvodem `replay_end` (`outcome: "ended"`), první rozdílný hash
 s důvodem `replay_desync` (`outcome: "desync"`, `outcome_frame`,
-`desync_parts`: `cpu`, `ram`, `memext`, `vram`, `pcg`, `time`). Zápis do
-stroje během přehrávání (zápis debuggeru, akce breakpointu `poke` /
-`set`, Freeze Bytes, reset, načtení snapshotu) přehrávání označí jako
-`deviated`: pokračuje, ale hashe se dál neověřují. Chyby: nečitelný
+`desync_parts`: `cpu`, `ram`, `memext`, `vram`, `pcg`, `periph`,
+`time`). Zápis do stroje během přehrávání (zápis debuggeru, akce
+breakpointu `poke` / `set`, Freeze Bytes, reset, načtení snapshotu,
+ovládání kazety) přehrávání označí jako `deviated`: pokračuje, ale hashe
+se dál neověřují. Uložená média se nasadí z kopií (původní soubory
+a INI se nemění, po konci se vrátí média podle INI). Chyby: nečitelný
 soubor, jiná platforma nebo TV norma, záznam s událostmi debuggeru
-v buildu bez debuggeru.
+v buildu bez debuggeru, port joysticku připojený jen v jednom z nich,
+jinak nastavený CMT hack, neuložený obraz, který se liší od vloženého.
 
 ### `emu_replay_play_stop`
 

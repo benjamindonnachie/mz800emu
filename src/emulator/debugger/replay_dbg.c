@@ -14,6 +14,7 @@
 #include "replay_dbg.h"
 #include "dbgapi_emu.h"
 #include "dbgapi_regions.h"
+#include "replay.h"
 
 
 en_REPLAY_DBG_CLASS replay_dbg_classify(en_DBGAPI_CMD cmd)
@@ -29,6 +30,10 @@ en_REPLAY_DBG_CLASS replay_dbg_classify(en_DBGAPI_CMD cmd)
         case DBGAPI_CMD_IO_WRITE:
         case DBGAPI_CMD_IRQ_INJECT:
         case DBGAPI_CMD_NMI_INJECT:
+        /* Kazeta: zapíše se jako událost `cmt` (replay_dbg_cmt_op()). */
+        case DBGAPI_CMD_CMT_TRANSPORT:
+        case DBGAPI_CMD_CMT_RECORD:
+        case DBGAPI_CMD_CMT_TAPE_SEEK:
             return REPLAY_DBG_RECORD;
 
         case DBGAPI_CMD_INPUT_PRESS_KEY:
@@ -53,12 +58,9 @@ en_REPLAY_DBG_CLASS replay_dbg_classify(en_DBGAPI_CMD cmd)
         case DBGAPI_CMD_PERIPH_DETACH:
         case DBGAPI_CMD_SET_PIOZ80_INTERRUPT_VECTOR:
         case DBGAPI_CMD_IO_READ:
-        case DBGAPI_CMD_CMT_TRANSPORT:
-        case DBGAPI_CMD_CMT_RECORD:
         case DBGAPI_CMD_CMT_HACK_SET:
         case DBGAPI_CMD_CMT_SET_PROPERTY:
         case DBGAPI_CMD_CMT_OPEN:
-        case DBGAPI_CMD_CMT_TAPE_SEEK:
         case DBGAPI_CMD_CMT_TAPE_BLOCK_SPEED:
         case DBGAPI_CMD_MEMMAP_SET:
         case DBGAPI_CMD_FREEZE_ADD:
@@ -430,3 +432,43 @@ bool replay_dbg_execute(const char *cmd_name, const char *args_json, char **err)
 }
 
 #endif /* MZ800EMU_CFG_DEBUGGER_ENABLED */
+
+
+bool replay_dbg_cmt_op(en_DBGAPI_CMD cmd, const void *data_ptr, int *op, int32_t *arg, const char **path)
+{
+    *op = -1;
+    *arg = 0;
+    *path = NULL;
+    if (!data_ptr) return false;
+    switch (cmd)
+    {
+        case DBGAPI_CMD_CMT_TRANSPORT:
+        {
+            const st_DBGAPI_CMT_TRANSPORT_PARAM *p = (const st_DBGAPI_CMT_TRANSPORT_PARAM *)data_ptr;
+            switch (p->action)
+            {
+                case DBGAPI_CMT_TRANSPORT_PLAY: *op = REPLAY_CMT_PLAY; break;
+                case DBGAPI_CMT_TRANSPORT_PLAY_PAUSED: *op = REPLAY_CMT_PLAY_PAUSED; break;
+                case DBGAPI_CMT_TRANSPORT_STOP: *op = REPLAY_CMT_STOP; break;
+                case DBGAPI_CMT_TRANSPORT_PAUSE:
+                    *op = REPLAY_CMT_PAUSE;
+                    *arg = p->pause_value ? 1 : 0;
+                    break;
+                case DBGAPI_CMT_TRANSPORT_EJECT: *op = REPLAY_CMT_EJECT; break;
+                default: return false;
+            };
+            return true;
+        };
+        case DBGAPI_CMD_CMT_TAPE_SEEK:
+            *op = REPLAY_CMT_SEEK;
+            *arg = (int32_t)((const st_DBGAPI_CMT_TAPE_SEEK_PARAM *)data_ptr)->block_id;
+            return true;
+        case DBGAPI_CMD_CMT_RECORD:
+            *op = REPLAY_CMT_RECORD;
+            *path = ((const st_DBGAPI_CMT_RECORD_PARAM *)data_ptr)->filepath;
+            return true;
+        default:
+            break;
+    };
+    return false;
+}

@@ -14,3 +14,11 @@ mz_add_test(replay-input
     SOURCES  test_replay_input.c
     LABELS   "emu;replay"
 )
+
+# Média v záznamu: obsah DSK a IDE8 při startu, přehrání nad kopiemi,
+# originály a INI beze změny, návrat obrazů po konci přehrání.
+mz_add_test(replay-media
+    TYPE     EMU
+    SOURCES  test_replay_media.c
+    LABELS   "emu;replay"
+)

@@ -27,6 +27,9 @@
 /** @brief Jméno souboru hashů v archivu. */
 #define REPLAY_ENTRY_HASHES "hashes.csv"
 
+/** @brief Předpona jmen entries vložených médií v archivu. */
+#define REPLAY_ENTRY_MEDIA_PREFIX "media/"
+
 /** @brief Komprese ZIP (snapshot uvnitř je už komprimovaný, text se zmenší). */
 #define REPLAY_ZIP_COMPRESSION 6
 
@@ -40,6 +43,8 @@ const char *replay_ev_kind_name(en_REPLAY_EV_KIND kind)
         case REPLAY_EV_AUTOTYPE: return "autotype";
         case REPLAY_EV_RESET: return "reset";
         case REPLAY_EV_DBG: return "dbg";
+        case REPLAY_EV_CMT: return "cmt";
+        case REPLAY_EV_CMTHACK: return "cmthack";
         default: break;
     };
     return "unknown";
@@ -68,6 +73,7 @@ const char *replay_hash_part_name(en_REPLAY_HASH_PART part)
         case REPLAY_HASH_MEMEXT: return "memext";
         case REPLAY_HASH_VRAM: return "vram";
         case REPLAY_HASH_PCG: return "pcg";
+        case REPLAY_HASH_PERIPH: return "periph";
         default: break;
     };
     return "unknown";
@@ -87,6 +93,18 @@ static void replay_event_clear(gpointer p)
 }
 
 
+/** @brief Uvolní médium (GPtrArray free func). */
+static void replay_media_free(gpointer p)
+{
+    st_REPLAY_MEDIA *m = (st_REPLAY_MEDIA *)p;
+    if (!m) return;
+    g_free(m->slot);
+    g_free(m->name);
+    g_free(m->data);
+    g_free(m);
+}
+
+
 st_REPLAY_DATA *replay_data_new(void)
 {
     st_REPLAY_DATA *d = g_new0(st_REPLAY_DATA, 1);
@@ -95,6 +113,8 @@ st_REPLAY_DATA *replay_data_new(void)
     d->events = g_array_new(FALSE, TRUE, sizeof(st_REPLAY_EVENT));
     g_array_set_clear_func(d->events, replay_event_clear);
     d->hashes = g_array_new(FALSE, TRUE, sizeof(st_REPLAY_HASH_ROW));
+    d->media = g_ptr_array_new_with_free_func(replay_media_free);
+    for (int i = 0; i < REPLAY_JOY_PORTS; i++) d->joy_type[i] = REPLAY_JOY_TYPE_UNKNOWN;
     return d;
 }
 
@@ -110,6 +130,9 @@ void replay_data_free(st_REPLAY_DATA *d)
     g_free(d->start_snapshot);
     g_array_unref(d->events);
     g_array_unref(d->hashes);
+    g_ptr_array_unref(d->media);
+    g_free(d->rtc_base);
+    g_free(d->cmt_json);
     g_free(d);
 }
 
@@ -139,6 +162,99 @@ void replay_data_add_warning(st_REPLAY_DATA *d, const char *warning)
         if (strcmp((const char *)g_ptr_array_index(d->warnings, i), warning) == 0) return;
     };
     g_ptr_array_add(d->warnings, g_strdup(warning));
+}
+
+
+void replay_sha256_hex(const uint8_t *data, size_t size, char *out)
+{
+    GChecksum *c = g_checksum_new(G_CHECKSUM_SHA256);
+    if (data && size) g_checksum_update(c, data, (gssize)size);
+    g_strlcpy(out, g_checksum_get_string(c), REPLAY_HASH_HEX_LEN + 1);
+    g_checksum_free(c);
+}
+
+
+/** @brief true = @p slot je platné jméno slotu (písmena, číslice, `.`, `_`, bez `..`). */
+static bool replay_media_slot_valid(const char *slot)
+{
+    if (!slot || !slot[0] || strstr(slot, "..")) return false;
+    for (const char *c = slot; *c; c++)
+    {
+        if (!g_ascii_isalnum(*c) && *c != '.' && *c != '_') return false;
+    };
+    return true;
+}
+
+
+/** @brief true = @p s je 64 hex znaků malými písmeny. */
+static bool replay_sha_hex_valid(const char *s)
+{
+    if (!s || strlen(s) != REPLAY_HASH_HEX_LEN) return false;
+    for (const char *c = s; *c; c++)
+    {
+        if (!((*c >= '0' && *c <= '9') || (*c >= 'a' && *c <= 'f'))) return false;
+    };
+    return true;
+}
+
+
+int replay_data_add_media(st_REPLAY_DATA *d, const char *slot, const char *name, const uint8_t *data,
+                          uint64_t size, const char *sha256, bool readonly)
+{
+    if (!d || !replay_media_slot_valid(slot)) return -1;
+    if (!data && !replay_sha_hex_valid(sha256)) return -1;
+    st_REPLAY_MEDIA *m = g_new0(st_REPLAY_MEDIA, 1);
+    m->slot = g_strdup(slot);
+    m->name = g_strdup(name);
+    m->size = size;
+    m->readonly = readonly;
+    if (data)
+    {
+        m->data = g_malloc(size ? (gsize)size : 1);
+        if (size) memcpy(m->data, data, (size_t)size);
+        replay_sha256_hex(data, (size_t)size, m->sha256);
+    }
+    else
+    {
+        g_strlcpy(m->sha256, sha256, sizeof(m->sha256));
+    };
+    d->media_known = true;
+    for (guint i = 0; i < d->media->len; i++)
+    {
+        st_REPLAY_MEDIA *old = (st_REPLAY_MEDIA *)g_ptr_array_index(d->media, i);
+        if (strcmp(old->slot, slot) == 0)
+        {
+            replay_media_free(old);
+            g_ptr_array_index(d->media, i) = m;
+            return (int)i;
+        };
+    };
+    g_ptr_array_add(d->media, m);
+    return (int)d->media->len - 1;
+}
+
+
+const st_REPLAY_MEDIA *replay_data_find_media(const st_REPLAY_DATA *d, const char *slot)
+{
+    if (!d || !slot) return NULL;
+    for (guint i = 0; i < d->media->len; i++)
+    {
+        const st_REPLAY_MEDIA *m = (const st_REPLAY_MEDIA *)g_ptr_array_index(d->media, i);
+        if (strcmp(m->slot, slot) == 0) return m;
+    };
+    return NULL;
+}
+
+
+uint64_t replay_data_embedded_size(const st_REPLAY_DATA *d)
+{
+    uint64_t total = 0;
+    for (guint i = 0; d && i < d->media->len; i++)
+    {
+        const st_REPLAY_MEDIA *m = (const st_REPLAY_MEDIA *)g_ptr_array_index(d->media, i);
+        if (m->data) total += m->size;
+    };
+    return total;
 }
 
 
@@ -210,6 +326,23 @@ static void replay_event_to_json(const st_REPLAY_EVENT *ev, GString *out)
             json_builder_add_value(b, args);
             break;
         };
+        case REPLAY_EV_CMT:
+            json_builder_set_member_name(b, "op");
+            json_builder_add_string_value(b, ev->cmd ? ev->cmd : "");
+            json_builder_set_member_name(b, "v");
+            json_builder_add_int_value(b, ev->arg);
+            if (ev->text)
+            {
+                json_builder_set_member_name(b, "path");
+                json_builder_add_string_value(b, ev->text);
+            };
+            break;
+        case REPLAY_EV_CMTHACK:
+            json_builder_set_member_name(b, "media");
+            json_builder_add_int_value(b, ev->arg);
+            json_builder_set_member_name(b, "name");
+            json_builder_add_string_value(b, ev->text ? ev->text : "");
+            break;
         case REPLAY_EV_RESET:
         default:
             break;
@@ -262,6 +395,18 @@ static bool replay_json_get_uint(JsonObject *o, const char *name, guint64 max, g
     gint64 v = json_node_get_int(n);
     if (v < 0 || (guint64)v > max) return false;
     *out = (guint64)v;
+    return true;
+}
+
+
+/** @brief Celé číslo členu objektu (se znaménkem) v rozsahu int32. */
+static bool replay_json_get_int32(JsonObject *o, const char *name, int32_t *out)
+{
+    JsonNode *n = json_object_get_member(o, name);
+    if (!n || !JSON_NODE_HOLDS_VALUE(n) || json_node_get_value_type(n) != G_TYPE_INT64) return false;
+    gint64 v = json_node_get_int(n);
+    if (v < G_MININT32 || v > G_MAXINT32) return false;
+    *out = (int32_t)v;
     return true;
 }
 
@@ -362,6 +507,23 @@ static const char *replay_event_from_json(JsonObject *o, st_REPLAY_EVENT *ev, bo
             if (!args || !JSON_NODE_HOLDS_OBJECT(args)) return "missing \"args\" object";
             ev->cmd = g_strdup(c);
             ev->args_json = replay_json_node_to_string(args);
+            break;
+        };
+        case REPLAY_EV_CMT:
+        {
+            const char *op = replay_json_get_str(o, "op");
+            if (!op || !op[0]) return "missing \"op\"";
+            if (!replay_json_get_int32(o, "v", &ev->arg)) return "missing or invalid \"v\"";
+            const char *path = replay_json_get_str(o, "path");
+            ev->cmd = g_strdup(op);
+            ev->text = g_strdup(path);
+            break;
+        };
+        case REPLAY_EV_CMTHACK:
+        {
+            if (!replay_json_get_int32(o, "media", &ev->arg) || ev->arg < -1) return "missing or invalid \"media\"";
+            const char *name = replay_json_get_str(o, "name");
+            ev->text = g_strdup(name ? name : "");
             break;
         };
         case REPLAY_EV_RESET:
@@ -491,13 +653,21 @@ static bool replay_hash_hex_valid(const char *s)
 }
 
 
-/** @brief Načte `hashes.csv` (nahradí řádky). @return true = v pořádku. */
+/**
+ * @brief Načte `hashes.csv` (nahradí řádky). @return true = v pořádku.
+ *
+ * Sloupce se párují podle hlavičky: první dva musí být `frame,ticks`,
+ * neznámý sloupec je chyba, chybějící část (starší záznam bez `periph`)
+ * zůstane v řádcích prázdná.
+ */
 static bool replay_hashes_from_csv(st_REPLAY_DATA *d, const char *text, char **err)
 {
     g_array_set_size(d->hashes, 0);
     char **lines = g_strsplit(text ? text : "", "\n", -1);
     bool ok = true;
     bool header = true;
+    int col_part[2 + REPLAY_HASH_PART_COUNT]; /* sloupec -> část (-1 = frame / ticks) */
+    guint ncols = 0;
     for (int i = 0; lines[i] != NULL && ok; i++)
     {
         char *line = g_strstrip(lines[i]);
@@ -505,12 +675,38 @@ static bool replay_hashes_from_csv(st_REPLAY_DATA *d, const char *text, char **e
         if (header)
         {
             header = false;
+            char **h = g_strsplit(line, ",", -1);
+            ncols = g_strv_length(h);
+            if (ncols < 2 || ncols > G_N_ELEMENTS(col_part) || strcmp(h[0], "frame") != 0 || strcmp(h[1], "ticks") != 0)
+            {
+                replay_set_err(err, "hashes.csv: invalid header");
+                ok = false;
+            };
+            bool seen[REPLAY_HASH_PART_COUNT] = { false };
+            for (guint c = 2; ok && c < ncols; c++)
+            {
+                col_part[c] = -1;
+                for (int p = 0; p < REPLAY_HASH_PART_COUNT; p++)
+                {
+                    if (strcmp(h[c], replay_hash_part_name((en_REPLAY_HASH_PART)p)) == 0) col_part[c] = p;
+                };
+                if (col_part[c] < 0 || seen[col_part[c]])
+                {
+                    replay_set_err(err, "hashes.csv: unknown or repeated column '%s'", h[c]);
+                    ok = false;
+                }
+                else
+                {
+                    seen[col_part[c]] = true;
+                };
+            };
+            g_strfreev(h);
             continue;
         };
         char **cols = g_strsplit(line, ",", -1);
-        if (g_strv_length(cols) != 2 + REPLAY_HASH_PART_COUNT)
+        if (g_strv_length(cols) != ncols)
         {
-            replay_set_err(err, "hashes.csv line %d: expected %d columns", i + 1, 2 + REPLAY_HASH_PART_COUNT);
+            replay_set_err(err, "hashes.csv line %d: expected %u columns", i + 1, ncols);
             ok = false;
         }
         else
@@ -523,10 +719,10 @@ static bool replay_hashes_from_csv(st_REPLAY_DATA *d, const char *text, char **e
             r.frame = (uint32_t)f;
             r.ticks = g_ascii_strtoull(cols[1], &end, 10);
             num_ok = num_ok && end && *end == '\0' && cols[1][0] != '\0';
-            for (int p = 0; p < REPLAY_HASH_PART_COUNT && num_ok; p++)
+            for (guint c = 2; c < ncols && num_ok; c++)
             {
-                if (!replay_hash_hex_valid(cols[2 + p])) num_ok = false;
-                else g_strlcpy(r.part[p], cols[2 + p], sizeof(r.part[p]));
+                if (!replay_hash_hex_valid(cols[c])) num_ok = false;
+                else g_strlcpy(r.part[col_part[c]], cols[c], sizeof(r.part[col_part[c]]));
             };
             if (!num_ok)
             {
@@ -589,6 +785,52 @@ static char *replay_manifest_to_json(const st_REPLAY_DATA *d)
         json_builder_add_string_value(b, (const char *)g_ptr_array_index(d->warnings, i));
     };
     json_builder_end_array(b);
+
+    json_builder_set_member_name(b, "rtc_base");
+    if (d->rtc_base) json_builder_add_string_value(b, d->rtc_base);
+    else json_builder_add_null_value(b);
+
+    json_builder_set_member_name(b, "joystick_types");
+    json_builder_begin_array(b);
+    for (int i = 0; i < REPLAY_JOY_PORTS; i++) json_builder_add_int_value(b, d->joy_type[i]);
+    json_builder_end_array(b);
+
+    if (d->media_known)
+    {
+        json_builder_set_member_name(b, "media");
+        json_builder_begin_array(b);
+        for (guint i = 0; i < d->media->len; i++)
+        {
+            const st_REPLAY_MEDIA *m = (const st_REPLAY_MEDIA *)g_ptr_array_index(d->media, i);
+            json_builder_begin_object(b);
+            json_builder_set_member_name(b, "slot");
+            json_builder_add_string_value(b, m->slot);
+            json_builder_set_member_name(b, "name");
+            json_builder_add_string_value(b, m->name ? m->name : "");
+            json_builder_set_member_name(b, "size");
+            json_builder_add_int_value(b, (gint64)m->size);
+            json_builder_set_member_name(b, "sha256");
+            json_builder_add_string_value(b, m->sha256);
+            json_builder_set_member_name(b, "readonly");
+            json_builder_add_boolean_value(b, m->readonly);
+            json_builder_set_member_name(b, "embedded");
+            json_builder_add_boolean_value(b, m->data != NULL);
+            json_builder_end_object(b);
+        };
+        json_builder_end_array(b);
+    };
+
+    json_builder_set_member_name(b, "cmt");
+    JsonNode *cmt = d->cmt_json ? json_from_string(d->cmt_json, NULL) : NULL;
+    if (cmt && JSON_NODE_HOLDS_OBJECT(cmt))
+    {
+        json_builder_add_value(b, cmt);
+    }
+    else
+    {
+        if (cmt) json_node_unref(cmt);
+        json_builder_add_null_value(b);
+    };
     json_builder_end_object(b);
 
     JsonGenerator *gen = json_generator_new();
@@ -661,6 +903,54 @@ static bool replay_manifest_from_json(st_REPLAY_DATA *d, const char *text, char 
                 };
             };
         };
+        if ((s = replay_json_get_str(o, "rtc_base"))) d->rtc_base = g_strdup(s);
+        JsonNode *jt = json_object_get_member(o, "joystick_types");
+        if (jt && JSON_NODE_HOLDS_ARRAY(jt))
+        {
+            JsonArray *a = json_node_get_array(jt);
+            for (guint i = 0; i < json_array_get_length(a) && i < REPLAY_JOY_PORTS; i++)
+            {
+                JsonNode *n = json_array_get_element(a, i);
+                if (JSON_NODE_HOLDS_VALUE(n) && json_node_get_value_type(n) == G_TYPE_INT64)
+                {
+                    gint64 t = json_node_get_int(n);
+                    d->joy_type[i] = (t >= REPLAY_JOY_TYPE_UNKNOWN && t <= 255) ? (int)t : REPLAY_JOY_TYPE_UNKNOWN;
+                };
+            };
+        };
+        JsonNode *cmt = json_object_get_member(o, "cmt");
+        if (cmt && JSON_NODE_HOLDS_OBJECT(cmt)) d->cmt_json = replay_json_node_to_string(cmt);
+        JsonNode *media = json_object_get_member(o, "media");
+        if (media && JSON_NODE_HOLDS_ARRAY(media))
+        {
+            /* Obsah vložených médií se načte z archivu až v replay_data_read();
+             * tady jen seznam (vložená média s prázdnými daty a příznakem). */
+            d->media_known = true;
+            JsonArray *a = json_node_get_array(media);
+            for (guint i = 0; ok && i < json_array_get_length(a); i++)
+            {
+                JsonNode *n = json_array_get_element(a, i);
+                JsonObject *mo = (n && JSON_NODE_HOLDS_OBJECT(n)) ? json_node_get_object(n) : NULL;
+                const char *slot = mo ? replay_json_get_str(mo, "slot") : NULL;
+                const char *sha = mo ? replay_json_get_str(mo, "sha256") : NULL;
+                guint64 size = 0;
+                if (!mo || !replay_media_slot_valid(slot) || !replay_sha_hex_valid(sha)
+                    || !replay_json_get_uint(mo, "size", G_MAXINT64, &size) || replay_data_find_media(d, slot))
+                {
+                    replay_set_err(err, "manifest.json: invalid media item %u", i);
+                    ok = false;
+                    break;
+                };
+                JsonNode *ro = json_object_get_member(mo, "readonly");
+                JsonNode *em = json_object_get_member(mo, "embedded");
+                bool readonly = ro && JSON_NODE_HOLDS_VALUE(ro) && json_node_get_value_type(ro) == G_TYPE_BOOLEAN && json_node_get_boolean(ro);
+                bool embedded = em && JSON_NODE_HOLDS_VALUE(em) && json_node_get_value_type(em) == G_TYPE_BOOLEAN && json_node_get_boolean(em);
+                int idx = replay_data_add_media(d, slot, replay_json_get_str(mo, "name"), NULL, size, sha, readonly);
+                /* Značka "vložené, data přijdou z archivu": size bajtů alokuje čtení. */
+                st_REPLAY_MEDIA *m = (st_REPLAY_MEDIA *)g_ptr_array_index(d->media, idx);
+                if (embedded) m->data = (uint8_t *)g_malloc0(1);
+            };
+        };
     };
     g_object_unref(parser);
     return ok;
@@ -691,6 +981,15 @@ bool replay_data_write(const st_REPLAY_DATA *d, const char *path, char **err)
               && (snapshot_io_write_bin(io, REPLAY_ENTRY_START, d->start_snapshot, d->start_snapshot_size) == SNAPSHOT_OK)
               && (snapshot_io_write_bin(io, REPLAY_ENTRY_INPUTS, (const uint8_t *)inputs, strlen(inputs)) == SNAPSHOT_OK)
               && (snapshot_io_write_bin(io, REPLAY_ENTRY_HASHES, (const uint8_t *)hashes, strlen(hashes)) == SNAPSHOT_OK);
+    for (guint i = 0; ok && i < d->media->len; i++)
+    {
+        const st_REPLAY_MEDIA *m = (const st_REPLAY_MEDIA *)g_ptr_array_index(d->media, i);
+        /* Prázdné médium nemá entry (ZIP čtení prázdné entry neumí). */
+        if (!m->data || m->size == 0) continue;
+        char *entry = g_strdup_printf(REPLAY_ENTRY_MEDIA_PREFIX "%s.bin", m->slot);
+        ok = snapshot_io_write_bin(io, entry, m->data, (size_t)m->size) == SNAPSHOT_OK;
+        g_free(entry);
+    };
     snapshot_io_close(io);
     g_free(manifest);
     g_free(inputs);
@@ -787,6 +1086,30 @@ st_REPLAY_DATA *replay_data_read(const char *path, char **err)
     {
         replay_set_err(err, "hashes.csv: frame after the end of the replay");
         ok = false;
+    };
+    for (guint i = 0; ok && i < d->media->len; i++)
+    {
+        st_REPLAY_MEDIA *m = (st_REPLAY_MEDIA *)g_ptr_array_index(d->media, i);
+        if (!m->data || m->size == 0) continue; /* prázdné médium entry nemá, značka stačí */
+        g_free(m->data);
+        m->data = NULL;
+        char *entry = g_strdup_printf(REPLAY_ENTRY_MEDIA_PREFIX "%s.bin", m->slot);
+        uint8_t *data = NULL;
+        size_t size = 0;
+        en_SNAPSHOT_RESULT r = snapshot_io_read_bin(io, entry, &data, &size);
+        char sha[REPLAY_HASH_HEX_LEN + 1];
+        if (r == SNAPSHOT_OK) replay_sha256_hex(data, size, sha);
+        if (r != SNAPSHOT_OK || size != m->size || strcmp(sha, m->sha256) != 0)
+        {
+            replay_set_err(err, "'%s' is missing or damaged", entry);
+            g_free(data);
+            ok = false;
+        }
+        else
+        {
+            m->data = data ? data : (uint8_t *)g_malloc0(1);
+        };
+        g_free(entry);
     };
     snapshot_io_close(io);
 

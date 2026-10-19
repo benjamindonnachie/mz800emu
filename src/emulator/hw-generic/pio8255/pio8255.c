@@ -669,9 +669,16 @@ uint8_t pio8255_read(int addr)
                 };
                 g_pio8255.vkbd_autotype_start_ticks = gdg_get_total_ticks();
                 g_pio8255.vkbd_autotype_keydown = (g_pio8255.vkbd_autotype_ret_shift) ? 0 : 1;
+                /* Konec textu: autotype skončil. Ukončí ho emu vlákno (dřív to
+                 * dělalo jen otevřené okno autotype z UI vlákna, se zavřeným
+                 * oknem zůstal "běžící" napořád). */
+                if ((g_pio8255.vkbd_autotype_col == -1) && (g_pio8255.vkbd_autotype[0] == 0x00))
+                {
+                    g_pio8255.vkbd_autotype = NULL;
+                };
             };
 
-            if (g_pio8255.vkbd_autotype_col != -1)
+            if ((g_pio8255.vkbd_autotype != NULL) && (g_pio8255.vkbd_autotype_col != -1))
             {
 
                 uint8_t ret = 0xff;
