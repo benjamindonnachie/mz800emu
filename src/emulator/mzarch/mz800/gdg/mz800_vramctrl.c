@@ -61,8 +61,11 @@
  *			- 1. bit, rovina II.
  *			- 0. bit, rovina I.
  *
- *	* bit 4 RF registru je propojen s bitem 4. WF registru (TODO: neoveroval jsem - tvrdi to v SM800)
+ *	* bit 4 RF registru a bit 4 WF registru je jeden spolecny latch B/A (zapis RF i WF ho prepise;
+ *	  overeno simulaci netlistu GDG, latch xF604_88_18)
  * 	* bit 4 je pouzit pouze v rezimech 320x200/4 (A/B) a 640x200/2 (A/B)
+ *	* v techze rezimech bit 4 spolu s DMD bit 0 rozhoduje, zda se na adresu CPU pristupu
+ *	  uplatni HW scroll - viz vramctrl_mz800_cpu_scroll_applies()
  *
  *	Pokud neni nastaven search, tak cteme tu rovinu, ktera je vybrana ( bit ma nastaveno 1).
  *      	Cteni z vice rovin neni podporovano a vraci 0x00.
@@ -195,10 +198,44 @@ void vramctrl_mz800_set_wf_rf_reg(int addr, uint8_t value)
 #define ADDR_IS_ODD (addr & 0x01)
 
 /**
- * Proste cteni z VRAM v rezimu MZ-800
+ * @brief Zjistí, zda se na adresu CPU přístupu do VRAM uplatní HW scroll.
  *
- * @param addr
- * @return
+ * GDG přičítá scroll offset (SOF) k adrese CPU přístupu jen tehdy, když bit
+ * B/A (bit 4 WF/RF, sdílený latch `regWFRF_VBANK`) ukazuje na právě zobrazenou
+ * frame, tj. B/A == DMD bit 0. Přístup do nezobrazené frame jde na neposunutou
+ * adresu. V režimech s HICOLOR (320x200@16, 640x200@4) se posun uplatní vždy.
+ * Platí pro čtení i zápis, pro všechny operace RF a WF.
+ *
+ * Zdroj: netlist GDG (GDG_core.vhd) - hradlo NXOR xF512_74_17 nad
+ * synchronizovaným DMD(0) (xF612_20_2) a latchem B/A (xF604_88_18) hradluje
+ * přičtení SOF v multiplexeru bus_nSOFmxSW; simulace netlistu pro zápis
+ * a čtení ve všech grafických režimech; měření na reálném MZ-800 (zápis
+ * SINGLE v 320x200@4). EXOR až PSET simulovány nebyly - netlist je vede
+ * stejným multiplexerem adresy (hypotéza).
+ *
+ * Display (framebuffer) posouvá vždy, tato podmínka se ho netýká.
+ *
+ * @pre Volá se jen v režimu MZ-800 (DMD bit 3 = 0).
+ * @return true, pokud se má adresa přepočítat přes hwscroll_shift_addr().
+ */
+static inline bool vramctrl_mz800_cpu_scroll_applies(void)
+{
+    if (GDG_MZ800_DMD_TEST_HICOLOR)
+    {
+        return true;
+    };
+    return (GDG_MZ800_DMD_TEST_VBANK ? 1u : 0u) == g_vramctrl.regWFRF_VBANK;
+}
+
+/**
+ * @brief Čtení bajtu z VRAM v režimu MZ-800 podle registru RF.
+ *
+ * Přepočítá CPU offset na fyzickou adresu v rovině (640x200: offset / 2,
+ * HW scroll jen pokud vramctrl_mz800_cpu_scroll_applies()) a vrátí výsledek
+ * operace READ nebo SEARCH.
+ *
+ * @param addr Offset ve VRAM okně (0x0000 - 0x3FFF).
+ * @return Přečtený bajt; 0xFF pro nevybranou rovinu nebo chybějící exVRAM.
  */
 static inline uint8_t vramctrl_mz800_memop_read_byte_internal(uint16_t addr)
 {
@@ -216,7 +253,11 @@ static inline uint8_t vramctrl_mz800_memop_read_byte_internal(uint16_t addr)
         phy_vram_addr = phy_vram_addr >> 1;
     };
 
-    phy_vram_addr = hwscroll_shift_addr(phy_vram_addr);
+    /* HW scroll jen pro zobrazenou frame (nebo HICOLOR) */
+    if (vramctrl_mz800_cpu_scroll_applies())
+    {
+        phy_vram_addr = hwscroll_shift_addr(phy_vram_addr);
+    };
 
     if (g_vramctrl.regRF_SEARCH)
     {
@@ -655,7 +696,8 @@ inline uint8_t vramctrl_mz800_memop_read_byte(uint16_t addr)
  * zápisů debuggeru (vramctrl_mz800_write_target()) tak počítají totéž.
  *
  * @param addr    Mz800 VRAM offset (0x0000 - 0x3FFF).
- * @param out_phy Výstup: fyzická adresa v rovině (po 640 a hwscroll).
+ * @param out_phy Výstup: fyzická adresa v rovině (po 640 a hwscroll, pokud
+ *                se na CPU přístup uplatní - vramctrl_mz800_cpu_scroll_applies()).
  * @return Maska rovin DEF_PLANE1..DEF_PLANE4 (WE), které zápis změní.
  */
 static inline int vramctrl_mz800_write_plan(uint16_t addr, int *out_phy)
@@ -681,7 +723,11 @@ static inline int vramctrl_mz800_write_plan(uint16_t addr, int *out_phy)
         phy_vram_addr = phy_vram_addr >> 1;
     };
 
-    phy_vram_addr = hwscroll_shift_addr(phy_vram_addr);
+    /* HW scroll jen pro zobrazenou frame (nebo HICOLOR) */
+    if (vramctrl_mz800_cpu_scroll_applies())
+    {
+        phy_vram_addr = hwscroll_shift_addr(phy_vram_addr);
+    };
 
     addr_is_odd = addr & 0x01;
 

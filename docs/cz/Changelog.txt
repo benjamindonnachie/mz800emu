@@ -1,3 +1,5 @@
+	- BUGFIX: GDG - při zapnutém hardwarovém scrollu se adresa každého čtení a zápisu CPU do VRAM posouvala o offset scrollu. Na skutečném MZ-800 se posun uplatní jen tehdy, když bit B/A (bit 4 WF a RF) vybírá právě zobrazenou frame (bit 0 DMD); přístup do druhé frame jde na neposunutou adresu. V režimech 320x200 se 16 barvami a 640x200 se 4 barvami se posun uplatní vždy, beze změny. Programy, které při scrollu přepínají frame A/B nebo bit B/A, nově kreslí jako na skutečném stroji.
+
 	- BUGFIX: MCP - emu_irq_inject a emu_nmi_inject se přijaly jen tehdy, když některý obvod právě držel linku INT, a NMI navíc jen při povolených přerušeních. Bez HW žádosti o přerušení se jen nastavil příznak a přerušení nepřišlo. Nově se NMI z injectu přijme vždy a IRQ při povolených přerušeních (při DI počká na EI), jak popisuje dokumentace.
 
 	- BUGFIX: Snapshoty - Load Snapshot, Save Snapshot, Quick Load a Quick Save z menu provede emulátor v pauze, ne okno. Dřív se snapshot mohl uložit nebo načíst, zatímco emulace ještě běžela (hlavně v sestavení bez debuggeru), a uložený stav pak nemusel být konzistentní. Při záznamu nebo přehrávání vstupů se načtení odmítne.
