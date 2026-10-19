@@ -3,6 +3,7 @@
 #if MZARCH == 700
 #include "gide.h"
 #include "cfgmain.h"
+#include "replay.h"
 #include <glib.h>
 #include "libs/sdlapp/sdlapp_paths.h"
 static char *image[2];
@@ -31,6 +32,7 @@ void gide_init(void) {
     gide_config_set_enabled(g_gide.enabled!=0);
 }
 void gide_config_set_enabled(bool enabled) {
+    if (replay_is_active()) return;
     /* Do not open writable media for a disabled card. Refit reopens saved paths. */
     if (enabled) for (unsigned i=0;i<2;i++) if (!g_gide.drive[i].fp && image[i] && *image[i]) {
         char *path=sdlapp_paths_resolve_cfg(g_sdlapp->paths,image[i]);
@@ -40,11 +42,13 @@ void gide_config_set_enabled(bool enabled) {
     gide_set_enabled(enabled);
 }
 bool gide_config_mount(unsigned id, const char *path, bool ro) {
+    if (replay_is_active()) return false;
     if (!gide_mount(id,path,ro)) return false;
     g_free(image[id]); image[id]=g_strdup(g_gide.drive[id].path); readonly[id]=ro;
     return true;
 }
 void gide_config_eject(unsigned id) {
+    if (replay_is_active()) return;
     if (id>1) return;
     gide_eject(id); g_free(image[id]); image[id]=g_strdup("");
 }

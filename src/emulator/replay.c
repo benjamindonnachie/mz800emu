@@ -28,6 +28,9 @@
 #include <glib.h>
 
 #include "replay.h"
+#if MZARCH == 700
+#include "hw-generic/gide/gide.h"
+#endif
 #include "replay_format.h"
 #include "replay_media.h"
 #include "replay_ckpt.h"
@@ -1008,6 +1011,10 @@ static void replay_rec_paused(void)
 /** @brief Start záznamu (paused smyčka). @return NULL = v pořádku, jinak chyba anglicky. */
 static const char *replay_rec_start(const st_REPLAY_REQ *r, char *errbuf, size_t errsize)
 {
+#if MZARCH == 700
+    /* GIDE media and its wall-clock RTC are not part of replay capture yet. */
+    if (g_gide.enabled) return "GIDE is fitted; disable it before recording or replay";
+#endif
     if (!r->path || !r->path[0]) return "no file name";
     if (g_pio8255.vkbd_autotype) return "autotype is running; wait until it ends";
     if (CMT_TEST_RECORD) return "the tape is recording; stop the tape recording first";
@@ -1526,6 +1533,10 @@ static const char *replay_play_load_start(const st_REPLAY_DATA *d, char *errbuf,
 /** @brief Start přehrávání (paused smyčka). @return NULL = v pořádku, jinak chyba. */
 static const char *replay_play_start(const st_REPLAY_REQ *r, char *errbuf, size_t errsize)
 {
+#if MZARCH == 700
+    /* GIDE media and its wall-clock RTC are not part of replay capture yet. */
+    if (g_gide.enabled) return "GIDE is fitted; disable it before recording or replay";
+#endif
     char *err = NULL;
     st_REPLAY_DATA *d = replay_data_read(r->path, &err);
     if (!d)

@@ -69,8 +69,15 @@ within a scanline. Existing MZ-700 raster/VRAM arbitration remains in use.
 No claim is made about additional motherboard address aliases or PCG
 expansion compatibility.
 
-The hardware reference is John Edwards' *MZ-700 80 Column Kit*, reprinted
-in the Sharp Users Club magazine, May 2015, printed pages 13–19 (PDF pages
-15–21). The layout and mode programming are on printed pages 13–14;
-the D4 latch and shared RAM-address selection are in the circuit on
-printed page 18. The project preservation collection retains that PDF.
+## Hardware reference
+
+John Edwards' *MZ-700 80 Column Kit* is reprinted in the
+[Sharp Users Club magazine, May 2015, volume 35, number 1 (archived PDF)](https://web.archive.org/web/20241203060041id_/https://www.sharpmz.no/original/sucmags/2015_05_v35n01.pdf#page=15),
+printed pages 13–19 (PDF pages 15–21). The layout and mode programming are
+on printed pages 13–14; the D4 latch and shared RAM-address selection are
+in the circuit on printed page 18. The archive is used because the former
+live download currently serves unrelated HTML. The verified PDF SHA-256 is
+`8d8a8404f875666ff8e90681c02673883f309b90b53ce1c11696a4602f960f65`.
+
+The expansion installation menu is unavailable during recording/replay.
+Guest mode-latch writes and video RAM remain ordinary emulated state.

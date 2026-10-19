@@ -222,7 +222,10 @@ static void rtc_commit(void) {
     tm.tm_hour=r[4]+10*(r[5]&3);
     if (!(r[15]&4)) tm.tm_hour=tm.tm_hour%12+((r[5]&4)?12:0);
     tm.tm_mday=r[6]+10*r[7]; tm.tm_mon=r[8]+10*r[9]-1;
-    tm.tm_year=100+r[10]+10*r[11]; tm.tm_isdst=-1;
+    /* The chip has no century register. Match the CP/M BIOS epoch window:
+     * 78..99 means1978..1999;00..77 means2000..2077. */
+    unsigned yy=r[10]+10*r[11];
+    tm.tm_year=yy+(yy<78 ? 100:0); tm.tm_isdst=-1;
     time_t t=mktime(&tm);
     if (t!=(time_t)-1) {
         g_gide.rtc_epoch=(int64_t)t;
@@ -233,7 +236,9 @@ static void rtc_commit(void) {
 static void rtc_write(unsigned n,uint8_t v) {
     gide_rtc_refresh(); v&=15;
     if (n<13) {
-        g_gide.rtc[n]=v; g_gide.rtc_dirty=1;
+        static const uint8_t mask[13]={15,7,15,7,15,7,15,3,15,1,15,15,7};
+        if (n==5 && (g_gide.rtc[15]&4)) v&=3; /* PM is zero in24h mode. */
+        g_gide.rtc[n]=v&mask[n]; g_gide.rtc_dirty=1;
         if (!rtc_stopped()) rtc_commit();
     } else if (n==13) {
         bool was=g_gide.rtc[13]&1;

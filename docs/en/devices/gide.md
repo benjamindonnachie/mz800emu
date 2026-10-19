@@ -1,6 +1,6 @@
 # KC-Club GIDE for the MZ-700
 
-This local extension emulates the software interface of the KC-Club GIDE
+This optional device emulates the software interface of the KC-Club GIDE
 CPU-socket adapter: a jumper-selected I/O block, two-byte ATA data latch,
 master/slave raw disk images and an RTC72421 clock. It is separate from IDE8.
 The card is optional and disabled by default. MZ-800 behaviour is unchanged.
@@ -112,10 +112,20 @@ calendar or STOP. Guest changes affect only the emulated clock.
 Updates occur atomically at host-second resolution: there is no transient BUSY
 window or subsecond oscillator model. The STD.P pulse output/IRQ flag and factory
 TEST behaviour are not implemented; E is retained for register compatibility.
-Supported calendar years are 2000–2099. The clock continues with host wall time
+The chip has no century register. Guest calendar writes interpret 78–99 as
+1978–1999 and 00–77 as 2000–2077; unused digit bits read as zero.
+The clock continues with host wall time
 while the emulator is paused or running at maximum speed. It is stored in a
 snapshot, but is reseeded from host time on a fresh process, without a separate
 battery-state file.
+
+## Recording and replay
+
+GIDE disk images and its host-clock RTC are not yet integrated with replay
+media capture. Recording and playback are rejected while the card is fitted,
+and its configuration menu is disabled during a replay session. Disable GIDE
+before using recording/replay. Normal snapshots and ordinary disk use are
+supported independently of replay.
 
 ## Snapshots and media
 
@@ -127,25 +137,35 @@ check that a file of the same length still contains the same bytes. RTC time
 resumes from the saved value rather than adding time spent in the snapshot file.
 Old snapshots without GIDE state reset the configured controller.
 
-The upstream CP/M floppy I/O stall after a full snapshot restore remains a separate
-known issue. Use a fresh CP/M boot for functional testing.
-
 ## Basis and verification
 
-Sources already preserved in this project:
+The implementation follows the software-visible interface, not the electrical
+behaviour of a particular PCB revision. Remaining primary documentation:
 
-* Tilmann Reh, `GIDE.txt`, 12 October1995, sections4 and6; `gide1.pds` and
-  `gide2.pds`, revision02, 26 September1995, establish decoding and latch logic.
-* KC-Club2001/2 circuit and assembly material establishes the later board's
-  software-compatible ATA latch and RTC72421 arrangement. This implements its
-  software-visible interface, not the electrical behaviour of a particular PCB.
-* Epson *RTC-72421/72423 Application Manual*, MQ-162-02, pages8–16.
+* Tilmann Reh's [GIDE reference collection](https://www.autometer.de/gide/),
+  including the [circuit description](https://www.autometer.de/gide/GIDE.txt)
+  dated 12 October 1995, sections 4 and 6, and
+  [original GAL PALASM/JEDEC files](https://www.autometer.de/gide/GIDEgals.zip),
+  revision 02, 26 September 1995, establish the decoding and byte-latch logic.
+* Archived KC-Club 2001 redesign documents:
+  [circuit diagram](https://web.archive.org/web/20030421063926id_/http://www.iee.et.tu-dresden.de:80/~kc-club/gide/gide1.pdf),
+  [PCB layout](https://web.archive.org/web/20030421163530id_/http://www.iee.et.tu-dresden.de:80/~kc-club/gide/gide2.pdf),
+  [parts and placement](https://web.archive.org/web/20030421220836id_/http://www.iee.et.tu-dresden.de:80/~kc-club/gide/gide3.pdf),
+  and [mounting sheet](https://web.archive.org/web/20030422020812id_/http://www.iee.et.tu-dresden.de:80/~kc-club/gide/gide5.pdf).
+  These identify the later board's compatible latch and RTC72421. The sheets
+  are in English; they are not a complete recovered kit manual and do not
+  establish an exact V2.1 PCB revision.
+* Frank Dachselt and Enrico Grämer, *GIDE-Interface*,
+  [KC-News 1/2002 construction article (German, archived)](https://web.archive.org/web/20070626174012id_/http://www.iee.et.tu-dresden.de/~kc-club/02/KCN02-01/KCN02-01-03.HTML).
+* Epson [RTC-72421/72423 Application Manual](https://www.autometer.de/gide/RTC7242X-AM.pdf),
+  MQ-162-02, pages 8–16.
 * X3T13/2008D revision7b, [ATA-3 working draft](https://www.scs.stanford.edu/23wi-cs212/pintos/specs/ata-3-std.pdf),
   especially sections5 and7, for register broadcasts, addressing and PIO commands.
 
-`ctest -R '^(gide_core|mcp_gide|mcp_suc80_display)$'` tests the portable core,
+`ctest -R '^(gide_core|gide_rtc|mcp_gide|mcp_suc80_display|mcp_gide_replay)$'` tests the portable core,
 real Z80 INIR/OTIR transfers, boundary errors, both devices, write protection,
-RTC high-address decoding, byte-phase rules, reset and mid-transfer snapshots,
+RTC high-address decoding/calendar controls, byte-phase rules, reset,
+mid-transfer snapshots and replay exclusion,
 and checks the existing SUC display. The core also runs independently under
 AddressSanitizer and UndefinedBehaviourSanitizer with arbitrary ATA-register traffic.
 No physical KC-Club board or CF/IDE device has been used for validation.
