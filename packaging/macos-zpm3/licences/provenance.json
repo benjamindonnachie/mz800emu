@@ -1,0 +1,16 @@
+[
+  {
+    "file": "glib-COPYING",
+    "url": "https://raw.githubusercontent.com/GNOME/glib/2.90.1/LICENSES/LGPL-2.1-or-later.txt",
+    "sha256": "fa6f36630bb1e0c571d34b2bbdf188d08495c9dbf58f28cac112f303fc1f58fb",
+    "retrieved": "2026-10-19",
+    "upstream_COPYING": "symlink to LICENSES/LGPL-2.1-or-later.txt"
+  },
+  {
+    "file": "json-glib-COPYING",
+    "url": "https://raw.githubusercontent.com/GNOME/json-glib/1.10.8/LICENSES/LGPL-2.1-or-later.txt",
+    "sha256": "fa6f36630bb1e0c571d34b2bbdf188d08495c9dbf58f28cac112f303fc1f58fb",
+    "retrieved": "2026-10-19",
+    "upstream_COPYING": "symlink to LICENSES/LGPL-2.1-or-later.txt"
+  }
+]

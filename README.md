@@ -10,6 +10,10 @@ This fork develops MZ-700 SUC 80-column, KC-Club GIDE/RTC, configurable
 expansion boot ROM and banked ZP/M support. See the
 [MZ-700 system and BIOS guide](docs/en/devices/mz700-zpm3.md).
 
+[Download the Mac app, boot ROMs and populated GIDE images](https://github.com/benjamindonnachie/mz800emu/releases/tag/mz700-zpm3-v0.1.0).
+The experimental Mac build supports Apple Silicon on macOS 27 or later;
+[startup instructions](packaging/macos-zpm3/GETTING-STARTED.md) are included.
+
 ![ZP/M N10 and ZCCP running on the MZ-700 in SUC 80-column mode](docs/images/mz700-zpm3-suc80.png)
 
 *ZP/M N10 with ZCCP in SUC 80 × 25 mode, booted from GIDE, with 60,672 bytes

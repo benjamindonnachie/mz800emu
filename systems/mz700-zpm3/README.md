@@ -1,5 +1,9 @@
 # MZ-700 banked ZP/M with GIDE
 
+A [ready-built Mac app and standalone media ZIP](https://github.com/benjamindonnachie/mz800emu/releases/tag/mz700-zpm3-v0.1.0)
+are available, with [startup instructions](../../packaging/macos-zpm3/GETTING-STARTED.md).
+The Mac binary requires Apple Silicon and macOS 27 or later.
+
 Two complete raw ATA images are provided. Each contains two 8 MiB CP/M
 volumes, C: and D:, followed by the GIDE boot loader. Native physical sectors
 are 512 bytes. Both use the same Keyboard Fast BIOS, banked ZP/M N10 and ZCCP,
