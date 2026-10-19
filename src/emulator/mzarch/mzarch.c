@@ -872,18 +872,34 @@ void mzarch_main_report_screen_done_underflow(unsigned ticks)
 /**
  * Mezi instrukcnimi takty testujeme, zda na nas neceka nejaky interrupt.
  * Pokud ano, tak jej zkusime poslat do Z80.
+ *
+ * Žádost o přerušení je HW linka INT (`g_mzarch_main.interrupt`, úrovňový
+ * signál čipů) nebo čekající NMI / IRQ nastavené mimo HW (MCP `nmi_inject`,
+ * `irq_inject` = `cpu->nmi_pending` / `cpu->int_pending`). NMI jádro přijme
+ * vždy, INT jen při IFF1 a mimo instrukci po EI. Linka INT se do jádra
+ * předá (z80_int) jen při povolených přerušeních, takže se úrovňový signál
+ * nezapamatuje; čekající IRQ z injectu (vlastní vektor) se nepřepisuje.
+ * Když INT čeká a přerušení jsou zakázaná, kontrola se zopakuje po další
+ * instrukci (MZEVENT_BREAK_MZARCH_INTERRUPT).
+ *
+ * Bez žádosti jedno čtení masky a dvou příznaků jádra (per-event cesta,
+ * ne instrukční smyčka).
  */
 static inline void mzarch_main_process_interrupt(void)
 {
-
-    if (!g_mzarch_main.interrupt)
-        return;
-
     z80_t *cpu = g_mzarch_main.cpu;
 
-    if (cpu->iff1 && !cpu->ei_delay)
+    if (!g_mzarch_main.interrupt && !cpu->nmi_pending && !cpu->int_pending)
+        return;
+
+    bool int_enabled = cpu->iff1 && !cpu->ei_delay;
+    /* NMI má v jádře přednost; přijetí níže je tedy NMI. */
+    bool is_nmi = cpu->nmi_pending;
+
+    if (is_nmi || int_enabled)
     {
-        z80_int(cpu);
+        if (g_mzarch_main.interrupt && int_enabled && !cpu->int_pending)
+            z80_int(cpu);
 
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
         /* trace-suite intlog: snapshot stavu PIOZ80 PŘED z80_process_interrupt().
@@ -922,7 +938,9 @@ static inline void mzarch_main_process_interrupt(void)
         if (interrupt_tstates > 0)
         { /* interrupt byl prijat */
 
-            pioz80_interrupt_ack();
+            /* Potvrzení INTACK patří jen přijetí INT, NMI ho nemá. */
+            if (!is_nmi)
+                pioz80_interrupt_ack();
 
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
             /* cputrack v2: záznam přijetí přerušení (adresa obsluhy, T-stavy
@@ -955,7 +973,7 @@ static inline void mzarch_main_process_interrupt(void)
              *  - CTC2 = INT pin tažený CTC2 (vector = 0, CPU skočil na (I:00))
              *  - FDC = INT pin tažený FDC kontrolérem
              *  - VECTOR_BUS_LATCH = jiný / neresolvable zdroj */
-            if (TEST_TRACE_INTLOG_DISPATCH && cpu->im == 2) {
+            if (TEST_TRACE_INTLOG_DISPATCH && !is_nmi && cpu->im == 2) {
                 uint16_t vector_table_addr = ((uint16_t)cpu->i << 8) | (cpu->int_vector & 0xFE);
                 uint16_t isr_addr = cpu->pc;
                 en_INTLOG_SOURCE_CHIP src;
@@ -999,7 +1017,7 @@ static inline void mzarch_main_process_interrupt(void)
              *
              * mzarch_irq_mask_before je local snapshot z ř.486 (= před
              * z80_process_interrupt), tedy stav INT busu před INTACK. */
-            if ( g_bptmap.per_type_active[ BPTMAP_IDX_IRQ ] ) {
+            if ( !is_nmi && g_bptmap.per_type_active[ BPTMAP_IDX_IRQ ] ) {
                 uint16_t bp_vector_addr = 0;
                 uint16_t bp_isr_addr = cpu->pc;
                 if ( cpu->im == 2 ) {
@@ -1021,6 +1039,12 @@ static inline void mzarch_main_process_interrupt(void)
              * Pro IM 2 počítáme vector table adresu z I:vector. Pro
              * IM 0/1 je im2_vec irelevantní (= 0). Vnitřní gate test
              * (g_callstack_active) řeší callstack_on_irq_accept sám. */
+            if ( is_nmi )
+            {
+                /* NMI z MCP nmi_inject: rámec CS_KIND_NMI (cíl 0066h). */
+                callstack_on_nmi_accept ( pc_before_int );
+            }
+            else
             {
                 uint16_t cs_isr_addr = cpu->pc;
                 uint16_t cs_im2_vec = 0;
@@ -1047,7 +1071,7 @@ static inline void mzarch_main_process_interrupt(void)
         }
     }
     else
-    { /* interrupt nebyl prijat - IFF1 je 0 nebo jsme po EI */
+    { /* INT čeká (linka nebo inject), ale IFF1 je 0 nebo jsme po EI */
         MZ800_MAIN_SET_EVENT(MZEVENT_BREAK_MZARCH_INTERRUPT, 0);
     };
 }

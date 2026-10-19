@@ -1,3 +1,5 @@
+	- BUGFIX: MCP - emu_irq_inject and emu_nmi_inject were accepted only while a chip held the INT line, and the NMI only with interrupts enabled. Without a hardware interrupt request they only set the pending flag and the interrupt never came. Now the injected NMI is accepted always and the injected IRQ when interrupts are enabled (with DI it waits for EI), as documented.
+
 	- BUGFIX: Snapshots - Load Snapshot, Save Snapshot, Quick Load and Quick Save from the menu are carried out by the emulator in a pause, not by the window. Before, a snapshot could be saved or loaded while the emulation was still running (in particular in builds without the debugger), so the saved state could be inconsistent. A load is refused while an input replay is being recorded or played.
 
 	- BUGFIX: Debugger - Test Eval in the breakpoint edit panel is evaluated by the emulator, so all registers and memory of one expression come from the same moment (while running at the end of a frame). As the documentation says, the ! in [addr]! and port[N]! is ignored there: a MEM_R breakpoint no longer fires and the port is only probed.

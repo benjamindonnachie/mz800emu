@@ -131,18 +131,22 @@ Updated periodically via an SDL timer (~1x/s).
 
 ### INI config
 
-Per-subsystem section in `mz800emu.ini` / `mz1500emu.ini`:
+Per-subsystem section in `mz800emu.ini` / `mz1500emu.ini`. Numbers in the
+configuration file are **hexadecimal**, the way the emulator writes them
+(`chunk_mb = 0x40` means 64 MB); a value without the `0x` prefix is read as
+hexadecimal too (`chunk_mb = 64` would mean 100 MB, and
+`pc_range_hi = 65535` is out of range and keeps the default):
 
 ```ini
 [TRACE_CPUTRACK]
 mode=OFF
 dir=trace-suite
 name=cputrack
-chunk_mb=64
-max_total_mb=2048
+chunk_mb=0x40                    # 64 MB
+max_total_mb=0x800               # 2048 MB
 save_on_exit=1
-pc_range_lo=0                    # range-scope filter: lower PC bound (default 0)
-pc_range_hi=65535               # upper PC bound (default 0xFFFF = no filter)
+pc_range_lo=0x0000               # range-scope filter: lower PC bound (default 0)
+pc_range_hi=0xffff               # upper PC bound (default 0xFFFF = no filter)
 
 [TRACE_IORQLOG]
 ... (same structure)
@@ -157,8 +161,8 @@ pc_range_hi=65535               # upper PC bound (default 0xFFFF = no filter)
 mode=OFF
 dir=trace-suite
 name=marklog
-chunk_mb=64
-max_total_mb=2048
+chunk_mb=0x40
+max_total_mb=0x800
 save_on_exit=1
 stdout_enabled=1                # back-compat printout [BP-MARK] to stdout
 ```

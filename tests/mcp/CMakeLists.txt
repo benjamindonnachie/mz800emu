@@ -948,6 +948,24 @@ if(Python3_FOUND)
                    "(Python ${Python3_VERSION})")
 
     # -----------------------------------------------------------
+    # IRQ / NMI inject bez HW linky INT (pipe)
+    # -----------------------------------------------------------
+    # irq_inject při EI skočí do obsluhy IM 2, nmi_inject při IFF1 = 0 na
+    # 0066h, irq_inject při DI čeká do EI.
+    add_test(
+        NAME    mcp_irq_nmi_inject
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_irq_nmi_inject.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_irq_nmi_inject PROPERTIES
+        LABELS  "e2e;mcp;pipe"
+        TIMEOUT 120
+    )
+    message(STATUS "  tests/mcp: registered mcp_irq_nmi_inject "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
     # InsnPC a FrameCycle ve výrazech breakpointů (pipe)
     # -----------------------------------------------------------
     # MEM_W BP s InsnPC zastaví na zápisu dané instrukce, PC je u MEM_W

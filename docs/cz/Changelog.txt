@@ -1,3 +1,5 @@
+	- BUGFIX: MCP - emu_irq_inject a emu_nmi_inject se přijaly jen tehdy, když některý obvod právě držel linku INT, a NMI navíc jen při povolených přerušeních. Bez HW žádosti o přerušení se jen nastavil příznak a přerušení nepřišlo. Nově se NMI z injectu přijme vždy a IRQ při povolených přerušeních (při DI počká na EI), jak popisuje dokumentace.
+
 	- BUGFIX: Snapshoty - Load Snapshot, Save Snapshot, Quick Load a Quick Save z menu provede emulátor v pauze, ne okno. Dřív se snapshot mohl uložit nebo načíst, zatímco emulace ještě běžela (hlavně v sestavení bez debuggeru), a uložený stav pak nemusel být konzistentní. Při záznamu nebo přehrávání vstupů se načtení odmítne.
 
 	- BUGFIX: Debugger - Test Eval v editačním panelu breakpointu vyhodnocuje emulátor, takže všechny registry a paměť jednoho výrazu jsou ze stejného okamžiku (za běhu na konci snímku). Jak píše dokumentace, znak ! v [addr]! a port[N]! se tam ignoruje: MEM_R breakpoint se už nespustí a port se jen čte sondou bez vedlejšího efektu.

@@ -125,18 +125,22 @@ Aktualizuje se periodicky přes SDL timer (~1x/s).
 
 ### INI config
 
-Per-subsystém sekce v `mz800emu.ini` / `mz1500emu.ini`:
+Per-subsystém sekce v `mz800emu.ini` / `mz1500emu.ini`. Čísla
+v konfiguračním souboru jsou **šestnáctková**, tak jak je emulátor zapisuje
+(`chunk_mb = 0x40` znamená 64 MB); i hodnota bez předpony `0x` se čte
+šestnáctkově (`chunk_mb = 64` by znamenalo 100 MB a `pc_range_hi = 65535`
+je mimo rozsah, takže zůstane výchozí hodnota):
 
 ```ini
 [TRACE_CPUTRACK]
 mode=OFF
 dir=trace-suite
 name=cputrack
-chunk_mb=64
-max_total_mb=2048
+chunk_mb=0x40                    # 64 MB
+max_total_mb=0x800               # 2048 MB
 save_on_exit=1
-pc_range_lo=0                    # range-scope filtr: dolní mez PC (default 0)
-pc_range_hi=65535               # horní mez PC (default 0xFFFF = bez filtru)
+pc_range_lo=0x0000               # range-scope filtr: dolní mez PC (default 0)
+pc_range_hi=0xffff               # horní mez PC (default 0xFFFF = bez filtru)
 
 [TRACE_IORQLOG]
 ... (stejná struktura)
@@ -151,8 +155,8 @@ pc_range_hi=65535               # horní mez PC (default 0xFFFF = bez filtru)
 mode=OFF
 dir=trace-suite
 name=marklog
-chunk_mb=64
-max_total_mb=2048
+chunk_mb=0x40
+max_total_mb=0x800
 save_on_exit=1
 stdout_enabled=1                # back-compat printout [BP-MARK] na stdout
 ```

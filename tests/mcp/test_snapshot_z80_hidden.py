@@ -10,7 +10,7 @@ Pro každou binárku v kořeni repa (nebo v ``MZ_EMU_DIR``):
 
   1  round-trip: program ``DI; LD A,0Fh; ADD A,1; JR $``,
      ``set_register WZ``, ``irq_inject`` a ``nmi_inject`` v pauze (INT
-     i NMI zůstanou čekat), ``snapshot_save``; "špinavý" stroj (reset
+     i NMI zůstanou čekat, dokud emulace stojí), ``snapshot_save``; "špinavý" stroj (reset
      a 3 snímky), ``snapshot_load``; WZ, Q, čekající INT/NMI, EI delay
      a ``total_cycles`` se musí shodovat s uloženým stavem;
   2  starý formát: ze stejného snapshotu se odstraní prvek
@@ -114,7 +114,12 @@ def _dirty(emu):
 
 
 def _hidden_state_snapshot(emu, snap):
-    """Připraví nenulový skrytý stav a uloží snapshot; vrátí uložený stav."""
+    """Připraví nenulový skrytý stav a uloží snapshot; vrátí uložený stav.
+
+    Začíná resetem: stroj může mít z předchozího scénáře čekající INT a NMI
+    (načtený snapshot), které by se při krokování programu přijaly.
+    """
+    emu.call("reset")
     _load_program(emu, _PROG_Q)
     _step_to(emu, _PROG_Q_END, 10)
     emu.call("set_register", {"reg": "WZ", "value": _WZ})

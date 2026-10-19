@@ -844,12 +844,11 @@ void memory_write_with_logging_cb(z80_t *cpu, uint16_t addr, uint8_t value, void
         g_dbg_in_cpu_path = 0;
         return;
     }
+    /* Zápis jako funkce (vzor MZ-800 a MZ-700): makra memory_internal_write_*
+     * končí return, který tak ukončí jen memory_write_cb, a příznak CPU cesty
+     * se po zápisu vynuluje. Rozepsaná makra přímo tady ho nechávala 1. */
     g_dbg_in_cpu_path = 1;
-    memory_internal_write_0000_0fff(addr_high);
-    memory_internal_write_1000_cfff(addr_high);
-    memory_internal_write_d000_dfff_sync(addr_high);
-    memory_internal_write_e000_efff_sync(addr_high);
-    memory_internal_write_f000_ffff(addr_high);
+    memory_write_cb(cpu, addr, value, user_data);
     g_dbg_in_cpu_path = 0;
 }
 #endif
