@@ -69,8 +69,10 @@ u16 @14, `offset` u32 @16, `space` u8 @20 (0 ram, 1 vram, 2 pcg,
   `include_unchanged=true` in the query tools). A loop that keeps
   writing the same value thus does not hide the write that changed it.
 - `LDIR` / `PUSH` give one record per byte with the address of the
-  instruction. `PUSH` and the interrupt return address are recorded low
-  byte first (order of the emulator; the real Z80 order is not verified).
+  instruction. `PUSH`, `CALL`, `RST` and the interrupt / NMI return
+  address are written and recorded high byte first (SP-1), then low byte
+  (SP-2), as in the Zilog Z80 manual; not measured on a real MZ-800.
+  `LD (nn),rr` writes the low byte first.
 - A program load (`emu_media_run_mzf`, cmt hack, `--run-mzf`) is one
   `summary` record per block and 4 KiB page.
 - `ring` (default) keeps the newest records; `first_seq` > 0 in the

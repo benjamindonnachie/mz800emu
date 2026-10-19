@@ -90,9 +90,9 @@ Poznámky:
 
 - `LDIR`, `PUSH` a podobné instrukce dají jeden záznam na každý zapsaný
   bajt, všechny s adresou instrukce. Dva bajty `PUSH` a návratové adresy
-  uložené při přijetí přerušení se zaznamenají v pořadí, v jakém je
-  zapisuje emulátor (nižší bajt dřív); pořadí na skutečném Z80 není
-  ověřené.
+  uložené při přijetí přerušení se zaznamenají v pořadí zápisu: vyšší
+  bajt dřív, pak nižší (jako v manuálu Zilog Z80; na skutečném MZ-800
+  neměřeno).
 - Na MZ-800 dá zápis do grafické VRAM jeden záznam na každý plán, do
   kterého režim zápisu skutečně zapisuje (např. REPLACE zapíše 00 i do
   plánů, které nejsou vybrané).

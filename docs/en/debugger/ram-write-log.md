@@ -96,8 +96,8 @@ Notes:
 - `LDIR`, `PUSH` and similar instructions give one record per written
   byte, all with the address of the instruction. The two bytes of `PUSH`
   and of the return address pushed when an interrupt is accepted are
-  recorded in the order the emulator writes them (low byte first); the
-  order on a real Z80 is not verified.
+  recorded in the order they are written: high byte first, then low
+  byte (as in the Zilog Z80 manual; not measured on a real MZ-800).
 - On the MZ-800 a write into the graphic VRAM gives one record per plane
   the write mode actually writes (for example REPLACE also writes 00 into
   the planes that are not selected).

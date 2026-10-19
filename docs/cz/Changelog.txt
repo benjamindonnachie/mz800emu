@@ -1,3 +1,5 @@
+	- BUGFIX: Z80 - PUSH, CALL, RST a přijetí přerušení nebo NMI zapisovaly nižší bajt ukládané hodnoty dřív. Nově se zapíše nejdřív vyšší bajt (na SP-1), pak nižší, jak uvádí manuál Zilog Z80. Obsah paměti po instrukci se nemění; pořadí je vidět u breakpointů na zápis do zásobníku a u zápisů do paměťově mapovaných I/O.
+
 
 	- Nová funkce: záznam a přehrání vstupů (Replay). Replay -> Record Inputs... nahraje od startovního snapshotu klávesnici, joysticky (i joystick hostitele), resety, autotype, ovládání kazety, soubory vybrané pro CMT hack a zápisy debuggeru, vše na hranici snímku, spolu s hashi stavu CPU, paměti a periferií; obsah vložených disket, Quick Disku, disků IDE8 a pásky se uloží do záznamu. Replay -> Play Replay... běh přesně zopakuje, i v novém procesu bez souborů médií a při libovolné rychlosti, nad kopiemi médií, s jinými breakpointy, trace nebo záznamem zápisů do paměti, a zastaví se na prvním snímku, kde se stav liší. Hodiny Unicardu běží při záznamu a přehrávání z emulovaného času. Během záznamu nejde měnit nastavení stroje, načíst snapshot, vkládat média ani měnit nastavení kazety. Viz replay.md.
 

@@ -5,6 +5,7 @@ Ověřuje:
 
   1  MZ-800, program ``LD (nn),A``, ``LD (HL),n``, ``PUSH``, ``LDIR``:
      ``insn_pc`` = začátek zapisující instrukce, old/new, pořadí bajtů PUSH
+     (vyšší bajt dřív, Zilog UM0080)
      podle jádra (nižší bajt dřív), ``ramlog_who_wrote`` a ``ramlog_writers``;
      MCP ``mem_write`` = zdroj ``debugger``;
   2  malý ring: ``fill`` počítá ``dropped``, ``ring`` ``overwritten``;
@@ -121,12 +122,12 @@ def case_basic(emu):
     check(all(t == t_insn.get(pc) for t, pc, _ in tt[:5]),
           f"t = start of the writing instruction as in cputrack ({tt[:5]}, {t_insn})")
     check(tt[0][2] == 13 and tt[2][2] < tt[3][2] <= 11,
-          f"tin within the instruction: LD (nn),A 13, PUSH bytes ascending ({tt})")
+          f"tin within the instruction: LD (nn),A 13, PUSH bytes in write order ({tt})")
     got, last = rows(emu, ["pc", "addr", "old", "new", "src"])
     want = [["3003", "4000", "AA", "55", "insn"], ["3009", "4001", "AA", "66", "insn"],
-            ["3011", "400E", "AA", "34", "insn"], ["3011", "400F", "AA", "12", "insn"],
+            ["3011", "400F", "AA", "12", "insn"], ["3011", "400E", "AA", "34", "insn"],
             ["301B", "4020", "AA", "55", "insn"], ["301B", "4021", "AA", "66", "insn"]]
-    check(got == want, f"rows: start of writing instruction, old/new, PUSH low byte first ({got})")
+    check(got == want, f"rows: start of writing instruction, old/new, PUSH high byte first ({got})")
     w = emu.call("ramlog_who_wrote", {"addr": 0x4001})
     cell = w["cells"][0]
     check(cell["last"]["pc"] == "3009" and cell["last"]["in_ring"] and len(cell["history"]) == 1,
@@ -169,9 +170,10 @@ def case_int_ack(emu):
     # (ve výchozím výpisu skryté), proto all.
     got, _ = rows(emu, ["seq", "pc", "addr", "new", "src"], flt={"src": "int_ack", "all": True})
     check(len(got) >= 4 and len(got) % 2 == 0, f"interrupt acknowledge pushes recorded ({len(got)} rows)")
-    lo, hi = got[0], got[1]
+    # Vyšší bajt návratové adresy se zapisuje dřív (Zilog UM0080).
+    hi, lo = got[0], got[1]
     ret = int(hi[3], 16) << 8 | int(lo[3], 16)
-    check(lo[2] == "40FE" and hi[2] == "40FF" and int(lo[1], 16) == ret,
+    check(hi[2] == "40FF" and lo[2] == "40FE" and int(lo[1], 16) == ret,
           f"int_ack insn_pc = pushed return address {ret:04X}h ({lo}, {hi})")
 
 
