@@ -15,12 +15,28 @@
 #include "snapshot/snapshot_xml.h"
 #include "hw-generic/gdg/gdg.h"
 #include "hw-generic/gdg/video.h"
+#if MZARCH == 700
+#include "hw-generic/pcg700/pcg700.h"
+#include <string.h>
+#endif
 #if MZARCH == 800
 #include "mzarch/mz800/gdg/mz800_hwscroll.h"
 #endif
 
 static en_SNAPSHOT_RESULT snap_gdg_save(st_SNAPSHOT_CONTEXT *ctx)
 {
+#if MZARCH == 700
+    /* Explicit bytes, independent of host struct padding and endianness. */
+    uint8_t pcg[5 + PCG700_RAM_SIZE];
+    pcg[0] = !!g_pcg700.fitted;
+    pcg[1] = !!g_pcg700.hsw;
+    pcg[2] = g_pcg700.data;
+    pcg[3] = g_pcg700.addr_low;
+    pcg[4] = g_pcg700.control;
+    memcpy(pcg + 5, g_pcg700.ram, PCG700_RAM_SIZE);
+    en_SNAPSHOT_RESULT pcg_res = snapshot_io_write_bin(ctx->io, "hw/pcg700.bin", pcg, sizeof(pcg));
+    if (pcg_res != SNAPSHOT_OK) return pcg_res;
+#endif
     snapshot_xml_writer_t *w = snapshot_xml_writer_new();
     snapshot_xml_write_header(w);
 
@@ -185,6 +201,28 @@ static void snap_gdg_event_resync(void)
 
 static en_SNAPSHOT_RESULT snap_gdg_load(st_SNAPSHOT_CONTEXT *ctx)
 {
+#if MZARCH == 700
+    pcg700_t pcg;
+    pcg700_power_on(&pcg);
+    if (snapshot_io_entry_exists(ctx->io, "hw/pcg700.bin")) {
+        uint8_t *data = NULL;
+        size_t size = 0;
+        en_SNAPSHOT_RESULT result = snapshot_io_read_bin(ctx->io, "hw/pcg700.bin", &data, &size);
+        if (result != SNAPSHOT_OK) return result;
+        if (size != 5 + PCG700_RAM_SIZE || data[0] > 1 || data[1] > 1 || data[4] > 0x3f) {
+            g_free(data);
+            return SNAPSHOT_ERR_CORRUPTED;
+        }
+        pcg.fitted = data[0];
+        pcg.hsw = data[1];
+        pcg.data = data[2];
+        pcg.addr_low = data[3];
+        pcg.control = data[4];
+        memcpy(pcg.ram, data + 5, PCG700_RAM_SIZE);
+        g_free(data);
+    }
+    /* Old snapshots describe a machine without the expansion. */
+#endif
     char *xml = NULL;
     en_SNAPSHOT_RESULT res = snapshot_io_read_xml(ctx->io, "hw/gdg.xml", &xml);
     if (res != SNAPSHOT_OK) {
@@ -226,6 +264,7 @@ static en_SNAPSHOT_RESULT snap_gdg_load(st_SNAPSHOT_CONTEXT *ctx)
 
     /* Registry */
 #if MZARCH == 700
+    g_pcg700 = pcg;
     /* Legacy snapshots predate this latch and represent a 40-column machine. */
     g_gdg.suc80_mode80 = 0;
 #endif

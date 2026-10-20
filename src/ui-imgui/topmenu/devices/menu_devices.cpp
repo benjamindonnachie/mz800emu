@@ -12,6 +12,8 @@
 #if MZARCH == 700
 #include "mzarch/mz700/gdg/mz700_gdg.h"
 #include "hw-generic/gide/gide.h"
+#include "hw-generic/pcg700/pcg700.h"
+#include "mzarch/mz700/gdg/mz700_framebuffer.h"
 #include "baseui/baseui_filechooser.h"
 extern "C" {
 #include "baseui/baseui.h"
@@ -116,6 +118,17 @@ void imgui_menu_devices(void)
         imgui_menu_memext();
         imgui_menu_rom();
 #if MZARCH == 700
+        if (ImGui::BeginMenu("HAL PCG-700")) {
+            if (ImGui::MenuItem("Card fitted", NULL, g_pcg700.fitted != 0)) {
+                g_pcg700.fitted = !g_pcg700.fitted;
+                g_framebuffer.screen_changes = SCRSTS_THIS_IS_CHANGED;
+            }
+            if (ImGui::MenuItem("HSW: PCG display", NULL, g_pcg700.hsw != 0)) {
+                g_pcg700.hsw = !g_pcg700.hsw;
+                g_framebuffer.screen_changes = SCRSTS_THIS_IS_CHANGED;
+            }
+            ImGui::EndMenu();
+        }
         menu_gide();
         menu_boot_rom();
         if (ImGui::MenuItem(_L("SUC 80-column expansion"), NULL, g_gdg.suc80_enabled != 0)) {

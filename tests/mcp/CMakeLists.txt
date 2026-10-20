@@ -901,3 +901,20 @@ if(Python3_Interpreter_FOUND AND TARGET mz700emu-pal)
     set_tests_properties(mcp_gide PROPERTIES
         LABELS "e2e;mcp;mz700;gide" TIMEOUT 180 SKIP_RETURN_CODE 77)
 endif()
+
+# HAL PCG-700: native Z80 programming, complete pixel comparisons and snapshots.
+if(Python3_Interpreter_FOUND AND TARGET mz700emu-pal)
+    add_test(NAME mcp_pcg700
+        COMMAND ${CMAKE_COMMAND} -E env "MZ_EMU=$<TARGET_FILE:mz700emu-pal>" "PYTHONDONTWRITEBYTECODE=1"
+                ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_pcg700.py)
+    set_tests_properties(mcp_pcg700 PROPERTIES
+        LABELS "e2e;mcp;mz700;pcg700" TIMEOUT 180 SKIP_RETURN_CODE 77)
+endif()
+
+if(Python3_Interpreter_FOUND AND TARGET mz700emu-ntsc)
+    add_test(NAME mcp_pcg700_ntsc
+        COMMAND ${CMAKE_COMMAND} -E env "MZ_EMU=$<TARGET_FILE:mz700emu-ntsc>" "PYTHONDONTWRITEBYTECODE=1"
+                ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test_pcg700.py)
+    set_tests_properties(mcp_pcg700_ntsc PROPERTIES
+        LABELS "e2e;mcp;mz700;pcg700" TIMEOUT 180 SKIP_RETURN_CODE 77)
+endif()

@@ -42,6 +42,7 @@
 #include <string.h>
 
 #include "mz700_framebuffer.h"
+#include "hw-generic/pcg700/pcg700.h"
 #include "mz700_framebuffer_done.h"
 #include "mz700_gdg.h"
 #include "hw-generic/gdg/video.h"
@@ -98,7 +99,7 @@ static inline void framebuffer_update_MZ700_screen_row(unsigned beam_row)
             unsigned attr = VRAM_ATTR[offset];
             unsigned code = VRAM_CHAR[offset];
             unsigned cg_addr = ((attr << 4) & 0x800u) | (code * 8);
-            unsigned mask = CGROM[cg_addr + char_line];
+            unsigned mask = pcg700_pattern(&g_pcg700, cg_addr + char_line, CGROM);
             uint8_t fg = c_MZ700_COLORMAP[(attr >> 4) & 7u];
             uint8_t bg = c_MZ700_COLORMAP[attr & 7u];
             for (unsigned bit = 0; bit < 8; ++bit) {
@@ -120,7 +121,7 @@ static inline void framebuffer_update_MZ700_screen_row(unsigned beam_row)
         unsigned attr_grp = ((*vram_attr << 4) & 0x0800);
 
         unsigned cg_addr = attr_grp | (*vram_data * 8);
-        unsigned mask = CGROM[cg_addr + char_line];
+        unsigned mask = pcg700_pattern(&g_pcg700, cg_addr + char_line, CGROM);
 
         vram_data++;
         vram_attr++;

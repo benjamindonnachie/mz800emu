@@ -65,6 +65,7 @@ https://sourceforge.net/projects/mz800emu/
   - IDE8 hard disk interface
   - Optional [KC-Club GIDE ATA disks and RTC for MZ-700](docs/en/devices/gide.md)
   - Optional [SUC 40/80-column display for MZ-700](docs/en/devices/suc80.md)
+  - Optional [HAL PCG-700 character generator for MZ-700](docs/en/devices/hal-pcg700.md)
 - Integrated Z80 debugger:
   - Disassembler with inline assembler
   - Memory browser with heatmap
