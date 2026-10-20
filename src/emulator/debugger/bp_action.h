@@ -373,6 +373,12 @@ extern "C" {
      * Guard sdílí baseline accountingu s trace_save fire cestou -> žádný
      * double-account (viz @ref bp_action_install_disk_flush_guard interní hook).
      *
+     * Guard účtuje jen tehdy, když nahrává aspoň jeden kanál, který spustila
+     * nebo ukládá akce BP (@ref bp_action_trace_channel_note). Trace spuštěný
+     * jen z GUI nebo MCP backstop nezastaví (hlídá ho vlastní max_total_mb
+     * kanálu); guard i tak posune baseline, takže jeho bajty nezaúčtuje ani
+     * pozdější trace_save fire.
+     *
      * Volá se z @c breakpoints_init (= jednou při (re-)init debuggeru, ze stejného
      * místa, kde se resetuje byte accounting). Idempotentní (přepíše hook stejnou
      * funkcí).
@@ -381,6 +387,37 @@ extern "C" {
      * Threading: voláno při inicializaci; bez locku.
      */
     extern void bp_action_install_disk_flush_guard ( void );
+
+
+    /**
+     * @brief Označí kanál trace jako řízený akcí BP (pro flush-side guard).
+     *
+     * Volá se po akci BP @c trace_start a po úspěšné akci @c trace_save
+     * daného kanálu. Dokud kanál nahrává, flush-side guard jeho zápisy na disk
+     * účtuje do byte backstopu. Značka zmizí akcí @c trace_stop, příkazem
+     * TRACE_START/STOP z GUI nebo MCP (@ref bp_action_trace_channel_forget),
+     * nebo když guard zjistí, že kanál už nenahrává.
+     *
+     * @param channel en_DBGAPI_TRACE_CHANNEL (0-31); jiná hodnota se ignoruje.
+     * Side effects: nastaví bit v process-globální masce.
+     * Threading: jen emu vlákno (akce BP, dispatch dbgapi) nebo test.
+     */
+    extern void bp_action_trace_channel_note ( int channel );
+
+
+    /**
+     * @brief Zruší značku "řízený akcí BP" u kanálu trace.
+     *
+     * Volá se z akce BP @c trace_stop a z dispatch příkazů TRACE_START /
+     * TRACE_STOP (GUI, MCP): uživatel převzal řízení kanálu, jeho zápisy
+     * už do byte backstopu nepatří, dokud ho akce BP znovu nespustí nebo
+     * neuloží.
+     *
+     * @param channel en_DBGAPI_TRACE_CHANNEL (0-31); jiná hodnota se ignoruje.
+     * Side effects: vynuluje bit v process-globální masce.
+     * Threading: jen emu vlákno nebo test.
+     */
+    extern void bp_action_trace_channel_forget ( int channel );
 
 
 #ifdef __cplusplus

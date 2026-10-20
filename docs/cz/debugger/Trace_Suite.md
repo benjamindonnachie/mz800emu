@@ -442,7 +442,11 @@ stabilní `uint16 marker_id`. Mapování id -> name se dumpuje do manifestu `<na
   jinak roste prakticky neomezeně). Při dosažení se subsystém zastaví, do
   manifest `<name>.json` se zapíše `"truncated": true, "truncated_reason": "max_total_mb"`,
   na konzoli zpráva `[trace-suite] <subsys>: max-total-mb=N reached,
-  recording stopped`.
+  recording stopped`. Emulace běží dál. Limit objemu zápisů akcí
+  breakpointů (`[BREAKPOINTS] fwd_byte_limit_mb`, ten emulaci
+  zapauzuje) platí jen pro kanál, který spustila (`trace_start`) nebo
+  ukládá (`trace_save`) akce breakpointu, ne pro nahrávání spuštěné
+  z tohoto menu nebo přes MCP.
 
 ## Externí parsing
 

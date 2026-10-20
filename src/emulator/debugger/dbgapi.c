@@ -55,6 +55,7 @@
 #include "bp_vars.h"
 #include "bookmarks/bookmarks.h"
 #include "bp_expr.h"
+#include "bp_action.h"         /* značka kanálů trace řízených akcí BP */
 #include "mhmap.h"
 #include "freeze/freeze.h"
 #include "memsearch/memsearch.h"
@@ -446,6 +447,8 @@ void dbgapi_init(st_DBGAPI_CMDRQ_QUEUE *queue)
         slot->data_ptr = NULL;
         slot->result_ptr = NULL;
         slot->success = false;
+        slot->dequeued = false;
+        slot->done_early = false;
         APP_MUTEX_CREATE(slot->mutex);
         APP_COND_CREATE(slot->cond);
     };
@@ -604,6 +607,14 @@ st_DBGAPI_CMDRQ *dbgapi_emu_dequeue(st_DBGAPI_CMDRQ_QUEUE *queue)
         st_DBGAPI_CMDRQ *slot = &queue->cmdrq[queue->head];
         queue->head = (queue->head + 1) % DBGAPI_CMDRQ_QUEUE_SIZE;
 
+        /* Slot už vykonaný mimo pořadí (dbgapi_emu_dequeue_matching()):
+         * jen přeskočit. Stav slotu (PROCESSED / NONE) patří odesílateli. */
+        if (slot->done_early)
+        {
+            slot->done_early = false;
+            continue;
+        };
+
         /* Slot zrušený odesílatelem po timeoutu: přeskočit bez provedení.
          * CANCELLED se nastavuje jen pod queue_mutex (který držíme), takže
          * čtení je konzistentní. Odesílatel už na slot nečeká ani na něj
@@ -616,6 +627,40 @@ st_DBGAPI_CMDRQ *dbgapi_emu_dequeue(st_DBGAPI_CMDRQ_QUEUE *queue)
 
         /* Od teď ho odesílatel nesmí zrušit - čeká na dokončení. */
         slot->dequeued = true;
+        APP_MUTEX_UNLOCK(queue->queue_mutex);
+        return slot;
+    };
+
+    APP_MUTEX_UNLOCK(queue->queue_mutex);
+    return NULL;
+}
+
+st_DBGAPI_CMDRQ *dbgapi_emu_dequeue_matching(st_DBGAPI_CMDRQ_QUEUE *queue,
+                                             bool (*match)(en_DBGAPI_CMD cmd))
+{
+    if (!match)
+        return NULL;
+
+    APP_MUTEX_LOCK(queue->queue_mutex);
+
+    for (int i = queue->head; i != queue->tail; i = (i + 1) % DBGAPI_CMDRQ_QUEUE_SIZE)
+    {
+        st_DBGAPI_CMDRQ *slot = &queue->cmdrq[i];
+
+        /* Už vykonaný mimo pořadí nebo zrušený odesílatelem (nevyzvednutý
+         * slot je jen PENDING nebo CANCELLED): nechat na dbgapi_emu_dequeue(). */
+        if (slot->done_early || slot->cmd_state != DBGAPI_CMDSTATE_PENDING)
+            continue;
+        if (!match((en_DBGAPI_CMD)(slot->cmd & DBGAPI_CMD_MASK)))
+            continue;
+
+        /* Od teď ho odesílatel nesmí zrušit - čeká na dokončení. Slot
+         * v hlavě fronty se vyjme normálně, jinde ho head později přeskočí. */
+        slot->dequeued = true;
+        if (i == queue->head)
+            queue->head = (queue->head + 1) % DBGAPI_CMDRQ_QUEUE_SIZE;
+        else
+            slot->done_early = true;
         APP_MUTEX_UNLOCK(queue->queue_mutex);
         return slot;
     };
@@ -1221,6 +1266,17 @@ static bool dbgapi_resolve_trace_channel ( en_DBGAPI_TRACE_CHANNEL channel,
         default:
             return false;
     }
+}
+
+
+bool dbgapi_trace_channel_recording ( en_DBGAPI_TRACE_CHANNEL channel )
+{
+    st_DBGAPI_TRACE_CHAN_DESC d;
+    if ( !dbgapi_resolve_trace_channel ( channel, &d ) )
+    {
+        return false;
+    }
+    return *d.mode_ptr != TLOG_MODE_OFF;
 }
 
 
@@ -3001,8 +3057,14 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
 
                 if (!all_ok)
                 {
-                    /* Žádný bajt nezapsán - all-or-nothing semantika. */
-                    rq->success = true; /* command sám prošel, jen write zamítnut */
+                    /* Žádný bajt nezapsán - all-or-nothing semantika.
+                     * rq->success = false: zamítnutý zápis není provedená
+                     * akce. Jinak by ho Activity (MCP_ACTION broadcast)
+                     * ukázala jako provedený a záznam vstupů (replay)
+                     * by ho zaznamenal; přehrání by pak skončilo chybou
+                     * "recorded debugger command failed". Důvod zamítnutí
+                     * nesou p->first_failed_addr / first_failed_kind. */
+                    rq->success = false;
                     break;
                 };
 
@@ -4400,6 +4462,12 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
             /* SAVE bere path z param; ostatní op path ignorují. */
             const char *path = ( cmd == DBGAPI_CMD_TRACE_SAVE ) ? p->path : NULL;
             int rc = dbgapi_trace_lifecycle ( p->channel, op, path );
+            /* Start/stop z GUI nebo MCP: kanál už neřídí akce BP, jeho
+             * zápisy do byte backstopu akcí BP nepatří (bp_action.h). */
+            if ( op == DBGAPI_TRACE_OP_START || op == DBGAPI_TRACE_OP_STOP )
+            {
+                bp_action_trace_channel_forget ( (int) p->channel );
+            }
             p->out_result = rc;
             rq->success = ( rc == 0 );
             break;
@@ -7840,7 +7908,8 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
             {
                 /* Režim "všechny regiony": kopie bez stropu na počet
                  * (MCP regions_list; plná sestava MZ-800 má přes 500). */
-                p->out_dup = dbgapi_regions_enumerate_dup ( &p->out_count );
+                p->out_dup = dbgapi_regions_enumerate_dup_gen (
+                    &p->out_count, &p->out_layout_gen );
                 rq->success = true;
                 break;
             };
@@ -7863,6 +7932,8 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
              * žádný auto-inc latch, žádný GDG RF dispatch, žádný IRQ
              * trigger. Caller dostává out_count = skutečně přečtená
              * délka (= clamp pokud offset+len > size regionu).
+             * S layout_gen != 0 se ID ze starší sestavy HW odmítne
+             * (out_count = DBGAPI_REGIONS_ERR_STALE).
              */
             st_DBGAPI_REGIONS_READ_PARAM *p =
                 (st_DBGAPI_REGIONS_READ_PARAM *) rq->data_ptr;
@@ -7871,8 +7942,8 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
                 rq->success = false;
                 break;
             };
-            p->out_count = dbgapi_regions_read (
-                p->region_id, p->offset, p->buf, p->len );
+            p->out_count = dbgapi_regions_read_gen (
+                p->region_id, p->layout_gen, p->offset, p->buf, p->len );
             rq->success = ( p->out_count >= 0 );
             break;
         }
@@ -7885,7 +7956,8 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
              * REGION_KIND_MEMEXT_FLASH a REGION_KIND_PROHIBITED_SHADOW
              * backend vrátí -1 (= read-only z pohledu Memory Browseru).
              * Pro VRAM regiony žádný automatický screen refresh - to je
-             * UI zodpovědnost při edit v pause modu.
+             * UI zodpovědnost při edit v pause modu. S layout_gen != 0
+             * se ID ze starší sestavy HW odmítne (DBGAPI_REGIONS_ERR_STALE).
              */
             st_DBGAPI_REGIONS_WRITE_PARAM *p =
                 (st_DBGAPI_REGIONS_WRITE_PARAM *) rq->data_ptr;
@@ -7894,8 +7966,8 @@ void dbgapi_emu_dispatch(st_DBGAPI_CMDRQ *rq)
                 rq->success = false;
                 break;
             };
-            p->out_count = dbgapi_regions_write (
-                p->region_id, p->offset, p->data, p->len );
+            p->out_count = dbgapi_regions_write_gen (
+                p->region_id, p->layout_gen, p->offset, p->data, p->len );
             rq->success = ( p->out_count >= 0 );
             break;
         }
@@ -8565,6 +8637,7 @@ static en_DBGAPI_SUBMIT_STATUS dbgapi_ui_submit_impl(st_DBGAPI_CMDRQ_QUEUE *queu
     slot->result_ptr = result_ptr;
     slot->success = false;
     slot->dequeued = false;
+    slot->done_early = false;
 
     /* V1.D.1 - track last user action pro emulator://state Resource.
      * Zaznamenáváme jen origin == USER (= GUI klik / hotkey / menu).

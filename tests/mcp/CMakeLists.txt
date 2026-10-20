@@ -930,6 +930,80 @@ if(Python3_FOUND)
                    "(Python ${Python3_VERSION})")
 
     # -----------------------------------------------------------
+    # Staré region_id po změně HW (pipe, dva procesy)
+    # -----------------------------------------------------------
+    # Snapshot s RAMdiskem 64K načtený do procesu s 16M: region_read a
+    # region_write se starým ID skončí chybou "stale region id", ne
+    # čtením za koncem bufferu RAMdisku (dřív access violation).
+    add_test(
+        NAME    mcp_regions_stale
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_regions_stale.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_regions_stale PROPERTIES
+        LABELS  "e2e;mcp;pipe;regions"
+        TIMEOUT 120
+    )
+    message(STATUS "  tests/mcp: registered mcp_regions_stale "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
+    # Drain na hranici akce BP jen pro řídicí příkazy (pipe)
+    # -----------------------------------------------------------
+    # MEM_W BP s akcí continue: get_raster_pos za běhu se vykoná vždy na
+    # hranici snímku (ne uprostřed instrukce), pauza projde, stav v pauze
+    # je konzistentní.
+    add_test(
+        NAME    mcp_bp_action_drain
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_bp_action_drain.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_bp_action_drain PROPERTIES
+        LABELS  "e2e;mcp;pipe;debugger"
+        TIMEOUT 120
+    )
+    message(STATUS "  tests/mcp: registered mcp_bp_action_drain "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
+    # Byte backstop akcí BP nezastaví samotný trace (pipe)
+    # -----------------------------------------------------------
+    # Práh 1 MB: trace přes MCP bez BP doběhne run 60 snímků, trace
+    # spuštěný akcí BP backstop zastaví (stopped_by bp_action_saturation).
+    add_test(
+        NAME    mcp_trace_backstop
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_trace_backstop.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_trace_backstop PROPERTIES
+        LABELS  "e2e;mcp;pipe;debugger;trace"
+        TIMEOUT 180
+    )
+    message(STATUS "  tests/mcp: registered mcp_trace_backstop "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
+    # Seek zpět přes checkpoint s PSG v běhu (pipe)
+    # -----------------------------------------------------------
+    # Snapshot ukládá fázi krokování PSG: přehrání po seeku zpět přes
+    # checkpoint se nerozjede na části periph (čítače kanálů PSG).
+    add_test(
+        NAME    mcp_replay_seek_psg
+        COMMAND ${Python3_EXECUTABLE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/test_replay_seek_psg.py
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(mcp_replay_seek_psg PROPERTIES
+        LABELS  "e2e;mcp;pipe;debugger;replay"
+        TIMEOUT 180
+    )
+    message(STATUS "  tests/mcp: registered mcp_replay_seek_psg "
+                   "(Python ${Python3_VERSION})")
+
+    # -----------------------------------------------------------
     # Čtení paměti debuggerem nespouští MEM_R breakpoint (pipe)
     # -----------------------------------------------------------
     # mem_read a dasm přes adresu s MEM_R BP nezmění hits ani nevyšlou

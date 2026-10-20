@@ -462,10 +462,16 @@ emulator or the disk, they have built-in protection:
   otherwise the global default from configuration applies.
 - **Byte saturation.** When the cumulative volume written by forward
   actions exceeds the threshold the emulator auto-pauses and emits a
-  warning with a reason.
-- Even when a continuing BP triggers a heavy action, pause / stop /
-  clear-breakpoint commands always take effect - the emulator does not
-  get stuck.
+  warning with a reason. It counts snapshots and traces saved by actions
+  and the recording of trace channels that an action started or saves.
+  A trace started only from the Trace Suite menu or over MCP is not
+  counted; its own `max_total_mb` limit stops the recording and the
+  emulation continues.
+- Even when a continuing BP triggers a heavy action, pause and the
+  emulator state query are served right after the action - the
+  emulator does not get stuck. Other commands (reads, writes,
+  breakpoint changes) wait for the end of the frame or for the pause,
+  because the action can run in the middle of an instruction.
 
 ## Full examples
 

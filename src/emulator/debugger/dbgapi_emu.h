@@ -97,7 +97,8 @@ bool dbgapi_emu_has_pending(st_DBGAPI_CMDRQ_QUEUE *queue);
  * Vrací ukazatel na slot, nebo NULL pokud je fronta prázdná.
  *
  * Sloty zrušené odesílatelem po timeoutu (DBGAPI_CMDSTATE_CANCELLED)
- * přeskočí a uvolní - takový příkaz se neprovede. Vrácený slot označí
+ * přeskočí a uvolní - takový příkaz se neprovede. Sloty vykonané už mimo
+ * pořadí (done_early, dbgapi_emu_dequeue_matching()) jen přeskočí. Vrácený slot označí
  * jako vyzvednutý (dequeued = true); od té chvíle ho odesílatel nezruší
  * a čeká na dbgapi_emu_complete().
  *
@@ -105,6 +106,30 @@ bool dbgapi_emu_has_pending(st_DBGAPI_CMDRQ_QUEUE *queue);
  * Emulátor musí zpracovat příkaz a zavolat complete() před dalším dequeue().
  */
 st_DBGAPI_CMDRQ *dbgapi_emu_dequeue(st_DBGAPI_CMDRQ_QUEUE *queue);
+
+/**
+ * @brief Vyjme první čekající příkaz, který vyhoví @p match (i mimo pořadí).
+ *
+ * Prochází frontu od head k tail a vrátí první slot ve stavu PENDING, jehož
+ * příkaz (bez BLOCKING flagu) @p match přijme. Ostatní příkazy nechá ve
+ * frontě v původním pořadí. Slot v hlavě fronty se vyjme jako
+ * u dbgapi_emu_dequeue(); slot uprostřed fronty dostane done_early a
+ * dbgapi_emu_dequeue() ho později jen přeskočí. Vrácený slot je označený
+ * jako vyzvednutý (odesílatel ho po timeoutu nezruší).
+ *
+ * Použití: drain na hranici akce BP (uprostřed instrukce), kde smí proběhnout
+ * jen řídicí příkazy (breakpoints_drain_control_plane_at_bp_boundary()).
+ *
+ * @param queue Fronta.
+ * @param match Predikát nad příkazem (en_DBGAPI_CMD & DBGAPI_CMD_MASK);
+ *              volá se pod queue_mutex, nesmí frontu používat.
+ * @return Slot ke zpracování (dokončit přes dbgapi_emu_complete() před
+ *         dalším vyzvednutím), nebo NULL, když žádný čekající příkaz
+ *         nevyhovuje nebo je @p match NULL.
+ * @note Thread-safe (zamyká queue_mutex). Volat jen z EMU vlákna.
+ */
+st_DBGAPI_CMDRQ *dbgapi_emu_dequeue_matching(st_DBGAPI_CMDRQ_QUEUE *queue,
+                                             bool (*match)(en_DBGAPI_CMD cmd));
 
 /*
  * Zpracování příkazu — dispatch na příslušný handler.

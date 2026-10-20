@@ -375,6 +375,8 @@ Response obsahuje:
   `"exit"` (podmínka konce: akce breakpointu `exit`, `--exit-after-frames`,
   `--timeout-*` - emulátor se jen pozastavil, viz
   [Headless režim](headless-mode.md#automatické-běhy)),
+  `"bp_action_saturation"` (zastavil limit objemu zápisů akcí
+  breakpointů, `[BREAKPOINTS] fwd_byte_limit_mb`),
   `"timeout"` (safety timeout), `"unknown"` (jiný důvod)
 - `complete` (bool) - true jen pokud doběhl plný počet snímků (= `stopped_by`
   je `"frames"`)
@@ -2366,12 +2368,20 @@ a zaplavení disku, pokud BP "fajruje" velmi často:
   (`fields: ["fwd_min_interval_ms", "fwd_max_fires"]`). Bez
   explicitního override platí globální default daný konfigurací.
 - **Byte saturace.** Kumulativní byte-limit objemu zápisů z forward
-  akcí (snapshot + trace, včetně flush-side účtování) - po překročení
-  prahu emulátor sám zapauzuje a vydá saturation event / warning
-  s důvodem. Práh je konfigurovatelný.
+  akcí (snapshoty a trace uložené akcemi a nahrávání trace kanálů, které
+  akce spustila nebo ukládá) - po překročení prahu emulátor sám
+  zapauzuje a vydá saturation event / warning s důvodem
+  (`stopped_by: "bp_action_saturation"`). Trace spuštěný jen přes
+  `emu_trace_start` nebo z GUI se nepočítá; hlídá ho vlastní
+  `max_total_mb`, který zastaví nahrávání a emulace běží dál. Práh je
+  konfigurovatelný.
 - **Robustnost control-plane.** I když pokračující BP spustí těžkou
-  forward akci, příkazy pause / stop / vyčištění BP zaberou vždy -
-  emulátor se nezasekne.
+  forward akci, `pause`, `force_pause` a `get_state` se vyřídí hned po
+  akci - emulátor se nezasekne. Akce může běžet uprostřed instrukce
+  (MEM_W BP se vyhodnocuje před zápisem), proto ostatní příkazy (čtení
+  registrů a paměti, zápisy, změny breakpointů) počkají na konec snímku
+  nebo na pauzu a vidí konzistentní stav. Kdo chce při těžkých akcích
+  měnit breakpointy, nejdřív zapauzuje.
 
 ### `emu_bpgrp_add`
 
@@ -2525,7 +2535,8 @@ Returns:
      "name": "Memext RAM bank 12", "size": 4096, ...},
     ...
   ],
-  "count": int
+  "count": int,
+  "layout_gen": int
 }
 ```
 
@@ -2545,9 +2556,13 @@ nevidí). Proto se může lišit od `memory/ram.bin` ve snapshotu `.mzs`,
 který vždy obsahuje vestavěnou DRAM - podrobnosti v
 `emulator://docs/memory_layout` (sekce o Memextu).
 
-**Stabilita ID**: per session, NE per HW reconfigure. Po
-`periph_attach/detach` nebo `media_insert/eject` klient musí volat
-`regions_list` znovu pro nové IDs.
+**Stabilita ID**: `id` je index do výčtu a platí, dokud se nezmění
+sestava HW (RAMdisk, MemExt, PEZIK, načtení snapshotu s jinou
+sestavou). `layout_gen` označuje rozložení výčtu a mění se při každé
+jeho změně. `emu_region_read` a `emu_region_write` ho kontrolují: s `id`
+ze staršího výčtu skončí chybou `stale region id: ...` a nic nečtou ani
+nezapisují. Pro nová ID zavolej `regions_list` znovu. Kdo si chce adresu
+pamatovat přes takové změny, ukládá `kind` a `sub_id`, ne `id`.
 
 ### `emu_region_read`
 
@@ -2559,6 +2574,9 @@ Args:
 - `offset` (= byte offset v rámci regionu, 0..size-1)
 - `length` (= 1..65536, clamp na region size pokud `offset+length > size`)
 - `want_data` (bool, volitelný, default true) - false = jen hash
+- `layout_gen` (int, volitelný) - `layout_gen` výčtu, ze kterého
+  `region_id` pochází; výchozí je poslední `regions_list` kteréhokoli
+  MCP klienta. Jiné rozložení vrátí chybu `stale region id: ...`.
 
 Returns:
 ```json
@@ -2586,6 +2604,8 @@ Args:
 - `offset` (= byte offset v rámci regionu, 0..size-1)
 - `data_b64` (= base64 bajty, 1..65536 bajtů po dekódování; na konci
   regionu se zkrátí)
+- `layout_gen` (int, volitelný) - jako u `emu_region_read`; s `id` ze
+  staršího výčtu se nic nezapíše
 
 Vrací `{"region_id", "offset", "length", "written"}` - `length` je počet
 skutečně zapsaných bajtů (po zkrácení), `written` = zapsal se aspoň

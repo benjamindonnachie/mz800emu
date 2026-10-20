@@ -461,7 +461,11 @@ separate `stdout_enabled` flag.
   subsystem stops, the manifest `<name>.json` gets
   `"truncated": true, "truncated_reason": "max_total_mb"` and a console
   message `[trace-suite] <subsys>: max-total-mb=N reached, recording
-  stopped`.
+  stopped`. The emulation keeps running. The byte limit of breakpoint
+  actions (`[BREAKPOINTS] fwd_byte_limit_mb`, it pauses the emulation)
+  applies only to a channel that a breakpoint action started
+  (`trace_start`) or saves (`trace_save`), not to a recording started
+  from this menu or over MCP.
 
 ## External parsing
 

@@ -347,12 +347,19 @@ Both override fields are settable from production via `emu_bp_update`
 default for breakpoints without an explicit override is the INI key
 `[BREAKPOINTS] fwd_default_min_interval_ms`. A cumulative byte
 backstop (`[BREAKPOINTS] fwd_byte_limit_mb`, default 256 MB) auto-pauses
-the emulator if heavy actions keep writing past the threshold.
+the emulator if heavy actions keep writing past the threshold (run result
+`stopped_by: "bp_action_saturation"`). It counts snapshots and traces
+saved by actions and the recording of trace channels an action started
+(`trace_start`) or saves (`trace_save`); a trace started only with
+`emu_trace_start` is limited by its own `max_total_mb` instead.
 
 Control-plane robustness: a continuing BP running a heavy forward
-action no longer wedges the emulator. The drain happens at the BP
-action boundary, so `pause`, `stop` and breakpoint-clear always take
-effect even mid-action.
+action no longer wedges the emulator. At the BP action boundary only
+`pause`, `force_pause` and `get_state` are served. The boundary can be
+in the middle of an instruction (a MEM_W BP fires before the write), so
+all other commands (register and memory reads, writes, breakpoint
+changes) wait for the end of the frame or for the pause and never see a
+half-executed instruction. Pause first, then change breakpoints.
 
 ## Vision 0017: one smart BP on `0x0005`
 

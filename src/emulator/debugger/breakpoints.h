@@ -1081,8 +1081,8 @@ struct st_BP_ACTION;
      * @brief Drain control-plane fronty na hranici dokončené BP akce (0019).
      *
      * Vrstva 1 control-plane garance: zajišťuje, že pending řídicí příkazy
-     * (PAUSE / STOP / STEP / ...) z UI/MCP se obslouží do jednoho dalšího
-     * BP hitu i na horké smyčce, kde se k per-frame drainu (mzarch.c
+     * (PAUSE, FORCE_PAUSE, IS_RUNNING) z UI/MCP se obslouží do jednoho
+     * dalšího BP hitu i na horké smyčce, kde se k per-frame drainu (mzarch.c
      * screen-done) emulátor nemusí dostat (= těžká BP akce natahuje snímek
      * a synchronní submit z UI by jinak vytekl timeoutem).
      *
@@ -1092,9 +1092,13 @@ struct st_BP_ACTION;
      * @c dbgapi_emu_has_pending() atomic read + branch v případě prázdné
      * fronty (= stejně levné jako per-frame bod mzarch.c).
      *
-     * Drainuje celou frontu stejnými primitivy jako per-frame bod
-     * (dbgapi_emu_dequeue/dispatch/complete). Pokud některý příkaz nastaví
-     * pauzu (emulator_pause(true)), enforce po návratu narazí na
+     * Vykoná jen řídicí příkazy, i ty, které ve frontě čekají za jinými
+     * (dbgapi_emu_dequeue_matching). Ostatní příkazy (čtení registrů
+     * a paměti, zápisy, ...) nechá ve frontě: drain běží uprostřed
+     * instrukce (MEM_W BP před zápisem), takže by viděly PC za instrukcí
+     * a paměť před zápisem a zápis by instrukce hned přepsala. Počkají na
+     * drain na hranici snímku nebo v pauze. Pokud příkaz nastaví pauzu
+     * (emulator_pause(true)), enforce po návratu narazí na
      * EMULATOR_TEST_PAUSED v mzarch.c a vstoupí do paused-loop - žádný další
      * kód zde není potřeba.
      *

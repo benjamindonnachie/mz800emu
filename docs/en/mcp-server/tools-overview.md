@@ -382,6 +382,8 @@ Response contains:
   `"exit"` (an exit condition: breakpoint action `exit`, `--exit-after-frames`,
   `--timeout-*` - the emulator only paused, see
   [Headless mode](headless-mode.md#unattended-runs)),
+  `"bp_action_saturation"` (the byte limit of breakpoint actions,
+  `[BREAKPOINTS] fwd_byte_limit_mb`, paused it),
   `"timeout"` (safety timeout), `"unknown"` (other)
 - `complete` (bool) - true only if the full frame count was reached
   (= `stopped_by` is `"frames"`)
@@ -2424,13 +2426,21 @@ and the disk when a BP fires very frequently:
   (`fields: ["fwd_min_interval_ms", "fwd_max_fires"]`). Without an
   explicit override the global default from configuration applies.
 - **Byte saturation.** A cumulative byte limit on the volume written
-  by forward actions (snapshot + trace, including flush-side
-  accounting) - once the threshold is exceeded the emulator
-  auto-pauses and emits a saturation event / warning with a reason.
-  The threshold is configurable.
+  by forward actions (snapshots and traces saved by actions, plus the
+  recording of trace channels an action started or saves) - once the
+  threshold is exceeded the emulator auto-pauses and emits a saturation
+  event / warning with a reason (`stopped_by: "bp_action_saturation"`).
+  A trace started only with `emu_trace_start` or from the GUI is not
+  counted; its own `max_total_mb` stops the recording and the emulation
+  continues. The threshold is configurable.
 - **Control-plane robustness.** Even when a continuing BP triggers a
-  heavy forward action, pause / stop / clear-breakpoint commands
-  always take effect - the emulator does not get stuck.
+  heavy forward action, `pause`, `force_pause` and `get_state` are
+  served right after the action - the emulator does not get stuck.
+  The action can run in the middle of an instruction (a MEM_W BP fires
+  before the write), so other commands (register and memory reads,
+  writes, breakpoint changes) wait for the end of the frame or for the
+  pause and see a consistent state. To change breakpoints under heavy
+  actions, pause first.
 
 ### `emu_bpgrp_add`
 
@@ -2585,7 +2595,8 @@ Returns:
      "name": "Memext RAM bank 12", "size": 4096, ...},
     ...
   ],
-  "count": int
+  "count": int,
+  "layout_gen": int
 }
 ```
 
@@ -2605,9 +2616,14 @@ connected it is the currently mapped Memext banks, not the built-in DRAM
 `memory/ram.bin` in a `.mzs` snapshot, which always holds the built-in
 DRAM - details in `emulator://docs/memory_layout` (Memext section).
 
-**ID stability**: per session, NOT per HW reconfigure. After
-`periph_attach/detach` or `media_insert/eject` the client must call
-`regions_list` again for new IDs.
+**ID stability**: an `id` is an index into the list and stays valid
+until the hardware configuration changes (RAMdisk, MemExt, PEZIK,
+loading a snapshot with a different configuration). `layout_gen`
+identifies the layout of the list; it changes whenever the list changes.
+`emu_region_read` and `emu_region_write` check it: with an `id` from an
+older list they fail with `stale region id: ...` and touch nothing. Call
+`regions_list` again for new IDs. To keep an address across such
+changes, store `kind` and `sub_id`, not `id`.
 
 ### `emu_region_read`
 
@@ -2620,6 +2636,9 @@ Args:
 - `length` (= 1..65536, clamped to region size if
   `offset+length > size`)
 - `want_data` (bool, optional, default true) - false = only the hash
+- `layout_gen` (int, optional) - `layout_gen` of the list the `region_id`
+  comes from; default = the last `regions_list` call of any MCP client.
+  A different layout returns the error `stale region id: ...`.
 
 Returns:
 ```json
@@ -2646,6 +2665,8 @@ Args:
 - `offset` (= byte offset within the region, 0..size-1)
 - `data_b64` (= base64 bytes, 1..65536 bytes after decoding; clamped at
   the end of the region)
+- `layout_gen` (int, optional) - as for `emu_region_read`; with an `id`
+  from an older list nothing is written
 
 Returns `{"region_id", "offset", "length", "written"}` - `length` is the
 number of bytes actually written (after clamping), `written` = at least

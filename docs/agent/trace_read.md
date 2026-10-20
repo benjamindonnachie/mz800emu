@@ -71,7 +71,11 @@ Records still in the RAM buffer are readable too, so even a short run
 - `gap: {from_seq, to_seq}` - the Event Viewer ring overwrote these
   records before they were read; the page continues at `first_seq`.
   Trace Suite channels never lose records (`lost` is 0); they stop at
-  `max_total_mb` (`truncated: true`).
+  `max_total_mb` (`truncated: true`) and the emulation keeps running.
+  The byte limit of breakpoint actions (`[BREAKPOINTS] fwd_byte_limit_mb`,
+  run result `stopped_by: "bp_action_saturation"`) pauses the emulation
+  only for a channel that a breakpoint action started or saves, never
+  for a trace started with `emu_trace_start`.
 - `format="raw_b64"` returns the raw records (`record_size`,
   `format_version`) for scripts; the layouts are in the Trace Suite
   format documentation.

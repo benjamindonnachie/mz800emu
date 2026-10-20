@@ -6175,14 +6175,19 @@ async def emu_regions_list() -> str:
     """List all physical memory regions of the current architecture.
 
     Returns a snapshot of regions (ROM lower/upper, CG-ROM, VRAM,
-    CG-RAM/PCG, MemExt banks, Ramdisk banks, ...) with metadata. IDs
-    are session-stable but become invalid after HW reconfigure
-    (= peripheral attach/detach, media insert). Re-list after such
-    operations.
+    CG-RAM/PCG, MemExt banks, Ramdisk banks, ...) with metadata. An
+    ``id`` is an index into the list and stays valid until the hardware
+    configuration changes (RAMdisk, MemExt, PEZIK, loading a snapshot
+    with a different configuration). ``layout_gen`` identifies the
+    layout of the list; ``emu_region_read`` / ``emu_region_write`` with
+    an ``id`` from an older list fail with ``stale region id`` - call
+    this tool again. To keep an address across such changes, store
+    ``kind`` and ``sub_id``.
 
     Returns:
         JSON ``{"regions": [{id, kind, sub_id, name, logical_base,
-        size, writable, connected, mapped_now}, ...], "count": int}``.
+        size, writable, connected, mapped_now}, ...], "count": int,
+        "layout_gen": int}``.
 
         - ``kind`` is one of: ``logical, ram, rom_lower, rom_upper,
           cgrom, cgram_700, vram_700_char, vram_700_attr,
@@ -6201,7 +6206,8 @@ async def emu_regions_list() -> str:
 
 @mcp.tool()
 async def emu_region_read(region_id: int, offset: int = 0,
-                          length: int = 256, want_data: bool = True) -> str:
+                          length: int = 256, want_data: bool = True,
+                          layout_gen: int = 0) -> str:
     """Read raw bytes from a physical memory region (bypass Z80
     banking).
 
@@ -6210,12 +6216,15 @@ async def emu_region_read(region_id: int, offset: int = 0,
     of the emulator - exactly what the GUI Memory browser sees.
 
     Args:
-        region_id: ID from a previous ``emu_regions_list`` call. IDs
-            are stable per session, invalid after HW reconfigure.
+        region_id: ID from a previous ``emu_regions_list`` call. Invalid
+            after a hardware configuration change (error
+            ``stale region id``).
         offset: Byte offset within the region (0..size-1).
         length: Number of bytes to read (1..65536). Clamps to region
             size if ``offset+length > size``.
         want_data: False = only ``sha256``, no ``data_b64``.
+        layout_gen: ``layout_gen`` of the list ``region_id`` comes from;
+            0 = the last ``emu_regions_list`` call of any client.
 
     Returns:
         JSON ``{"region_id": int, "offset": int, "length": int,
@@ -6229,16 +6238,19 @@ async def emu_region_read(region_id: int, offset: int = 0,
         return json.dumps({"error": "offset must be >= 0"})
     if length < 1 or length > 65536:
         return json.dumps({"error": "length must be in range 1..65536"})
-    resp = await _send_request("region_read",
-                               {"region_id": region_id,
-                                "offset": offset, "length": length,
-                                "want_data": bool(want_data)})
+    if layout_gen < 0:
+        return json.dumps({"error": "layout_gen must be >= 0"})
+    params = {"region_id": region_id, "offset": offset, "length": length,
+              "want_data": bool(want_data)}
+    if layout_gen:
+        params["layout_gen"] = layout_gen
+    resp = await _send_request("region_read", params)
     return json.dumps(_data_or_error(resp))
 
 
 @mcp.tool()
 async def emu_region_write(region_id: int, offset: int,
-                           data_b64: str) -> str:
+                           data_b64: str, layout_gen: int = 0) -> str:
     """Write raw bytes into a physical memory region (bypass Z80
     banking).
 
@@ -6256,6 +6268,8 @@ async def emu_region_write(region_id: int, offset: int,
         region_id: ID from a previous ``emu_regions_list`` call.
         offset: Byte offset within the region (0..size-1).
         data_b64: Base64-encoded bytes (max 65536 bytes per call).
+        layout_gen: As for ``emu_region_read``; with an ``id`` from an
+            older list nothing is written.
 
     Returns:
         JSON ``{"region_id", "offset", "length", "written"}``. On
@@ -6267,10 +6281,12 @@ async def emu_region_write(region_id: int, offset: int,
         return json.dumps({"error": "offset must be >= 0"})
     if not data_b64:
         return json.dumps({"error": "data_b64 must be non-empty"})
-    resp = await _send_request("region_write",
-                               {"region_id": region_id,
-                                "offset": offset,
-                                "data_b64": data_b64})
+    if layout_gen < 0:
+        return json.dumps({"error": "layout_gen must be >= 0"})
+    params = {"region_id": region_id, "offset": offset, "data_b64": data_b64}
+    if layout_gen:
+        params["layout_gen"] = layout_gen
+    resp = await _send_request("region_write", params)
     return json.dumps(_data_or_error(resp))
 
 

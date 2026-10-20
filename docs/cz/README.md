@@ -136,7 +136,7 @@ vznikne tento layout:
 ```
 ./my-runs/
     session1.json                # meta + tabulka regionů (text)
-    session1_bus.cdl             # 64K cell × 12 bajtů (R, W, X uint32 LE)
+    session1_bus.cdl             # 64K cell × 16 bajtů (R, W, X, S uint32 LE)
     session1_ram.cdl
     session1_rom-lower.cdl
     ...

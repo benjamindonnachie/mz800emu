@@ -1917,6 +1917,11 @@ void bp_action_reset_trace_disk_baseline ( void ) {
  * MB), protože backstop se vyhodnocoval výhradně v breakpoints_fwd_account_bytes
  * volaném z trace_save fire.
  *
+ * Účtuje jen při nahrávání kanálu řízeného akcí BP (fwd_trace_bp_recording(),
+ * bp_action_trace_channel_note()). Trace spuštěný jen z GUI nebo MCP backstop
+ * nezastaví (dřív ho po 256 MB zapauzoval s "BP #-1" a headless běh visel),
+ * hlídá ho vlastní max_total_mb kanálu.
+ *
  * ŽÁDNÉ DOUBLE-ACCOUNT: guard sdílí baseline @c g_fwd_trace_disk_seen s
  * @ref fwd_record_fire_trace. Accountuje DELTU disk čítače od baseline a baseline
  * posune na aktuální total. Tím je flush-side cesta JEDINÝM průběžným konzumentem
@@ -1935,6 +1940,52 @@ void bp_action_reset_trace_disk_baseline ( void ) {
  * Threading: volán z emu vlákna synchronně z tlog_common_disk_bytes_add
  * (safe-point mezi instrukcemi). NEsmí re-entrantně zapisovat trace.
  */
+/**
+ * @brief Kanály trace řízené akcí BP (bit = en_DBGAPI_TRACE_CHANNEL).
+ *
+ * Nastavuje bp_action_trace_channel_note() (akce trace_start, úspěšný
+ * trace_save), nuluje bp_action_trace_channel_forget() (akce trace_stop,
+ * TRACE_START/STOP z GUI nebo MCP) a fwd_trace_bp_recording() u kanálu,
+ * který už nenahrává. Threading: jen emu vlákno (nebo test).
+ */
+static uint32_t g_fwd_trace_bp_channels = 0;
+
+
+void bp_action_trace_channel_note ( int channel ) {
+    if ( channel < 0 || channel > 31 ) return;
+    g_fwd_trace_bp_channels |= ( 1u << channel );
+}
+
+
+void bp_action_trace_channel_forget ( int channel ) {
+    if ( channel < 0 || channel > 31 ) return;
+    g_fwd_trace_bp_channels &= ~( 1u << channel );
+}
+
+
+/**
+ * @brief Nahrává právě kanál trace řízený akcí BP?
+ *
+ * Projde značky a u kanálu, který už nenahrává (zastavený z GUI, reset
+ * konfigurace), značku zruší.
+ *
+ * @return true = aspoň jeden označený kanál nahrává.
+ * Side effects: vynuluje značky nenahrávajících kanálů.
+ */
+static bool fwd_trace_bp_recording ( void ) {
+    bool any = false;
+    for ( int ch = 0; ch < 32; ch++ ) {
+        if ( !( g_fwd_trace_bp_channels & ( 1u << ch ) ) ) continue;
+        if ( dbgapi_trace_channel_recording ( (en_DBGAPI_TRACE_CHANNEL) ch ) ) {
+            any = true;
+        } else {
+            g_fwd_trace_bp_channels &= ~( 1u << ch );
+        };
+    };
+    return any;
+}
+
+
 static void bp_action_disk_flush_guard ( uint64_t added ) {
     (void) added; /* delta počítáme z čítače proti baseline (robustnější) */
 
@@ -1943,6 +1994,12 @@ static void bp_action_disk_flush_guard ( uint64_t added ) {
                      ? ( total - g_fwd_trace_disk_seen ) : 0;
     if ( delta == 0 ) return;
     g_fwd_trace_disk_seen = total;
+
+    /* Trace bez akcí BP (spuštěný z GUI nebo MCP) do byte backstopu nepatří,
+     * hlídá ho vlastní max_total_mb kanálu. Baseline se posunula i tak, aby
+     * tyto bajty nezapočítal ani pozdější trace_save fire. */
+    if ( !fwd_trace_bp_recording ( ) ) return;
+
     breakpoints_fwd_account_bytes ( -1, delta );
 }
 
@@ -2043,10 +2100,15 @@ static void execute_fwd ( const bp_action_stmt_t *s,
             break;
         };
         case FWD_TRACE_START:
-            dbgapi_trace_lifecycle ( s->fwd.channel, DBGAPI_TRACE_OP_START, NULL );
+            /* Kanál spuštěný akcí BP: jeho zápisy na disk patří do byte
+             * backstopu (flush-side guard). */
+            if ( dbgapi_trace_lifecycle ( s->fwd.channel, DBGAPI_TRACE_OP_START, NULL ) == 0 ) {
+                bp_action_trace_channel_note ( (int) s->fwd.channel );
+            };
             break;
         case FWD_TRACE_STOP:
             dbgapi_trace_lifecycle ( s->fwd.channel, DBGAPI_TRACE_OP_STOP, NULL );
+            bp_action_trace_channel_forget ( (int) s->fwd.channel );
             break;
         case FWD_TRACE_SAVE: {
             /* 0019 vrstva 2: rate-limit gate (těžká I/O akce). Skip = tiše
@@ -2063,8 +2125,10 @@ static void execute_fwd ( const bp_action_stmt_t *s,
                 /* 0019 vrstva 2/3: úspěšný fire -> runtime stav + byte backstop.
                  * Trace_save: accountuj CELÝ disk footprint (chunk segmenty +
                  * initial-state dumpy) přes deltu tlog disk čítače, NE g_stat na
-                 * index soubor (ten masivně podpočítává - viz V19). */
+                 * index soubor (ten masivně podpočítává - viz V19). Kanál,
+                 * který akce BP ukládá, dál účtuje i flush-side guard. */
                 fwd_record_fire_trace ( ctx );
+                bp_action_trace_channel_note ( (int) s->fwd.channel );
             };
             g_free ( path );
             break;

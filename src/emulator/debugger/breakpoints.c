@@ -3043,6 +3043,31 @@ bool breakpoints_run_action ( const st_BPT *bpt,
 #endif
 
 
+/**
+ * @brief Příkazy, které smí proběhnout v drainu na hranici akce BP.
+ *
+ * Drain běží uprostřed instrukce (MEM_W BP se vyhodnocuje před zápisem,
+ * MEM_R/IORQ uvnitř přístupu). Smí v něm proběhnout jen příkazy, které
+ * nečtou ani nemění stav stroje a nesahají na sběrnici (insideop účty
+ * instrukce zůstanou nedotčené): pauza, vynucená pauza a dotaz na stav
+ * běhu. Čtení registrů nebo paměti by vidělo PC za instrukcí a paměť před
+ * zápisem; ty počkají na drain na hranici snímku nebo v pauze.
+ *
+ * @param cmd Příkaz bez BLOCKING flagu.
+ * @return true = řídicí příkaz povolený uprostřed instrukce.
+ */
+static bool breakpoints_bp_boundary_cmd_allowed ( en_DBGAPI_CMD cmd ) {
+    switch ( cmd ) {
+        case DBGAPI_CMD_PAUSE:
+        case DBGAPI_CMD_FORCE_PAUSE:
+        case DBGAPI_CMD_IS_RUNNING:
+            return true;
+        default:
+            return false;
+    };
+}
+
+
 void breakpoints_drain_control_plane_at_bp_boundary ( void ) {
     /* Fronta neinicializovaná (= dbgapi_init nebyl volán) - není co
      * drainovat. V běžícím emulátoru je fronta inicializovaná při startu,
@@ -3055,15 +3080,18 @@ void breakpoints_drain_control_plane_at_bp_boundary ( void ) {
      * Prázdná fronta = jeden atomic read + branch, pak okamžitý návrat. */
     if ( !dbgapi_emu_has_pending ( &g_dbgapi_cmdrq_queue ) ) return;
 
-    /* Drain CELÉ fronty stejnými primitivy jako per-frame bod
-     * (mzarch.c screen-done). dequeue/dispatch/complete jsou thread-safe
-     * a určené pro emu vlákno, na kterém běžíme - re-použití je legální.
+    /* Jen řídicí příkazy (breakpoints_bp_boundary_cmd_allowed), i když ve
+     * frontě čekají za jinými; ostatní zůstanou ve frontě v pořadí na drain
+     * na hranici snímku nebo v pauze. Jsme uprostřed instrukce, proto
+     * dispatch bez úklidu insideop účtů (povolené příkazy na sběrnici
+     * nesahají).
      *
-     * Po drainu: pokud některý příkaz nastavil pauzu (PAUSE/STOP přes
-     * emulator_pause(true)), enforce po návratu narazí na EMULATOR_TEST_PAUSED
-     * v mzarch.c a vstoupí do paused-loop. Žádný další kód zde netřeba. */
+     * Po drainu: pokud příkaz nastavil pauzu (emulator_pause(true)), enforce
+     * po návratu narazí na EMULATOR_TEST_PAUSED v mzarch.c a vstoupí do
+     * paused-loop. Žádný další kód zde netřeba. */
     st_DBGAPI_CMDRQ *rq;
-    while ( ( rq = dbgapi_emu_dequeue ( &g_dbgapi_cmdrq_queue ) ) != NULL ) {
+    while ( ( rq = dbgapi_emu_dequeue_matching ( &g_dbgapi_cmdrq_queue,
+                                                 breakpoints_bp_boundary_cmd_allowed ) ) != NULL ) {
         dbgapi_emu_dispatch ( rq );
         dbgapi_emu_complete ( rq );
     };
@@ -3233,10 +3261,18 @@ void breakpoints_fwd_account_bytes ( int bp_id, uint64_t bytes ) {
     if ( before < limit && g_bp_action_total_bytes >= limit ) {
         unsigned long long total_mb =
             (unsigned long long) ( g_bp_action_total_bytes / ( 1024 * 1024 ) );
+        /* bp_id < 0 = flush-side guard: zápis trace kanálu, který spustila
+         * nebo ukládá akce BP (bez vazby na jeden konkrétní BP). */
+        char who[48];
+        if ( bp_id >= 0 ) {
+            snprintf ( who, sizeof ( who ), "BP #%d", bp_id );
+        } else {
+            snprintf ( who, sizeof ( who ), "trace driven by a BP action" );
+        };
         fprintf ( stderr,
-                  "[BP-ACTION] forward-action byte backstop tripped: BP #%d - "
+                  "[BP-ACTION] forward-action byte backstop tripped: %s - "
                   "auto-paused after %llu MB written\n",
-                  bp_id, total_mb );
+                  who, total_mb );
 
         /* Čistá auto-pauza přes stejný mechanismus jako DBGAPI PAUSE
          * (= konzistentní side-efekty: audio pause, MZEVENT). Jsme na emu
@@ -3245,8 +3281,8 @@ void breakpoints_fwd_account_bytes ( int bp_id, uint64_t bytes ) {
          * záznam zastavení na vstupu do pauzy (run_control_on_stop()). */
         char detail[128];
         snprintf ( detail, sizeof ( detail ),
-                   "BP #%d forward-action saturation: auto-paused after %llu MB",
-                   bp_id, total_mb );
+                   "%s forward-action saturation: auto-paused after %llu MB",
+                   who, total_mb );
         if ( !EMULATOR_TEST_PAUSED ) {
             g_emulator.pause_reason = EMU_PAUSE_REASON_BP_SATURATION;
             run_control_note_saturation ( bp_id, g_bp_action_total_bytes, detail );

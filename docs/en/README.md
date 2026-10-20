@@ -136,7 +136,7 @@ the produced layout is:
 ```
 ./my-runs/
     session1.json                # meta + region table (text)
-    session1_bus.cdl             # 64K cells × 12 bytes (R, W, X uint32 LE)
+    session1_bus.cdl             # 64K cells × 16 bytes (R, W, X, S uint32 LE)
     session1_ram.cdl
     session1_rom-lower.cdl
     ...

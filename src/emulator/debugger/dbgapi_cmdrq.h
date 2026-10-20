@@ -873,10 +873,17 @@ typedef enum en_DBGAPI_CMD_ORIGIN
  *    zaseknutí callbackem (MCP pak odpoví z jiného vlákna), čekání na
  *    slot ale pokračuje stejně.
  *
+ * Výběr mimo pořadí (dbgapi_emu_dequeue_matching(), drain na hranici akce
+ * BP): EMU vyzvedne slot uprostřed fronty (dequeued=true, done_early=true),
+ * head se neposune. Slot se vykoná a dokončí jako obvykle; až k němu head
+ * dojde, dbgapi_emu_dequeue() ho jen přeskočí a done_early vynuluje. Slot
+ * mezi head a tail nemůže znovu obsadit enqueue (tail ho nepředběhne).
+ *
  * Invarianty:
- *  - `dequeued` se čte i zapisuje jen pod queue_mutex.
+ *  - `dequeued` a `done_early` se čtou i zapisují jen pod queue_mutex.
  *  - Přechod PENDING → CANCELLED nastává jen pod queue_mutex i slot->mutex
  *    a jen pokud dequeued == false.
+ *  - done_early == true jen u slotu mezi head a tail, který už EMU vyzvedlo.
  *  - data_ptr/result_ptr vlastní odesílatel; platné jsou od zařazení do
  *    návratu submitu.
  * ============================================================================ */
@@ -890,6 +897,7 @@ typedef struct st_DBGAPI_CMDRQ
     void *result_ptr;                 /* Buffer pro odpověď (vlastní klient) */
     bool success;                     /* Výsledek: true = úspěch, false = chyba */
     bool dequeued;                    /* EMU slot vyzvedlo (chráněno queue_mutex) */
+    bool done_early;                  /* EMU slot vyzvedlo mimo pořadí, head ho přeskočí (chráněno queue_mutex) */
     app_mutex_t *mutex;               /* Per-slot mutex */
     app_cond_t *cond;                 /* Per-slot condition variable */
 } st_DBGAPI_CMDRQ;
@@ -1244,7 +1252,10 @@ typedef struct st_DBGAPI_PIOZ80_VEC_PARAM
  * zapisovatelném regionu. Pokud kterákoliv adresa padne do ROM
  * (ROM_LOW/HIGH), CG-ROM, prohibited nebo unmapped (případně MZ-800
  * native VRAM_I/II - viz handler), žádný bajt se nezapíše a handler
- * vrátí success = 0 + first_failed_addr.
+ * vrátí success = 0 + first_failed_addr. Příkaz pak skončí neúspěchem
+ * (rq->success = false, u odesílatele DBGAPI_SUBMIT_FAILED), aby ho
+ * Activity ani záznam vstupů nebraly jako provedený zápis; zamítnutí
+ * od selhání odeslání (timeout) odliší DBGAPI_SUBMIT_FAILED.
  *
  * Použití: editor ISR target v CPU panelu chce zapsat 2 bajty na adresu
  * VEC*. Pokud VEC* ukazuje do ROM (typické tabulky vektorů!), zápis by
@@ -3248,6 +3259,16 @@ extern int dbgapi_trace_lifecycle ( en_DBGAPI_TRACE_CHANNEL channel,
                                     en_DBGAPI_TRACE_OP op,
                                     const char *path );
 
+/**
+ * @brief Nahrává trace kanál (mode jiný než OFF)?
+ *
+ * @param channel Kanál trace-suite (cputrack, iorqlog, intlog, hwlog, marklog).
+ * @return true = mode kanálu není TLOG_MODE_OFF; false u vypnutého kanálu
+ *         a u kanálu bez lifecycle (eventlog, ramlog, zvukové kanály).
+ * Threading: emu vlákno (čte mode kanálu bez zámku).
+ */
+extern bool dbgapi_trace_channel_recording ( en_DBGAPI_TRACE_CHANNEL channel );
+
 
 /**
  * @brief Identifikátor slotu pro Media Tools (mutant mcp-server V1.B.1).
@@ -4778,13 +4799,16 @@ typedef struct st_DBGAPI_WATCH_SNAPSHOT_PARAM
  *
  * Per documentation v dbgapi_regions.h - IDs jsou stable v rámci jedné
  * enumerate volání; mezi voláními se po HW reconfigure (= memext/ramdisk
- * attach/detach) může změnit.
+ * attach/detach) může změnit. Změnu hlásí generace rozložení
+ * (`out_layout_gen`), kterou read/write přijmou v `layout_gen`.
  *
- * @field out         (IN/OUT) Pole alokované callerem (min `max_count` položek), nebo NULL.
- * @field max_count   (IN) Velikost pole `out`.
- * @field out_count   (OUT) Skutečný počet zapsaných / vrácených položek.
- * @field out_dup     (OUT) Jen při `out == NULL`: kopie všech regionů
- *                    (st_REGION_DESC*), NULL při prázdném výčtu.
+ * @field out            (IN/OUT) Pole alokované callerem (min `max_count` položek), nebo NULL.
+ * @field max_count      (IN) Velikost pole `out`.
+ * @field out_count      (OUT) Skutečný počet zapsaných / vrácených položek.
+ * @field out_dup        (OUT) Jen při `out == NULL`: kopie všech regionů
+ *                       (st_REGION_DESC*), NULL při prázdném výčtu.
+ * @field out_layout_gen (OUT) Jen při `out == NULL`: generace rozložení
+ *                       vráceného výčtu (dbgapi_regions_enumerate_dup_gen()).
  */
 typedef struct st_DBGAPI_REGIONS_ENUM_PARAM
 {
@@ -4792,6 +4816,7 @@ typedef struct st_DBGAPI_REGIONS_ENUM_PARAM
     int max_count;
     int out_count;
     void *out_dup;   /* st_REGION_DESC*, g_free callerem (režim out == NULL) */
+    uint32_t out_layout_gen;
 } st_DBGAPI_REGIONS_ENUM_PARAM;
 
 /**
@@ -4805,7 +4830,12 @@ typedef struct st_DBGAPI_REGIONS_ENUM_PARAM
  * @field offset      (IN) Offset v rámci regionu (0..size-1).
  * @field buf         (IN/OUT) Buffer alokovaný callerem (min `len` bajtů).
  * @field len         (IN) Požadovaná délka.
- * @field out_count   (OUT) Skutečně přečtená délka. -1 při chybě.
+ * @field out_count   (OUT) Skutečně přečtená délka. -1 při chybě,
+ *                    DBGAPI_REGIONS_ERR_STALE (-2) při ID ze starší
+ *                    generace rozložení.
+ * @field layout_gen  (IN) Generace výčtu, ze kterého `region_id` pochází
+ *                    (`out_layout_gen` z CMD_REGIONS_ENUMERATE); 0 = bez
+ *                    kontroly (Memory Browser, interní volající).
  */
 typedef struct st_DBGAPI_REGIONS_READ_PARAM
 {
@@ -4814,6 +4844,7 @@ typedef struct st_DBGAPI_REGIONS_READ_PARAM
     uint8_t *buf;
     uint32_t len;
     int out_count;
+    uint32_t layout_gen;
 } st_DBGAPI_REGIONS_READ_PARAM;
 
 /**
@@ -4826,6 +4857,10 @@ typedef struct st_DBGAPI_REGIONS_READ_PARAM
  * Pro REGION_KIND_MEMEXT_FLASH a REGION_KIND_PROHIBITED_SHADOW vrátí
  * backend -1 (= read-only z pohledu Memory Browseru, resp. virtual
  * region).
+ *
+ * `layout_gen` má stejný význam jako u st_DBGAPI_REGIONS_READ_PARAM
+ * (0 = bez kontroly); při ID ze starší generace je `out_count`
+ * DBGAPI_REGIONS_ERR_STALE (-2) a nic se nezapíše.
  */
 typedef struct st_DBGAPI_REGIONS_WRITE_PARAM
 {
@@ -4834,6 +4869,7 @@ typedef struct st_DBGAPI_REGIONS_WRITE_PARAM
     const uint8_t *data;
     uint32_t len;
     int out_count;
+    uint32_t layout_gen;
 } st_DBGAPI_REGIONS_WRITE_PARAM;
 
 

@@ -27,6 +27,7 @@
 #include "mzarch/mzarch.h"
 #include "mzarch/mzarch_platform_functions.h"
 #include "hw-generic/memory/memory.h"
+#include "mzarch/mz800/memory/mz800_memory.h"
 #include "libs/cpu-z80/z80.h"
 
 #include <string.h>
@@ -1130,6 +1131,70 @@ void test_cmd_history_get_returns_position ( void ) {
 
 
 /* ========================================================================= */
+/*  CMD_MEM_WRITE_CHECKED - zamítnutí kontrolou regionu                      */
+/* ========================================================================= */
+
+
+/**
+ * @brief Zamítnutý zápis (ROM) skončí neúspěchem příkazu, ne úspěchem.
+ *
+ * Dřív handler při zamítnutí vracel rq->success = true; Activity pak
+ * zamítnutý mem_write ukázala jako provedený a záznam vstupů ho
+ * zaznamenal. Test namapuje dolní ROM (0000h-0FFFh) a mapování po sobě
+ * vrátí.
+ */
+void test_cmd_mem_write_checked_rejected_fails ( void ) {
+    const uint8_t saved_map = g_memory.map;
+    g_memory.map |= MEMORY_MZ800_MAP_FLAG_ROM_0000;
+    memory_reconnect_ram ( );
+    TEST_ASSERT_EQUAL_INT ( MEMMAP_KIND_ROM_LOW, memmap_query ( 0x0 ) );
+
+    uint8_t data[2] = { 0x12, 0x34 };
+    st_DBGAPI_MEM_WRITE_CHECKED_PARAM p;
+    memset ( &p, 0, sizeof ( p ) );
+    p.addr = 0x0100;
+    p.length = 2;
+    p.data = data;
+    p.success = 1;
+    bool ok = call_dispatch ( DBGAPI_CMD_MEM_WRITE_CHECKED, &p, NULL );
+
+    g_memory.map = saved_map;
+    memory_reconnect_ram ( );
+
+    TEST_ASSERT_FALSE ( ok );
+    TEST_ASSERT_EQUAL_UINT8 ( 0, p.success );
+    TEST_ASSERT_EQUAL_HEX16 ( 0x0100, p.first_failed_addr );
+    TEST_ASSERT_EQUAL_UINT8 ( MEMMAP_KIND_ROM_LOW, p.first_failed_kind );
+}
+
+
+/**
+ * @brief Povolený zápis (RAM) skončí úspěchem příkazu i zápisu.
+ */
+void test_cmd_mem_write_checked_ram_succeeds ( void ) {
+    int page = -1;
+    for ( int p = 1; p < 16; p++ ) {
+        if ( memmap_query ( (uint8_t) p ) == MEMMAP_KIND_RAM ) {
+            page = p;
+            break;
+        };
+    };
+    if ( page < 0 ) TEST_IGNORE_MESSAGE ( "no RAM page mapped" );
+
+    uint16_t addr = (uint16_t) ( ( page << 12 ) + 0x100 );
+    uint8_t data[2] = { 0x5A, 0xA5 };
+    st_DBGAPI_MEM_WRITE_CHECKED_PARAM p;
+    memset ( &p, 0, sizeof ( p ) );
+    p.addr = addr;
+    p.length = 2;
+    p.data = data;
+    bool ok = call_dispatch ( DBGAPI_CMD_MEM_WRITE_CHECKED, &p, NULL );
+    TEST_ASSERT_TRUE ( ok );
+    TEST_ASSERT_EQUAL_UINT8 ( 1, p.success );
+}
+
+
+/* ========================================================================= */
 /*  MAIN                                                                      */
 /* ========================================================================= */
 
@@ -1237,6 +1302,9 @@ int main ( int argc, char *argv[] ) {
     RUN_TEST ( test_cmd_history_get_copies_buffer );
     RUN_TEST ( test_cmd_history_get_null_result_fails );
     RUN_TEST ( test_cmd_history_get_returns_position );
+
+    RUN_TEST ( test_cmd_mem_write_checked_rejected_fails );
+    RUN_TEST ( test_cmd_mem_write_checked_ram_succeeds );
 
     int result = UNITY_END ( );
 

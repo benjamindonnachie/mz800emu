@@ -447,8 +447,14 @@ mají implicitní ochranu:
   jinak platí globální default z konfigurace.
 - **Byte saturace.** Při překročení kumulativního objemu zapsaných dat
   z forward akcí emulátor sám zapauzuje a vydá varování s důvodem.
-- I když pokračující BP spustí těžkou akci, příkazy pauza / stop /
-  vyčištění breakpointů zaberou vždy - emulátor se nezasekne.
+  Počítají se snapshoty a trace uložené akcemi a nahrávání trace kanálů,
+  které akce spustila nebo ukládá. Trace spuštěný jen z menu Trace Suite
+  nebo přes MCP se nepočítá; hlídá ho jeho vlastní limit `max_total_mb`,
+  který zastaví nahrávání a emulace běží dál.
+- I když pokračující BP spustí těžkou akci, pauza a dotaz na stav
+  emulátoru se vyřídí hned po akci - emulátor se nezasekne. Ostatní
+  příkazy (čtení, zápisy, změny breakpointů) počkají na konec snímku
+  nebo na pauzu, protože akce může běžet uprostřed instrukce.
 
 ## Kompletní příklady
 

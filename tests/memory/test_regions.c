@@ -14,6 +14,8 @@
  *   - prohibited_shadow: aktivace flagu = region s 0x1A bajty
  *   - ramdisk_pezik_e8: PEZIK E8 connected = jeden RAMDISK_PEZIK region
  *     se sub_id=1, 512 KB
+ *   - ramdisk_std_shrink_stale: po zmenšení RAMdisku STD starý deskriptor
+ *     nesahá mimo buffer, staré ID s generací = DBGAPI_REGIONS_ERR_STALE
  *   - vram_plane_read: plane I/II R/W přes API
  *   - write_respects_flags: FLASH writable=0 → write vrátí -1
  *
@@ -493,6 +495,69 @@ void test_regions_ramdisk_pezik_e8(void)
 
 
 /* ================================================================
+ * Test 8a: zmenšení RAMdisku STD - starý deskriptor ani staré ID
+ * nesahají mimo buffer (N44)
+ *
+ * Výčet s RAMdiskem 1 MB (16 bank), pak ramdisk_std_init() na 64 KB
+ * (realloc na jednu banku) bez nového výčtu. Cache pořád drží banku 15:
+ *   - dbgapi_regions_read/write (bez generace, cesta Memory Browseru)
+ *     musí podle živé velikosti vrátit -1, ne číst/psát za koncem bufferu,
+ *   - dbgapi_regions_read_gen/write_gen s generací starého výčtu vrátí
+ *     DBGAPI_REGIONS_ERR_STALE, i pro banku 0, která dál existuje,
+ *   - s generací nového výčtu banka 0 jde číst.
+ * ================================================================ */
+
+void test_regions_ramdisk_std_shrink_stale(void)
+{
+    char empty_path[1] = "";
+    ramdisk_std_init(RAMDISK_CONNECTED, RAMDISK_TYPE_STD, RAMDISK_SIZE_1M, empty_path);
+    TEST_ASSERT_NOT_NULL(g_ramdisk.std.memory);
+
+    int count = 0;
+    uint32_t gen_old = 0;
+    st_REGION_DESC *regs = dbgapi_regions_enumerate_dup_gen(&count, &gen_old);
+    TEST_ASSERT_NOT_NULL(regs);
+    TEST_ASSERT_NOT_EQUAL_UINT32(0, gen_old);
+    int i_last = find_region_sub(regs, count, REGION_KIND_RAMDISK_STD, 15);
+    int i_first = find_region_sub(regs, count, REGION_KIND_RAMDISK_STD, 0);
+    TEST_ASSERT_NOT_EQUAL_INT(-1, i_last);
+    TEST_ASSERT_NOT_EQUAL_INT(-1, i_first);
+    int id_last = regs[i_last].id;
+    int id_first = regs[i_first].id;
+    g_free(regs);
+
+    /* Zmenšení na 64 KB bez nového výčtu (jako snapshot_load). */
+    ramdisk_std_init(RAMDISK_CONNECTED, RAMDISK_TYPE_STD, RAMDISK_SIZE_64, empty_path);
+    TEST_ASSERT_EQUAL_INT(RAMDISK_SIZE_64, g_ramdisk.std.size);
+
+    uint8_t buf[16];
+    memset(buf, 0x5A, sizeof(buf));
+    TEST_ASSERT_EQUAL_INT(-1, dbgapi_regions_read(id_last, 0, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_INT(-1, dbgapi_regions_write(id_last, 0, buf, sizeof(buf)));
+
+    TEST_ASSERT_EQUAL_INT(DBGAPI_REGIONS_ERR_STALE,
+        dbgapi_regions_read_gen(id_last, gen_old, 0, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_INT(DBGAPI_REGIONS_ERR_STALE,
+        dbgapi_regions_write_gen(id_last, gen_old, 0, buf, sizeof(buf)));
+    TEST_ASSERT_EQUAL_INT(DBGAPI_REGIONS_ERR_STALE,
+        dbgapi_regions_read_gen(id_first, gen_old, 0, buf, sizeof(buf)));
+
+    uint32_t gen_new = dbgapi_regions_layout_gen();
+    TEST_ASSERT_NOT_EQUAL_UINT32(gen_old, gen_new);
+    regs = dbgapi_regions_enumerate_dup_gen(&count, &gen_new);
+    TEST_ASSERT_EQUAL_UINT32(dbgapi_regions_layout_gen(), gen_new);
+    i_first = find_region_sub(regs, count, REGION_KIND_RAMDISK_STD, 0);
+    TEST_ASSERT_NOT_EQUAL_INT(-1, i_first);
+    TEST_ASSERT_EQUAL_INT(-1, find_region_sub(regs, count, REGION_KIND_RAMDISK_STD, 1));
+    TEST_ASSERT_EQUAL_INT((int)sizeof(buf),
+        dbgapi_regions_read_gen(regs[i_first].id, gen_new, 0, buf, sizeof(buf)));
+    g_free(regs);
+
+    ramdisk_std_disconnect();
+}
+
+
+/* ================================================================
  * Test 8b: Memext PEHU emit 128 raw 4 KB kusů = celých 512 KB
  *
  * PEHU má 64 bank po 8 KB (MEMEXT_PEHU_BANKS x MEMEXT_PEHU_BANK_SIZE
@@ -824,6 +889,7 @@ int main(int argc, char *argv[])
     RUN_TEST(test_regions_vram_plane);
     RUN_TEST(test_regions_vram_700_offsets);
     RUN_TEST(test_regions_ramdisk_pezik_e8);
+    RUN_TEST(test_regions_ramdisk_std_shrink_stale);
     RUN_TEST(test_regions_memext_pehu_bank_count);
     RUN_TEST(test_regions_enumerate_clip);
     RUN_TEST(test_regions_read_write_invalid_id);

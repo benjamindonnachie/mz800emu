@@ -33,16 +33,16 @@ vanilní verzi.
 <dir>/
     <name>.json                    # meta + chunks anchor + initial regs
     <name>_initial_ram.bin         # 64 KB CPU RAM dump
-    <name>_initial_vram.bin        # 32 KB VRAM (jen MZ-800)
-    <name>_initial_exvram.bin      # 32 KB EXVRAM (jen MZ-800)
-    <name>_initial_cgram.bin       # 4 KB CG-RAM (jen MZ-1500)
+    <name>_initial_vram.bin        # VRAM: 16 KB na MZ-800, 4 KB na MZ-700 a MZ-1500
+    <name>_initial_exvram.bin      # 16 KB EXVRAM (jen MZ-800)
     <name>_initial_pcg.bin         # 24 KB PCG (jen MZ-1500)
     <name>_initial_memext.bin      # 512 KB Memext (pokud připojeno)
-    <name>_initial_rdN.bin         # per-Ramdisk (pokud aktivní)
     <name>.000.bin                 # chunk 0 - per-instr eventy
     <name>.001.bin                 # chunk 1
     ...
 ```
+
+Obsah RAMdisků se do počátečního stavu neukládá.
 
 `<name>.json` je textový metadata soubor (viz níže). `<name>_initial_*.bin`
 jsou snapshoty fyzických pamětí v okamžiku startu recordingu (= header).
@@ -112,9 +112,11 @@ Počet **WAIT T-states navíc** nad rámec standardní délky instrukce.
 Hodnota `wait_clk` pochází ze dvou hot-path míst, kde emulátor vkládá
 WAIT cycles:
 
-1. **MREQ do VRAM v MZ-700 mode** - WAIT kvůli synchronizaci s HBLN
-   (= aby CPU nezapsal do VRAM během video čtení). Velikost dle aktuální
-   raster pozice.
+1. **Přístup CPU do VRAM přes GDG** - CPU čeká na volný cyklus paměti
+   videa. Na MZ-800 v obou režimech (v režimu MZ-800 grafická VRAM,
+   v režimu MZ-700 CG-RAM a textová VRAM): čtení čeká vždy, zápis jde
+   přes jednobajtový buffer. Velikost závisí na pozici paprsku v řádku.
+   Na MZ-700 a MZ-1500 jen přístup do VRAM ve viditelné části řádku.
 2. **OUT na PSG** - WAIT kvůli synchronizaci CPU CLK s PSGCLK (PSG je
    1.108 MHz, CPU 3.546 MHz; write musí trefit PSG cycle boundary).
 
@@ -163,54 +165,44 @@ mění PC na PC, a `wait_clk` > 0.
   "platform": "MZ-800",
   "pxclk_freq": 17734475,
   "cpu_divider": 5,
-  "pxclk_per_screen": 97344,
+  "pxclk_per_screen": 354432,
   "truncated": false,
   "truncated_reason": "",
   "chunks": [
     {
       "index": 0,
       "file": "cputrack.000.bin",
-      "bytes": 67108864,
-      "start_pxclk": 0,
-      "start_cpuclk": 0,
-      "start_screens": 0
-    },
-    {
-      "index": 1,
-      "file": "cputrack.001.bin",
-      "bytes": 67108864,
-      "start_pxclk": 39728432,
-      "start_cpuclk": 7945686,
-      "start_screens": 408,
-      "start_pxclk_in_screen": 21344
+      "bytes": 96252,
+      "start_pxclk": 354450,
+      "start_cpuclk": 70890,
+      "start_screens": 1
     }
   ],
   "subsys_header": {
-    "start_pxclk": 0,
-    "start_pxclk_in_screen": 0,
-    "start_screens": 0,
-    "start_cpuclk": 0,
+    "start_pxclk": 354450,
+    "start_pxclk_in_screen": 18,
+    "start_screens": 1,
+    "start_cpuclk": 70890,
+    "initial_regs": {
+      "AF": 36762, "BC": 10, "DE": 0, "HL": 57347,
+      "AF_alt": 0, "BC_alt": 0, "DE_alt": 0, "HL_alt": 0,
+      "IX": 0, "IY": 0, "SP": 4332, "PC": 58391,
+      "WZ": 58391, "IR": 108, "I": 0, "R": 108,
+      "IM": 1, "IFF1": 1, "IFF2": 1, "Q": 0, "halted": 0
+    },
+    "initial_ram_file": "cputrack_initial_ram.bin",
+    "initial_vram_file": "cputrack_initial_vram.bin",
+    "initial_exvram_file": "cputrack_initial_exvram.bin",
+    "initial_memext_file": "cputrack_initial_memext.bin",
+    "memext_size": 524288,
     "event_record_size": 12,
-    "event_record_version": 2,
-    "initial_state": {
-      "regs": {
-        "AF": "0xFFFF", "BC": "0x0000", "DE": "0x0000", "HL": "0x0000",
-        "IX": "0x0000", "IY": "0x0000", "SP": "0x0000", "PC": "0x0000",
-        "AF_alt": "0x0000", "BC_alt": "0x0000",
-        "DE_alt": "0x0000", "HL_alt": "0x0000",
-        "I": "0x00", "R": "0x00",
-        "IM": 0, "IFF1": 0, "IFF2": 0
-      },
-      "memory_dumps": [
-        { "region": "ram",      "file": "cputrack_initial_ram.bin",      "bytes": 65536  },
-        { "region": "vram",     "file": "cputrack_initial_vram.bin",     "bytes": 32768  },
-        { "region": "exvram",   "file": "cputrack_initial_exvram.bin",   "bytes": 32768  },
-        { "region": "memext",   "file": "cputrack_initial_memext.bin",   "bytes": 524288 }
-      ]
-    }
+    "event_record_version": 2
   }
 }
 ```
+
+Příklad je skutečný manifest záznamu jednoho snímku na MZ-800 s připojeným
+MemExtem. Delší záznam má v `chunks[]` další položky stejného tvaru.
 
 ### Klíčová pole
 
@@ -242,15 +234,20 @@ pxclk_in_screen_at(N) = cumul_pxclk(N) mod pxclk_per_screen
 
 `insn_T_states[i]` je ve formátu v2 bajt 11 (`t_std`), ve v1 se odvozuje z opcode podle Z80 ISA tabulky. Ve v2 vzorec sedí přesně i s přerušeními (záznamy přijetí přerušení nesou jeho T-stavy); ve v1 chybí T-stavy přijetí každého přerušení.
 
-### subsys_header.initial_state
+### subsys_header: počáteční stav
 
-`regs` obsahuje kompletní snímek Z80 CPU registrů v okamžiku startu
-recordingu (před prvním logovaným eventem). Hodnoty jsou hex stringy
-(uint16 jako `"0xABCD"`, uint8 jako `"0xCD"`).
+`initial_regs` obsahuje kompletní snímek Z80 CPU registrů v okamžiku
+startu recordingu (před prvním logovaným eventem). Hodnoty jsou celá čísla
+(desítkově): 16bitové páry (`AF` ... `PC`, `WZ`, `IR`), samostatně `I`
+a `R`, režim přerušení `IM`, `IFF1`, `IFF2`, `Q` a `halted` (1 = CPU
+stojí na HALT).
 
-`memory_dumps[]` referencuje binární soubory s initial dumps fyzických
-pamětí. Každá položka má `region` (= symbolický název), `file`
-(= relativní cesta vůči adresáři meta souboru), `bytes` (= velikost).
+`initial_*_file` jsou jména souborů s počátečními dumpy fyzických pamětí,
+relativně k adresáři manifestu: `initial_ram_file` a `initial_vram_file`
+vždy, `initial_exvram_file` jen na MZ-800, `initial_pcg_file` jen na
+MZ-1500. `initial_memext_file` je `null`, když MemExt není připojený;
+jinak je u něj i `memext_size` (velikost dumpu v bajtech). Velikosti
+ostatních dumpů jsou v tabulkách níže.
 
 Initial state + sekvence events je **hermeticky uzavřený dataset** -
 externí re-simulátor z toho deterministicky odvodí stav paměti
@@ -267,21 +264,28 @@ ty, které pro danou architekturu existují / jsou připojené.
 | Soubor | Velikost | Popis |
 |--------|----------|-------|
 | `<name>_initial_ram.bin` | 64 KB | Hlavní DRAM |
-| `<name>_initial_vram.bin` | 32 KB | VRAM 4 banky (linear) |
-| `<name>_initial_exvram.bin` | 32 KB | EXVRAM (linear) |
+| `<name>_initial_vram.bin` | 16 KB | VRAM roviny I a II (po 8 KB); v režimu MZ-700 jsou v rovině I i CG-RAM a textová VRAM |
+| `<name>_initial_exvram.bin` | 16 KB | EXVRAM, roviny III a IV (po 8 KB) |
 | `<name>_initial_memext.bin` | 512 KB | Memext RAM (jen pokud připojen) |
-| `<name>_initial_rd0.bin` | variabilní | RAM-disk 0 (jen pokud aktivní) |
-| `<name>_initial_rd1.bin` | variabilní | RAM-disk 1 (pokud aktivní) |
 
 ROM se **neukládá** - je deterministicky známá z compile-time embedded
-ROM image (= verze v manifestu `<name>.json` přes `platform`).
+ROM image (= verze v manifestu `<name>.json` přes `platform`). Obsah
+RAMdisků se neukládá.
+
+### MZ-700
+
+| Soubor | Velikost | Popis |
+|--------|----------|-------|
+| `<name>_initial_ram.bin` | 64 KB | Hlavní DRAM |
+| `<name>_initial_vram.bin` | 4 KB | Znaková a atributová VRAM |
+| `<name>_initial_memext.bin` | 512 KB | Memext (pokud připojeno) |
 
 ### MZ-1500
 
 | Soubor | Velikost | Popis |
 |--------|----------|-------|
 | `<name>_initial_ram.bin` | 64 KB | Hlavní DRAM |
-| `<name>_initial_cgram.bin` | 4 KB | CG-RAM |
+| `<name>_initial_vram.bin` | 4 KB | Znaková a atributová VRAM |
 | `<name>_initial_pcg.bin` | 24 KB | 3× 8 KB PCG bank (R/G/B) |
 | `<name>_initial_memext.bin` | 512 KB | Memext (pokud připojeno) |
 

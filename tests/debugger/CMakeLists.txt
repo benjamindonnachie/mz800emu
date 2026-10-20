@@ -125,6 +125,13 @@ mz_add_test(dbgapi_submit_timeout
     LABELS   "emu;debugger"
 )
 
+# Výběr řídicího příkazu z fronty mimo pořadí (drain na hranici akce BP).
+mz_add_test(dbgapi_dequeue_matching
+    TYPE     EMU
+    SOURCES  test_dbgapi_dequeue_matching.c
+    LABELS   "emu;debugger"
+)
+
 # Zápis Memory Browseru přes CMDRQ frontu (ne přímo z UI vlákna).
 # Linkuje skutečný backend membrowser_io.cpp (bez ImGui závislostí).
 mz_add_test(membrowser_io_queue

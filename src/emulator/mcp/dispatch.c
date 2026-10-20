@@ -2002,6 +2002,9 @@ static en_MCP_DISPATCH_RESULT _handle_run(const st_JSONL_MESSAGE *req,
             case EMU_PAUSE_REASON_MANUAL:     stopped_by = "manual";     break;
             case EMU_PAUSE_REASON_RUN_TO:     stopped_by = "run_to";     break;
             case EMU_PAUSE_REASON_EXIT:       stopped_by = "exit";       break;
+            /* Byte backstop akcí BP (jméno jako run_control_reason_name()). */
+            case EMU_PAUSE_REASON_BP_SATURATION:
+                                              stopped_by = "bp_action_saturation"; break;
             default:                          stopped_by = "unknown";    break;
         }
         reached = (g_emulator.pause_reason == EMU_PAUSE_REASON_FRAMES);
@@ -4440,7 +4443,10 @@ static en_MCP_DISPATCH_RESULT _handle_mem_write(const st_JSONL_MESSAGE *req,
     bool submit_ok = _submit_dbgapi(DBGAPI_CMD_MEM_WRITE_CHECKED, &param, NULL);
     g_free(bytes);
 
-    if (!submit_ok) {
+    /* Zamítnutí kontrolou regionu vrací backend jako neúspěch příkazu
+     * (DBGAPI_SUBMIT_FAILED) s vyplněným first_failed_addr/kind; ostatní
+     * neúspěchy odeslání (timeout, plná fronta) jsou chyba emulátoru. */
+    if (!submit_ok && s_submit_track.last_status != DBGAPI_SUBMIT_FAILED) {
         return _err_response(req_id, "MEM_WRITE failed",
                              MCP_DISPATCH_EMU_ERROR, out_response);
     }
@@ -14690,17 +14696,62 @@ static const char *_region_kind_to_str(int kind) {
 
 
 /**
+ * @brief Generace rozložení výčtu z posledního `regions_list` (0 = žádný).
+ *
+ * `region_read` a `region_write` ji předávají backendu, pokud klient
+ * nepošle vlastní `layout_gen`: ID z výčtu před změnou sestavy HW tak
+ * skončí chybou "stale region id", ne čtením jiného regionu. Sdílená pro
+ * všechny MCP klienty (výčet je jeden pro celý emulátor). Atomický přístup
+ * (g_atomic_int_*), handlery běží ve vláknech MCP serveru.
+ */
+static gint s_mcp_regions_layout_gen = 0;
+
+/** @brief Text chyby pro ID regionu ze starší generace rozložení. */
+#define MCP_REGION_STALE_MSG \
+    "stale region id: the hardware configuration changed since regions_list " \
+    "(RAMdisk, MemExt, PEZIK, snapshot load); call regions_list again"
+
+/**
+ * @brief Generace rozložení pro `region_read` / `region_write`.
+ *
+ * @param obj Parametry požadavku.
+ * @param[out] out_gen `layout_gen` z parametrů, jinak generace posledního
+ *             `regions_list` (0 = klient výčet nedělal, bez kontroly).
+ * @return false = `layout_gen` je v parametrech, ale není kladné celé číslo
+ *         do 0xFFFFFFFF.
+ */
+static bool _region_layout_gen_param(JsonObject *obj, uint32_t *out_gen) {
+    if (obj && json_object_has_member(obj, "layout_gen")) {
+        JsonNode *n = json_object_get_member(obj, "layout_gen");
+        if (!JSON_NODE_HOLDS_VALUE(n) || json_node_get_value_type(n) != G_TYPE_INT64) {
+            return false;
+        }
+        gint64 v = json_node_get_int(n);
+        if (v < 1 || v > 0xFFFFFFFFLL) return false;
+        *out_gen = (uint32_t)v;
+        return true;
+    }
+    *out_gen = (uint32_t)g_atomic_int_get(&s_mcp_regions_layout_gen);
+    return true;
+}
+
+/**
  * @brief `regions_list` handler - enumerate všech regionů.
  *
  * Bez params. Vrátí JSON pole regionů s metadaty (id, kind, sub_id,
- * name, logical_base, size, writable, connected, mapped_now). Klient
- * si vybere region a použije ID v `region_read`. ID jsou stable v
- * rámci session, NE per HW reconfigure (= memext/ramdisk attach/detach
- * invaliduje, klient musí re-enumerate).
+ * name, logical_base, size, writable, connected, mapped_now) a
+ * `layout_gen` (generace rozložení výčtu). Klient si vybere region
+ * a použije ID v `region_read`. ID platí, dokud se nezmění sestava HW
+ * (RAMdisk, MemExt, PEZIK, načtení snapshotu s jinou sestavou): potom
+ * `region_read` / `region_write` se starým ID skončí chybou
+ * "stale region id" a klient musí výčet zopakovat.
  *
  * Výčet je úplný (bez stropu na počet): plná sestava MZ-800 (MemExt
  * Luftner, RAMdisk STD 16 MB, oba PEZIKy) má přes 500 regionů. Dřív
  * pevné pole 128 položek schovalo banky RAMdisku.
+ *
+ * Side effects: zapamatuje generaci výčtu pro následující `region_read`
+ * a `region_write` bez vlastního `layout_gen`.
  */
 static en_MCP_DISPATCH_RESULT _handle_regions_list(
     const st_JSONL_MESSAGE *req, char **out_response) {
@@ -14711,12 +14762,14 @@ static en_MCP_DISPATCH_RESULT _handle_regions_list(
         .max_count = 0,
         .out_count = 0,
         .out_dup = NULL,
+        .out_layout_gen = 0,
     };
     if (!_submit_dbgapi(DBGAPI_CMD_REGIONS_ENUMERATE, &param, NULL)) {
         g_free(param.out_dup);
         return _err_response(req_id, "REGIONS_ENUMERATE failed",
                              MCP_DISPATCH_EMU_ERROR, out_response);
     }
+    g_atomic_int_set(&s_mcp_regions_layout_gen, (gint)param.out_layout_gen);
     const st_REGION_DESC *descs = (const st_REGION_DESC *)param.out_dup;
     int count = descs ? param.out_count : 0;
     JsonObject *data = json_object_new();
@@ -14742,6 +14795,7 @@ static en_MCP_DISPATCH_RESULT _handle_regions_list(
     }
     json_object_set_array_member(data, "regions", arr);
     json_object_set_int_member(data, "count", count);
+    json_object_set_int_member(data, "layout_gen", (gint64)param.out_layout_gen);
     g_free(param.out_dup);
     return _ok_response(req_id, data, out_response);
 }
@@ -14752,11 +14806,14 @@ static en_MCP_DISPATCH_RESULT _handle_regions_list(
  *
  * Parametry: `region_id` (= z poslední `regions_list`), `offset`
  * (= 0..size-1), `length` (= 1..65536, clamp na size regionu),
- * `want_data` (bool, default true; false = jen hash).
+ * `want_data` (bool, default true; false = jen hash), volitelně
+ * `layout_gen` (generace výčtu, ze kterého ID pochází; výchozí = generace
+ * posledního `regions_list`).
  *
  * Response: `{region_id, offset, length, sha256, data_b64}`. `length`
  * v response = skutečně přečtená délka (= clamped), `sha256` je hash
- * přečtených bajtů, `data_b64` jen s want_data. Při chybě `{error: "..."}`.
+ * přečtených bajtů, `data_b64` jen s want_data. Při chybě `{error: "..."}`;
+ * ID ze starší sestavy HW = chyba "stale region id".
  *
  * No-side-effect read - bypass Z80 banking (= klient vidí raw paměti
  * jako GUI Memory browser, bez disruptivních io_write).
@@ -14785,6 +14842,11 @@ static en_MCP_DISPATCH_RESULT _handle_region_read(
         return _err_response(req_id, "want_data must be a boolean",
                              MCP_DISPATCH_INVALID_PARAMS, out_response);
     }
+    uint32_t layout_gen = 0;
+    if (!_region_layout_gen_param(obj, &layout_gen)) {
+        return _err_response(req_id, "layout_gen must be a positive integer",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
     uint8_t *buf = g_malloc0((gsize)length);
     st_DBGAPI_REGIONS_READ_PARAM param = {
         .region_id = (int)region_id,
@@ -14792,17 +14854,21 @@ static en_MCP_DISPATCH_RESULT _handle_region_read(
         .buf = buf,
         .len = (uint32_t)length,
         .out_count = 0,
+        .layout_gen = layout_gen,
     };
     if (!_submit_dbgapi(DBGAPI_CMD_REGIONS_READ, &param, NULL)) {
         /* _submit_dbgapi vrací (out_count >= 0). param.out_count rozliší
          * příčinu: backend nastaví -1 když region_id/offset/region je
-         * neplatný (= read proběhl, ale selhal); ponechá initial 0 když
+         * neplatný (= read proběhl, ale selhal), DBGAPI_REGIONS_ERR_STALE
+         * když ID pochází ze starší sestavy HW; ponechá initial 0 když
          * příkaz vůbec neproběhl (= emu nedostupný / fronta plná / timeout).
          * Cache se plní lazy (viz dbgapi_regions lookup_region), takže
          * prázdná enumerace už není příčinou - selhání = opravdu bad ID. */
         en_MCP_DISPATCH_RESULT rc = (param.out_count < 0)
             ? MCP_DISPATCH_INVALID_PARAMS : MCP_DISPATCH_EMU_ERROR;
-        const char *msg = (param.out_count < 0)
+        const char *msg = (param.out_count == DBGAPI_REGIONS_ERR_STALE)
+            ? MCP_REGION_STALE_MSG
+            : (param.out_count < 0)
             ? "region read failed: invalid region_id, offset, or "
               "disconnected region (use regions_list to enumerate valid IDs)"
             : "region read failed: emulator unavailable";
@@ -14967,11 +15033,13 @@ static en_MCP_DISPATCH_RESULT _handle_get_platform_info(
  * @brief `region_write` handler - raw write N bajtů do regionu.
  *
  * Parametry: `region_id` (= z poslední `regions_list`), `offset`
- * (= 0..size-1), `data_b64` (= base64 bajty, max 65536 dekódovaných).
+ * (= 0..size-1), `data_b64` (= base64 bajty, max 65536 dekódovaných),
+ * volitelně `layout_gen` (jako u `region_read`).
  *
  * Response: `{region_id, offset, length, written}`. `length` = skutečně
  * zapsaná délka (= clamped). `written` = true pokud aspoň 1 bajt
- * prošel; false pokud region read-only nebo disconnected.
+ * prošel; false pokud region read-only nebo disconnected. ID ze starší
+ * sestavy HW = chyba "stale region id", nic se nezapíše.
  *
  * **Destruktivní.** Backend respektuje writable flagy:
  * REGION_KIND_MEMEXT_FLASH a REGION_KIND_PROHIBITED_SHADOW vrátí error.
@@ -14998,6 +15066,11 @@ static en_MCP_DISPATCH_RESULT _handle_region_write(
         return _err_response(req_id, "Invalid parameters (data_b64 missing)",
                              MCP_DISPATCH_INVALID_PARAMS, out_response);
     }
+    uint32_t layout_gen = 0;
+    if (!_region_layout_gen_param(obj, &layout_gen)) {
+        return _err_response(req_id, "layout_gen must be a positive integer",
+                             MCP_DISPATCH_INVALID_PARAMS, out_response);
+    }
     const char *b64 = json_object_get_string_member(obj, "data_b64");
     if (!b64) {
         return _err_response(req_id, "Invalid parameters (data_b64 null)",
@@ -15016,15 +15089,19 @@ static en_MCP_DISPATCH_RESULT _handle_region_write(
         .data = decoded,
         .len = (uint32_t)decoded_len,
         .out_count = 0,
+        .layout_gen = layout_gen,
     };
     if (!_submit_dbgapi(DBGAPI_CMD_REGIONS_WRITE, &param, NULL)) {
         /* Stejná logika jako region_read: param.out_count rozliší bad
-         * region/read-only (-1, příkaz proběhl) od emu nedostupný (0,
-         * neproběhl). Cache se plní lazy, takže prázdná enumerace už není
-         * příčinou selhání. */
+         * region/read-only (-1, příkaz proběhl) a ID ze starší sestavy HW
+         * (DBGAPI_REGIONS_ERR_STALE) od emu nedostupný (0, neproběhl).
+         * Cache se plní lazy, takže prázdná enumerace už není příčinou
+         * selhání. */
         en_MCP_DISPATCH_RESULT rc = (param.out_count < 0)
             ? MCP_DISPATCH_INVALID_PARAMS : MCP_DISPATCH_EMU_ERROR;
-        const char *msg = (param.out_count < 0)
+        const char *msg = (param.out_count == DBGAPI_REGIONS_ERR_STALE)
+            ? MCP_REGION_STALE_MSG
+            : (param.out_count < 0)
             ? "region write failed: read-only, disconnected, or invalid "
               "region_id/offset (use regions_list to enumerate valid IDs)"
             : "region write failed: emulator unavailable";
