@@ -124,3 +124,19 @@ Run through CTest after building `mz700emu-pal`, or directly:
 ```sh
 MZ_EMU=/absolute/path/to/mz700emu-pal python3 tests/mcp/test_pcg700.py
 ```
+
+## Rally-X: starting the native PCG version
+
+The native `Rally X (PCG-700).mzt` from the
+[Japanese game collection](https://archive.org/details/mz-700-jp-set)
+(11,770 bytes; SHA-1 `a5f74219e27ef3d0703bcb572f52358605b556bc`)
+works with `STANDARD-JP`, the card fitted and HSW enabled. Press **P** to
+start, wait for the opening tune, then use the **cursor keys** to steer and
+**A** for smoke. PAL and NTSC gameplay checks confirm keyboard reads,
+scrolling and programmed glyphs in both PCG banks. No game patch is needed.
+
+The idle loop calls the monitor's vertical-blank wait at `0DA6h`; sampling
+the PC there each frame does not establish a hang. An earlier local test
+incorrectly used B, a start key shown by a separate MZ-800 conversion, and
+reported a stall. That finding is superseded. MZ-800 `PCGRALLY.mzf` images
+use different character-generator hardware and are separate releases.
