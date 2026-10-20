@@ -24,6 +24,7 @@
  */
 
 #include "mzarch/mzarch_config.h"
+#include "hw-generic/pcg700/pcg700.h"
 
 #include <string.h>
 
@@ -685,6 +686,15 @@ uint8_t memory_read_byte_no_se ( uint16_t addr ) {
 
 static inline void memory_internal_write_rom_e000_sync ( uint16_t addr, uint8_t value ) {
 
+    if (addr >= 0xe010 && addr <= 0xe012) {
+        if (g_pcg700.fitted) {
+            mzarch_main_insideop_mreq_e00x();
+            if (pcg700_write(&g_pcg700, addr, value, g_rom.cgrom))
+                framebuffer_MZ800_screen_changed();
+        }
+        return;
+    }
+
     if ( addr > 0xe008 ) return;
 
     mzarch_main_insideop_mreq_e00x ( );
@@ -714,6 +724,12 @@ static inline void memory_internal_write_rom_e000_sync ( uint16_t addr, uint8_t 
 
 
 static inline void memory_internal_write_rom_e000 ( uint16_t addr, uint8_t value ) {
+
+    if (addr >= 0xe010 && addr <= 0xe012) {
+        if (pcg700_write(&g_pcg700, addr, value, g_rom.cgrom))
+            framebuffer_MZ800_screen_changed();
+        return;
+    }
 
     if ( addr > 0xe008 ) return;
 

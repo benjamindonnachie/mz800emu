@@ -32,6 +32,7 @@ https://sourceforge.net/projects/mz800emu/
   - RAM disk, memory extensions
   - Unicard
   - IDE8 hard disk interface
+  - Optional [HAL PCG-700 character generator for MZ-700](docs/en/devices/hal-pcg700.md)
 - Integrated Z80 debugger:
   - Disassembler with inline assembler
   - Memory browser with heatmap

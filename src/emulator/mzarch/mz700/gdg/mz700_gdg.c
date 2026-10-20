@@ -53,6 +53,8 @@
 #include "hw-generic/ctc8253/ctc8253.h"
 #include "hw-generic/joy/joymz-1x03.h"
 #include "mzarch/mzarch.h"
+#include "cfgmain.h"
+#include "hw-generic/pcg700/pcg700.h"
 
 #ifdef MZ800EMU_CFG_DEBUGGER_ENABLED
 #include "debugger/trace/hwlog.h"
@@ -107,6 +109,15 @@ const struct st_GDGEVENT g_gdgevent[] = {
 void gdg_init(void)
 {
 
+    pcg700_power_on(&g_pcg700);
+    CFGMOD *pcg = cfgroot_register_new_module(g_cfgmain, "PCG700");
+    CFGELM *fitted = cfgmodule_register_new_element(pcg, "fitted", CFGENTYPE_BOOL, 0);
+    cfgelement_set_handlers(fitted, &g_pcg700.fitted, &g_pcg700.fitted);
+    CFGELM *hsw = cfgmodule_register_new_element(pcg, "hsw", CFGENTYPE_BOOL, 1);
+    cfgelement_set_handlers(hsw, &g_pcg700.hsw, &g_pcg700.hsw);
+    cfgmodule_parse(pcg);
+    cfgmodule_propagate(pcg);
+
     g_gdg.total_elapsed.ticks = 0;
     g_gdg.total_elapsed.screens = 0;
 
@@ -154,6 +165,7 @@ static inline void gdg_set_regDMD(uint8_t value, unsigned event_ticks)
 
 void gdg_reset(void)
 {
+    pcg700_reset(&g_pcg700);
     g_gdg.regct53g7 = 0;
     gdg_set_regDMD(0, 0); /* MZ-700: reset = MZ-700 rezim (bit 0 = 0) */
 

@@ -205,7 +205,7 @@ changes made meanwhile by the running program or by another window.
 |---|---|
 | **MZ-1500** | Fully functional (PCG is the central feature of the MZ-1500 video subsystem) |
 | **MZ-800** | The window cannot be opened - there is no PCG bank region, so the **Open in PCG editor...** item is missing too |
-| **MZ-700** | Same as MZ-800 - no PCG hardware support |
+| **MZ-700** | The optional [HAL PCG-700](../../devices/hal-pcg700.md) is emulated, but this MZ-1500 editor does not expose its RAM |
 
 ### 2.9 Use case: custom font glyph
 

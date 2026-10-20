@@ -9,6 +9,10 @@
 #include "i18n.h"
 
 #include "ui-imgui/topmenu/topmenu.h"
+#if MZARCH == 700
+#include "hw-generic/pcg700/pcg700.h"
+#include "mzarch/mz700/gdg/mz700_framebuffer.h"
+#endif
 
 extern "C"
 {
@@ -29,6 +33,19 @@ void imgui_menu_devices(void)
         imgui_menu_ide8();
         imgui_menu_memext();
         imgui_menu_rom();
+#if MZARCH == 700
+        if (ImGui::BeginMenu("HAL PCG-700")) {
+            if (ImGui::MenuItem("Card fitted", NULL, g_pcg700.fitted != 0)) {
+                g_pcg700.fitted = !g_pcg700.fitted;
+                g_framebuffer.screen_changes = SCRSTS_THIS_IS_CHANGED;
+            }
+            if (ImGui::MenuItem("HSW: PCG display", NULL, g_pcg700.hsw != 0)) {
+                g_pcg700.hsw = !g_pcg700.hsw;
+                g_framebuffer.screen_changes = SCRSTS_THIS_IS_CHANGED;
+            }
+            ImGui::EndMenu();
+        }
+#endif
 
 #if (MZARCH == 800) || (MZARCH == 1500)
         // Tiskárna (capture + plotter) existuje jen na architekturách se Z80 PIO
