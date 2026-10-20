@@ -35,6 +35,10 @@
 #include "audio_capture.h"
 #include "automation.h"
 
+#if MZARCH == 800
+#include "mzarch/mz800/gdg/mz800_vramwait.h"
+#endif
+
 #if CFG_HWEXT_HAVE_FDC
 #include "hw-generic/fdc/fdc.h"
 #endif
@@ -573,46 +577,21 @@ static inline void mzarch_sync_ctc0_and_cmt(unsigned instruction_ticks)
 
 #if MZARCH == 800
 /**
- * Lookup tabulka WAIT (W+R) pro MZ-800 graficke rezimy.
+ * @brief Nejdelší smysluplný odstup uvolnění WRITE FF od přístupu (CLK0).
  *
- * Index je pozice prvniho WRITE v ramci radku v CLK0 mod 80
- * (lcm(16 = video fetch column period, 5 = CPU T-state) = 80).
- * Hodnota = pocet TW (1 TW = 5 CLK0 = 1 CPU T-state) penalizace
- * pri READu nasledujicim po WRITE uvnitr horke faze (32 CLK0
- * v 320x200 / 17 CLK0 v 640x200).
- *
- * Pro 640x200 plati TW_640(p) = TW_320((p+16) mod 80) - rotace o jednu
- * column period 320x200.
- *
- * Zdroj: gate-level HDL simulace GDG, viz mz800-knowledge
- * public/reference/agent/hw/10b-vram-timing.md sekce "Pouziti v emulatoru".
- *
- * [neovereno] HW measurement - HDL netlist je gate-accurate, ale realne
- * HW mereni zatim chybi. Hodnoty 6-9 kolisaji v ramci sub-column phase.
+ * Zápis ve viditelné části režimu MZ-700 se do DRAM dostane nejpozději
+ * v prvním CPU slotu po jejím konci, tedy do jednoho řádku. Hodnota
+ * vzdálenější do budoucnosti je pozůstatek jiné časové osy (např. po
+ * přenastavení času) a model ji zahodí, aby nevznikl nesmyslně dlouhý WAIT.
  */
-static const uint8_t mz800_vram_wait_tw_wr[ 80 ] = {
-    9, 6, 9, 9, 9, 8, 8, 8, 8, 8, 7, 7, 7, 7, 7, 6,
-    6, 9, 9, 9, 8, 9, 8, 8, 8, 7, 8, 7, 7, 7, 6, 7,
-    9, 9, 6, 9, 9, 8, 8, 8, 8, 8, 7, 7, 7, 7, 7, 9,
-    6, 6, 9, 9, 8, 8, 9, 8, 8, 7, 7, 8, 7, 7, 6, 6,
-    7, 9, 9, 8, 9, 9, 8, 8, 7, 8, 8, 7, 7, 6, 7, 7
-};
+#define VRAMWAIT_WRFF_MAX_AHEAD ( 2u * VRAMWAIT_LINE_CLK0 )
 
-/**
- * Lookup tabulka WAIT (W+W) pro MZ-800 graficke rezimy.
- *
- * Pro WRITE+WRITE je penalizace mensi (3-6 TW), protoze druhy WRITE
- * generuje vlastni VRAM strobe ktery urychluje reset interniho WR_FF.
- *
- * Indexovani a rotace 640 vs 320 viz @ref mz800_vram_wait_tw_wr.
- */
-static const uint8_t mz800_vram_wait_tw_ww[ 80 ] = {
-    3, 3, 5, 6, 5, 5, 5, 4, 5, 4, 4, 4, 3, 4, 3, 3,
-    3, 6, 6, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 3, 3, 3,
-    6, 3, 5, 5, 6, 5, 5, 4, 4, 5, 4, 4, 3, 3, 4, 3,
-    3, 5, 6, 6, 5, 5, 4, 5, 5, 4, 4, 3, 4, 4, 3, 3,
-    6, 6, 3, 5, 5, 5, 5, 5, 4, 4, 4, 4, 4, 3, 3, 6
-};
+#if VIDEO_SCREEN_WIDTH != 1136
+#error "Model WAIT (mz800_vramwait.h) předpokládá řádek PAL 1136 CLK0"
+#endif
+#if GDGCLK2CPU_DIVIDER != 5
+#error "Model WAIT (mz800_vramwait.h) předpokládá T-stav 5 CLK0"
+#endif
 #endif /* MZARCH == 800 */
 
 /**
@@ -673,74 +652,39 @@ static inline void mzarch_main_insideop(const en_INSIDEOP insideop)
 #if MZARCH == 800
     case INSIDEOP_MREQ_MZ800_VRAMCTRL_READ:
     case INSIDEOP_MREQ_MZ800_VRAMCTRL_WRITE: {
-        /* HDL-presny WAIT model pro MZ-800 graficke rezimy (DMD bit 3 = 0,
-         * VRAM 0x8000-0xBFFF). Zdroj: 10b-vram-timing.md.
+        /* WAIT u přístupu CPU do VRAM přes GDG (mz800_vramwait.h): grafická
+         * VRAM 8000h-0BFFFh v režimu MZ-800, VRAM a CG-RAM 0C000h-0DFFFh
+         * v režimu MZ-700. Rozvrh CPU slotů podle DMD bit 3, počet
+         * zápisových slotů podle rozlišení.
          *
-         * Predpoklad: pred volanim teto cesty doslo k mzarch_main_insideop_mreq()
-         * (default sync), takze g_gdg.total_elapsed.ticks odpovida konci aktualniho
-         * MREQ M-cyklu (T3f) tohoto VRAM pristupu.
+         * Předpoklad: předtím proběhlo mzarch_main_insideop_mreq(), takže
+         * g_gdg.total_elapsed.ticks je konec M-cyklu bez WAIT, tedy T1r
+         * + 3 T (u instrukčního výběru M1 + 4 T).
          *
-         * Pravidla:
-         *  - READ negeneruje WAIT sam o sobe a nikdy negeneruje VRAM strobe
-         *    (= horka faze pokracuje a po READu netreba update). Pokud ovsem
-         *    aktualni READ pripadl uvnitr predchozi horke faze, dostava
-         *    WAIT podle tw_wr[] (6-9 TW v 320x200 / rotace +16 v 640x200).
-         *  - WRITE se vzdy chova jako start nove horke faze (po pripadnem
-         *    WAITu se hot_phase_end_total_ticks aktualizuje). Pokud aktualni
-         *    WRITE pripadl uvnitr predchozi horke faze, dostane WAIT podle
-         *    tw_ww[] (3-6 TW).
-         *
-         * 1 TW = GDGCLK2CPU_DIVIDER CLK0 = jeden CPU T-state navic.
-         */
+         * 1 TW = GDGCLK2CPU_DIVIDER CLK0 = jeden T-stav navíc. */
+        unsigned cycle_t = ( ( insideop == INSIDEOP_MREQ_MZ800_VRAMCTRL_READ ) && g_mzarch_main.mreq_m1 ) ? 4u : 3u;
+        uint64_t t1r = gdg_get_vramwait_ticks( ) - cycle_t * GDGCLK2CPU_DIVIDER;
+        en_VRAMWAIT_GRID grid = GDG_MZ800_DMD_TEST_MZ700 ? VRAMWAIT_GRID_MZ700 : VRAMWAIT_GRID_MZ800;
+        unsigned wait_tw;
 
-        uint64_t now_total = gdg_get_total_ticks( );
-        unsigned wait_tw = 0;
-        unsigned hot_len = ( g_gdg.regDMD & REGISTER_DMD_FLAG_SCRW640 ) ? 17u : 32u;
+        if ( g_gdg.vram_wrff_release > t1r + VRAMWAIT_WRFF_MAX_AHEAD ) {
+            g_gdg.vram_wrff_release = 0;
+        }
 
-        bool inside_hot = ( g_gdg.vram800_hot_phase_end_total_ticks != 0 )
-                          && ( now_total < g_gdg.vram800_hot_phase_end_total_ticks );
+        if ( insideop == INSIDEOP_MREQ_MZ800_VRAMCTRL_WRITE ) {
+            int two_slots = ( grid == VRAMWAIT_GRID_MZ800 ) && !GDG_MZ800_DMD_TEST_SCRW640;
+            wait_tw = vramwait_write( &g_gdg.vram_wrff_release, t1r, grid, two_slots );
+        } else {
+            wait_tw = vramwait_read( g_gdg.vram_wrff_release, t1r, grid );
+        }
 
-        if ( inside_hot ) {
-            /* Pozice prvniho WRITE v ramci radku v CLK0 mod 80 (= prvni WRITE
-             * teto horke faze, ulozeny pri jejim startu). Pro 640x200 rotace
-             * o 16 CLK0 (= jedna column period 320x200). */
-            unsigned phase = g_gdg.vram800_hot_phase_clk0_phase;
-            if ( g_gdg.regDMD & REGISTER_DMD_FLAG_SCRW640 ) {
-                phase = ( phase + 16u ) % 80u;
-            }
-            if ( insideop == INSIDEOP_MREQ_MZ800_VRAMCTRL_WRITE ) {
-                wait_tw = mz800_vram_wait_tw_ww[ phase ];
-            } else {
-                wait_tw = mz800_vram_wait_tw_wr[ phase ];
-            }
+        if ( wait_tw ) {
             z80_add_wait_states( g_mzarch_main.cpu, (int) wait_tw );
             /* trace-suite: saturujici akumulace WAIT T-states pro cputrack. */
             uint64_t wsum = (uint64_t) g_mzarch_main.instruction_wait_tstates + wait_tw;
             g_mzarch_main.instruction_wait_tstates = ( wsum > 0xFFFFFFFFu ) ? 0xFFFFFFFFu : (uint32_t) wsum;
-            ticks_to_sync = wait_tw * GDGCLK2CPU_DIVIDER;
-            now_total += ticks_to_sync;
         }
-
-        if ( insideop == INSIDEOP_MREQ_MZ800_VRAMCTRL_WRITE ) {
-            /* Start nove horke faze: T3f tohoto WRITE = now_total
-             * (po pripadnem WAITu).
-             *
-             * [neovereno] HDL detail v 10b-vram-timing.md ukazuje WR_FF set
-             * "T3f+30" (32 CLK0 prog. v 320x200), tj. ze T3f okamzik je primy
-             * T3 falling. Po standard mreq() je total_elapsed.ticks na konci
-             * MREQ pulsu - pro ucely tabulkove periodicity (mod 80 CLK0)
-             * sub-CLK0 nepresnosti nehraji roli, hot_len ma sub-T-state
-             * granularity v ramci HDL kolisani 3-6/6-9 TW. */
-            g_gdg.vram800_hot_phase_end_total_ticks = now_total + hot_len;
-            /* Pozice WRITE T3f v ramci scanline v CLK0 mod 80. Pouzivame
-             * "ticks po pripadnem WAITu" (= now_total), protoze tento
-             * WRITE definuje novou horkou fazi a jeho vlastni T3f je az
-             * po WAIT periode. */
-            uint64_t scanline_pos = now_total % VIDEO_SCREEN_WIDTH;
-            g_gdg.vram800_hot_phase_clk0_phase = (unsigned) ( scanline_pos % 80u );
-        }
-        /* READ neaktualizuje hot phase state - WR_FF reset cas se neposouva
-         * (READ negeneruje VRAM strobe). */
+        ticks_to_sync = wait_tw * GDGCLK2CPU_DIVIDER;
 
         instruction_ticks = g_mzarch_main.instruction_insideop_sync_ticks + ticks_to_sync;
         break;

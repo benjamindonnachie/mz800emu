@@ -650,7 +650,8 @@ uint8_t memory_internal_read_sync ( uint16_t addr ) {
  */
 uint8_t memory_read_cb ( z80_t *cpu, uint16_t addr, int m1_state, void *user_data ) {
     ( void ) cpu;
-    ( void ) m1_state;
+    /* Model WAIT u VRAM rozlišuje M1 (4 T) od ostatních čtení (3 T). */
+    g_mzarch_main.mreq_m1 = m1_state;
     ( void ) user_data;
     uint8_t retval = memory_internal_read_sync ( addr );
     g_mzarch_main.regDBUS_latch = retval;
@@ -720,6 +721,8 @@ uint8_t memory_read_with_logging_cb ( z80_t *cpu, uint16_t addr, int m1_state, v
      * je flag nastaven. Mimo CPU cestu (memory_load_block, debug memory browser)
      * flag zůstává 0 a hook se přeskočí. */
     g_dbg_in_cpu_path = 1;
+    /* Model WAIT u VRAM rozlišuje M1 (4 T) od ostatních čtení (3 T). */
+    g_mzarch_main.mreq_m1 = m1_state;
     uint8_t retval = memory_internal_read_sync ( addr );
     g_dbg_in_cpu_path = 0;
     g_mzarch_main.regDBUS_latch = retval;

@@ -3838,7 +3838,7 @@ msgid "A"
 msgstr ""
 
 #: src/ui-imgui/debugger/gdg_window_mz800.cpp:256
-msgid "MZ700 WR latch"
+msgid "WRITE FF"
 msgstr ""
 
 #: src/ui-imgui/debugger/gdg_window_mz800.cpp:259

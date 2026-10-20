@@ -2,10 +2,12 @@
  * @file snap_vramctrl.c
  * @brief Snapshot handler: VRAM Control — platformově specifický řadič VRAM
  *
- * Všechny platformy ukládají latch WAIT režimu MZ-700
+ * MZ-800 ukládá registry WF/RF (stav WAIT u VRAM je v hw/gdg.xml,
+ * klíč vram_wrff_release). MZ-700 a MZ-1500 ukládají latch WAIT
  * (mz700_wr_latch_is_used: první přístup do VRAM ve viditelné části řádku
- * je bez WAIT, další s WAIT); MZ-800 navíc registry WF/RF. Starší snapshot
- * MZ-700 bez hw/vramctrl.xml načte latch jako po resetu.
+ * je bez WAIT, další s WAIT). Starší snapshot MZ-700 bez hw/vramctrl.xml
+ * načte latch jako po resetu; klíč mz700_wr_latch_is_used ze starších
+ * snapshotů MZ-800 se ignoruje.
  */
 
 #include <stdio.h>
@@ -36,7 +38,6 @@ static en_SNAPSHOT_RESULT snap_vramctrl_save(st_SNAPSHOT_CONTEXT *ctx)
     snapshot_xml_write_uint(w, "regRF_PLANE", g_vramctrl.regRF_PLANE);
     snapshot_xml_write_uint(w, "regRF_SEARCH", g_vramctrl.regRF_SEARCH);
     snapshot_xml_write_uint(w, "regWFRF_VBANK", g_vramctrl.regWFRF_VBANK);
-    snapshot_xml_write_uint(w, "mz700_wr_latch_is_used", g_vramctrl.mz700_wr_latch_is_used);
 
     snapshot_xml_close_element(w); /* vramctrl_state */
 
@@ -107,10 +108,10 @@ static en_SNAPSHOT_RESULT snap_vramctrl_load(st_SNAPSHOT_CONTEXT *ctx)
     snapshot_xml_read_uint(r, "regRF_PLANE", &g_vramctrl.regRF_PLANE);
     snapshot_xml_read_uint(r, "regRF_SEARCH", &g_vramctrl.regRF_SEARCH);
     snapshot_xml_read_uint(r, "regWFRF_VBANK", &g_vramctrl.regWFRF_VBANK);
-#endif
-
-    /* Společný pro všechny platformy */
+#else
+    /* MZ-700 a MZ-1500: latch WAIT */
     snapshot_xml_read_uint(r, "mz700_wr_latch_is_used", &g_vramctrl.mz700_wr_latch_is_used);
+#endif
 
     snapshot_xml_leave_element(r); /* vramctrl_state */
     snapshot_xml_reader_free(r);

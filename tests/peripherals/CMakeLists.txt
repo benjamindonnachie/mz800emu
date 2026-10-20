@@ -43,10 +43,18 @@ mz_add_test(hwscroll
 )
 
 # Bootstrap --run-mzf (MZ-800 mód) nastavuje DMD cestou OUT CEh
-# (GATE0 CTC0, latch MZ-700), ne přímým zápisem g_gdg.regDMD.
+# (GATE0 CTC0), ne přímým zápisem g_gdg.regDMD.
 mz_add_test(mz800_bootstrap_dmd
     TYPE     EMU
     SOURCES  test_mz800_bootstrap_dmd.c
+    LABELS   "emu;peripherals"
+)
+
+# Model WAIT u přístupu CPU do VRAM přes GDG (mz800_vramwait.h): případy
+# ze simulace netlistu GDG (čtení vždy čeká, zápis přes buffer).
+mz_add_test(mz800_vramwait
+    TYPE     EMU
+    SOURCES  test_mz800_vramwait.c
     LABELS   "emu;peripherals"
 )
 

@@ -1972,8 +1972,7 @@ typedef struct st_DBGAPI_MHMAP_MERGE_PARAM
  *  1. g_memory.map = (g_memory.map & ~map_clear_mask) | map_set_mask,
  *  2. při dmd_write (jen MZ-800) gdg_debug_set_regDMD(dmd_value) - stejné
  *     vedlejší efekty GDG jako OUT (CEh): maska na bity 0-3, při změně
- *     aktualizace framebufferu, ctc82530_on_regDMD_changed() (GATE0 CTC0),
- *     vynulování mz700_wr_latch_is_used při přechodu do 800 módu
+ *     aktualizace framebufferu, ctc82530_on_regDMD_changed() (GATE0 CTC0)
  *     a přepočet RAM fast-path; navíc proti OUT bez záznamu hwlog a bez
  *     HW event breakpointu "mode change" (zásah debuggeru není OUT
  *     programu),
@@ -4274,7 +4273,7 @@ typedef struct st_DBGAPI_PERIPH_BEEPER_PARAM
  *
  *   - MZ-800: 16-color palette, ovládaná přes `regPALGRP` + 4 byte
  *     `regPAL0..3` (= 16 logických -> fyzických hodnot). Plus `regBOR`
- *     (border color), `vram800_hot_phase_*` pro WAIT model. Nemá
+ *     (border color), `vram_wrff_release` pro model WAIT u VRAM. Nemá
  *     `mode700_color[]` ani `mode1500_color[]`.
  *   - MZ-700: 8-entry palette (`mode700_color[8]`), žádný `regBOR`
  *     (hardware border port chybí, vždy 0), žádné `regPAL*` ani

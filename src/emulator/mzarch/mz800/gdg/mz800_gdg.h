@@ -132,22 +132,16 @@ extern "C"
         unsigned ctc0clk;
 #endif
 
-        /* Stav pro HDL-presny WAIT model 800 grafickych rezimu (DMD bit 3 = 0,
-         * VRAM 0x8000-0xBFFF). Po WRITE do VRAM bezi "horka faze" delky
-         * 32 CLK0 (320x200) nebo 17 CLK0 (640x200), behem ktere dalsi VRAM
-         * pristup dostane WAIT podle lookup tabulek tw_wr[]/tw_ww[].
+        /** Stav modelu WAIT u přístupu CPU do VRAM (mz800_vramwait.h, režim
+         *  MZ-800 i MZ-700): okamžik, kdy se uvolní WRITE FF posledního zápisu
+         *  (zápis přes jednobajtový buffer dokončený v CPU slotu). Absolutní
+         *  čas v CLK0 na ose modelu (gdg_get_total_ticks() +
+         *  GDG_VRAMWAIT_TICKS_TO_LINE_OFFSET), 0 = žádný zápis.
          *
-         * vram800_hot_phase_end_total_ticks: kumulativni timestamp (gdg_total_ticks)
-         *   konce horke faze (= T3f posledniho WRITE + 32 nebo 17 CLK0). Hodnota 0
-         *   znamena "zadny predchozi WRITE / mimo horkou fazi".
-         * vram800_hot_phase_clk0_phase: pozice prvniho WRITE v ramci radku (mod 80),
-         *   index do tw_wr[]/tw_ww[]. Pro 640x200 se pri lookup pricte rotace +16.
-         *
-         * Reset: gdg_init() / gdg_reset() / snapshot load. Aktualizace: pri kazdem
-         * WRITE z mzarch_main_insideop_mreq_mz800_vramctrl_write(). READ stav
-         * neaktualizuje (READ negeneruje VRAM strobe). */
-        uint64_t vram800_hot_phase_end_total_ticks;
-        unsigned vram800_hot_phase_clk0_phase;
+         *  Reset: gdg_init(), gdg_reset(), načtení snapshotu (starší snapshot
+         *  bez klíče = 0). Mění se jen při zápisu CPU do VRAM; čtení ho jen
+         *  čte. */
+        uint64_t vram_wrff_release;
 
     } st_GDG;
 
@@ -184,9 +178,8 @@ extern "C"
      * Provede totéž co větev CEh v gdg_write_byte() - maskování na dolní
      * 4 bity, nic při beze změny, aktualizace framebufferu do aktuální
      * pozice paprsku a gdg_set_regDMD(): ctc82530_on_regDMD_changed()
-     * (GATE0 CTC0 = 1 v 800 módu, = regct53g7 v 700 módu), vynulování
-     * g_vramctrl.mz700_wr_latch_is_used při přechodu do 800 módu
-     * a přepočet RAM fast-path tabulky (MZ800EMU_CFG_RAM_FASTPATH).
+     * (GATE0 CTC0 = 1 v 800 módu, = regct53g7 v 700 módu) a přepočet RAM
+     * fast-path tabulky (MZ800EMU_CFG_RAM_FASTPATH).
      *
      * Na rozdíl od gdg_write_byte(0x00CE, value) NEzapíše záznam hwlog
      * (GDG_MODE) a NEspustí HW event breakpoint BP_EVENT_GDG_MODE_CHANGE -
@@ -207,6 +200,25 @@ extern "C"
 
 #define gdg_compute_total_ticks(now_ticks) (now_ticks + ((uint64_t)g_gdg.total_elapsed.screens * VIDEO_SCREEN_TICKS))
 #define gdg_get_total_ticks() gdg_compute_total_ticks(g_gdg.total_elapsed.ticks)
+
+/**
+ * @brief Posun tiků GDG na časovou osu modelu WAIT u VRAM (mz800_vramwait.h).
+ *
+ * Tik GDG = 1 CLK0, sloupec 0 emulátoru je začátek levého borderu. Model
+ * počítá pozici v řádku od sestupné hrany nHSYN. Kotvou je začátek viditelné
+ * části HBLN: v emulátoru sloupec VIDEO_BEAM_CANVAS_FIRST_COLUMN - 4 (událost
+ * MZEVENT_GDG_HBLN_END), v netlistu GDG CLK0 335 od nHSYN (gdg-mz800,
+ * kap. 05). Vztah WAIT k bitu HBLN Status registru je tak stejný jako
+ * v netlistu. Kotva podle VIDEO_REAL_HSYNC_START_COLUMN by dala posun o 1 CLK0
+ * větší; který z obou signálů má emulátor vůči HW přesněji, ověřené není
+ * [neověřeno].
+ */
+#define GDG_VRAMWAIT_TICKS_TO_LINE_OFFSET \
+    ( ( 335u + VIDEO_SCREEN_WIDTH - ( VIDEO_BEAM_CANVAS_FIRST_COLUMN - 4u ) ) % VIDEO_SCREEN_WIDTH )
+
+/** @brief Aktuální čas GDG na časové ose modelu WAIT u VRAM (CLK0). */
+#define gdg_get_vramwait_ticks() ( gdg_get_total_ticks() + GDG_VRAMWAIT_TICKS_TO_LINE_OFFSET )
+
 /**
  * @brief Okamžik právě probíhajícího přístupu na sběrnici (IORQ, MMIO) v tikách GDG.
  *

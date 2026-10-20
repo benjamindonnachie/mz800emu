@@ -4108,8 +4108,8 @@ msgid "A"
 msgstr "A"
 
 #: src/ui-imgui/debugger/gdg_window_mz800.cpp:256
-msgid "MZ700 WR latch"
-msgstr "Verrou WR MZ700"
+msgid "WRITE FF"
+msgstr "WRITE FF"
 
 #: src/ui-imgui/debugger/gdg_window_mz800.cpp:259
 msgid "set"

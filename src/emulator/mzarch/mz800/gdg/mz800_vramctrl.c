@@ -141,7 +141,6 @@ void vramctrl_reset(void)
     g_vramctrl.regRF_PLANE = 0x01;
     g_vramctrl.regRF_SEARCH = 0;
     g_vramctrl.regWFRF_VBANK = 0;
-    g_vramctrl.mz700_wr_latch_is_used = 0;
 }
 
 /*******************************************************************************
@@ -209,11 +208,12 @@ void vramctrl_mz800_set_wf_rf_reg(int addr, uint8_t value)
  * Zdroj: netlist GDG (GDG_core.vhd) - hradlo NXOR xF512_74_17 nad
  * synchronizovaným DMD(0) (xF612_20_2) a latchem B/A (xF604_88_18) hradluje
  * přičtení SOF v multiplexeru bus_nSOFmxSW; simulace netlistu pro zápis
- * a čtení ve všech grafických režimech; měření na reálném MZ-800 (zápis
- * SINGLE v 320x200@4). EXOR až PSET simulovány nebyly - netlist je vede
- * stejným multiplexerem adresy (hypotéza).
+ * a čtení ve všech grafických režimech a pro všech 8 operací WF (SINGLE až
+ * PSET, gdg-mz800 `probe_scroll_wmd.c`); měření na reálném MZ-800 (zápis
+ * SINGLE v 320x200@4).
  *
- * Display (framebuffer) posouvá vždy, tato podmínka se ho netýká.
+ * Display (framebuffer) posouvá vždy, tato podmínka se ho netýká. V režimu
+ * MZ-700 (DMD bit 3 = 1) se posun na CPU přístup neuplatní nikdy (netlist).
  *
  * @pre Volá se jen v režimu MZ-800 (DMD bit 3 = 0).
  * @return true, pokud se má adresa přepočítat přes hwscroll_shift_addr().
@@ -635,14 +635,14 @@ static inline uint8_t vramctrl_mz800_memop_read_byte_internal(uint16_t addr)
 }
 
 /**
- * Cteni z VRAM v rezimu MZ-800 - s ohledem na synchronizaci a HDL-presnym WAIT.
+ * @brief Čtení z VRAM v režimu MZ-800 se synchronizací a WAIT.
  *
- * Sync je dvouchodovy:
- *  1. Standardni mreq() sync - posune g_gdg.total_elapsed.ticks na konec
- *     aktualniho M-cyklu (T3f).
- *  2. HDL-presny WAIT (INSIDEOP_MREQ_MZ800_VRAMCTRL_READ) - pokud jsme
- *     uvnitr horke faze po predchozim WRITE, pripocte 6-9 TW WAIT podle
- *     tw_wr[]. READ neaktualizuje stav horke faze.
+ * Synchronizace má dva kroky:
+ *  1. mzarch_main_insideop_mreq() posune g_gdg.total_elapsed.ticks na konec
+ *     aktuálního M-cyklu,
+ *  2. INSIDEOP_MREQ_MZ800_VRAMCTRL_READ přidá WAIT podle modelu
+ *     mz800_vramwait.h: každé čtení čeká na CPU slot GDG (2-5 TW, po zápisu
+ *     déle). Stav WRITE FF čtení nemění.
  *
  * @param addr Mz800 VRAM offset (0x0000 - 0x3FFF, addr & 0x3fff aplikovano volajicim).
  * @return Bajt prectreny z VRAM (s aplikaci RF/SEARCH logiky).
@@ -656,15 +656,15 @@ inline uint8_t vramctrl_mz800_memop_read_byte_sync(uint16_t addr)
 }
 
 /**
- * Zapis do VRAM v rezimu MZ-800 - s ohledem na synchronizaci a HDL-presnym WAIT.
+ * @brief Zápis do VRAM v režimu MZ-800 se synchronizací a WAIT.
  *
- * Sync je dvouchodovy:
- *  1. Standardni mreq() sync - posune g_gdg.total_elapsed.ticks na konec
- *     aktualniho M-cyklu (T3f).
- *  2. HDL-presny WAIT (INSIDEOP_MREQ_MZ800_VRAMCTRL_WRITE) - pokud jsme
- *     uvnitr predchozi horke faze, pripocte 3-6 TW WAIT podle tw_ww[].
- *     Vzdy startuje novou horkou fazi (32 CLK0 v 320x200, 17 CLK0
- *     v 640x200) od T3f tohoto WRITE.
+ * Synchronizace má dva kroky:
+ *  1. mzarch_main_insideop_mreq() posune g_gdg.total_elapsed.ticks na konec
+ *     aktuálního M-cyklu,
+ *  2. INSIDEOP_MREQ_MZ800_VRAMCTRL_WRITE přidá WAIT podle modelu
+ *     mz800_vramwait.h: zápis jde přes jednobajtový buffer a čeká jen na
+ *     dokončení předchozího zápisu; zároveň naplánuje vlastní zápis do DRAM
+ *     (g_gdg.vram_wrff_release).
  *
  * @param addr  Mz800 VRAM offset (0x0000 - 0x3FFF).
  * @param value Bajt k zapisu (interpretace dle WF_MODE).

@@ -49,13 +49,10 @@ static en_SNAPSHOT_RESULT snap_gdg_save(st_SNAPSHOT_CONTEXT *ctx)
 #endif
     snapshot_xml_write_uint(w, "regct53g7", g_gdg.regct53g7);
 #if MZARCH == 800
-    /* HDL-presny WAIT model 800 grafickych rezimu - stav horke faze.
-     * Starsi snapshoty bez techto klicu se pri loadu defaultne zinicializuji
-     * na 0 (= zadna horka faze aktivni). */
-    snapshot_xml_write_uint64(w, "vram800_hot_phase_end_total_ticks",
-                              g_gdg.vram800_hot_phase_end_total_ticks);
-    snapshot_xml_write_uint(w, "vram800_hot_phase_clk0_phase",
-                            g_gdg.vram800_hot_phase_clk0_phase);
+    /* Model WAIT u VRAM - uvolnění WRITE FF posledního zápisu. Starší
+     * snapshoty bez klíče se při načtení inicializují na 0 (žádný zápis);
+     * dřívější klíče vram800_hot_phase_* se už nečtou. */
+    snapshot_xml_write_uint64(w, "vram_wrff_release", g_gdg.vram_wrff_release);
 #endif
     snapshot_xml_close_element(w); /* registers */
 
@@ -239,15 +236,11 @@ static en_SNAPSHOT_RESULT snap_gdg_load(st_SNAPSHOT_CONTEXT *ctx)
 #endif
         snapshot_xml_read_uint(r, "regct53g7", &g_gdg.regct53g7);
 #if MZARCH == 800
-        /* HDL-presny WAIT model - novy klic, default 0 pro starsi snapshoty
-         * (= zadna horka faze aktivni, prvni VRAM pristup po loadu se chova
-         *  jako bez predchoziho WRITE). */
-        g_gdg.vram800_hot_phase_end_total_ticks = 0;
-        g_gdg.vram800_hot_phase_clk0_phase = 0;
-        snapshot_xml_read_uint64(r, "vram800_hot_phase_end_total_ticks",
-                                 &g_gdg.vram800_hot_phase_end_total_ticks);
-        snapshot_xml_read_uint(r, "vram800_hot_phase_clk0_phase",
-                               &g_gdg.vram800_hot_phase_clk0_phase);
+        /* Model WAIT u VRAM - klíč chybí ve starších snapshotech, pak 0
+         * (první přístup do VRAM po načtení se chová jako bez předchozího
+         * zápisu). */
+        g_gdg.vram_wrff_release = 0;
+        snapshot_xml_read_uint64(r, "vram_wrff_release", &g_gdg.vram_wrff_release);
 #endif
         snapshot_xml_leave_element(r);
     }

@@ -147,12 +147,8 @@ void gdg_init(void)
     hwscroll_init();
     framebuffer_init();
 
-    g_vramctrl.mz700_wr_latch_is_used = 0;
-
-    /* HDL-presny WAIT model 800 grafickych rezimu - inicialne neni zadna
-     * horka faze aktivni. */
-    g_gdg.vram800_hot_phase_end_total_ticks = 0;
-    g_gdg.vram800_hot_phase_clk0_phase = 0;
+    /* Model WAIT u VRAM - žádný rozpracovaný zápis. */
+    g_gdg.vram_wrff_release = 0;
 
 #ifdef MZ800EMU_CFG_CLK1M1_SLOW
     g_gdg.ctc0clk = 0;
@@ -164,10 +160,6 @@ static inline void gdg_set_regDMD(uint8_t value, unsigned event_ticks)
     g_gdg.regDMD = value;
     int mode700 = (value & REGISTER_DMD_FLAG_MZ700) ? 1 : 0;
     ctc82530_on_regDMD_changed(mode700, event_ticks);
-    if (!mode700)
-    {
-        g_vramctrl.mz700_wr_latch_is_used = 0;
-    };
 #ifdef MZ800EMU_CFG_RAM_FASTPATH
     /* DMD switch (bit MZ700, SCRW640) zmenil VRAM mapping -> prepocti
      * fast-path tabulku (VRAM stranky 8/A/C/D mohou prejit na RAM a zpet). */
@@ -246,9 +238,8 @@ void gdg_reset(void)
     vramctrl_reset();
     hwscroll_reset();
 
-    /* HDL-presny WAIT model 800 grafickych rezimu - reset horke faze. */
-    g_gdg.vram800_hot_phase_end_total_ticks = 0;
-    g_gdg.vram800_hot_phase_clk0_phase = 0;
+    /* Model WAIT u VRAM - žádný rozpracovaný zápis. */
+    g_gdg.vram_wrff_release = 0;
 
     g_framebuffer.screen_changes = SCRSTS_THIS_IS_CHANGED;
 }

@@ -132,8 +132,7 @@ void mzarch_platform_bootstrap_post_header(uint16_t fstrt)
          * DMD, paleta i border jdou přes gdg_write_byte() stejně jako
          * OUT instrukce. U DMD to znamená i vedlejší efekty GDG, které
          * přímý zápis g_gdg.regDMD vynechával: GATE0 CTC0 = 1 (800 mód,
-         * ctc82530_on_regDMD_changed), vynulování latche zápisu MZ-700
-         * (g_vramctrl.mz700_wr_latch_is_used) a aktualizace framebufferu.
+         * ctc82530_on_regDMD_changed) a aktualizace framebufferu.
          * VRAM/CG-RAM odpojené (clear CGRAM_VRAM + ROM_1000 flagy). */
         gdg_write_byte ( 0x00ce, 0x00 );
         static const uint8_t c_black[] = { 0x00, 0x10, 0x20, 0x30, 0x40 };

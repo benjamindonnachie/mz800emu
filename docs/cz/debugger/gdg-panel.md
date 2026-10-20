@@ -75,7 +75,7 @@ v 16-color módu.
 | `RF plane` | Maska, ze kterých plane se má číst |
 | `RF search` | Maska pro vyhledávání bitového vzoru |
 | `VBANK (WF/RF)` | Aktivní VRAM banka pro přístup CPU |
-| `MZ700 WR latch` | Jednorázový WAIT latch v MZ-700 compat režimu |
+| `WRITE FF` | `set`, dokud GDG nezapsal poslední zápis CPU z bufferu do VRAM; další přístup CPU do VRAM do té doby čeká (režim MZ-800 i MZ-700) |
 
 ### HW scroll
 

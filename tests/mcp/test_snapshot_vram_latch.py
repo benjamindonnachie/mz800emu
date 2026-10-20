@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """E2E regresní test: snapshot obnoví latch WAIT VRAM režimu MZ-700 (MCP pipe).
 
-V režimu MZ-700 je první přístup CPU do VRAM ve viditelné části řádku bez
-WAIT, každý další na stejném řádku s WAIT (latch ``mz700_wr_latch_is_used``,
-nuluje ho až konec viditelné části). Snapshot v buildu MZ-700 latch
-neukládal (prázdný handler VRAM Control): po načtení snapshotu uloženého
-hned po prvním přístupu dostal druhý přístup WAIT podle stroje, který se
-přepisoval.
+V režimu MZ-700 je první zápis CPU do VRAM ve viditelné části řádku bez
+WAIT, každý další na stejném řádku s WAIT. Buildy MZ-700 a MZ-1500 to drží
+v latchi ``mz700_wr_latch_is_used`` (nuluje ho konec viditelné části),
+MZ-800 v modelu WAIT u VRAM (``g_gdg.vram_wrff_release``: zápis jde přes
+buffer GDG a do DRAM se dostane až po konci viditelné části). Snapshot
+v buildu MZ-700 latch neukládal (prázdný handler VRAM Control): po načtení
+snapshotu uloženého hned po prvním přístupu dostal druhý přístup WAIT podle
+stroje, který se přepisoval.
 
 Pro každou binárku v kořeni repa (nebo v ``MZ_EMU_DIR``):
 

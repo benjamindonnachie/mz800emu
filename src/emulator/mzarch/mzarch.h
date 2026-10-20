@@ -63,6 +63,11 @@ typedef struct st_mzarch_main
 
 #if MZARCH == 800 /* HW experimenty pro MY-800 */
     en_MZ800_HWCOMPAT_ALLOW_PSG1 mz800_hwcompat_allow_psg1;
+
+    /** Příznak M1 právě obsluhovaného čtení paměti (nenulový = instrukční
+     *  výběr). Nastavuje ho memory_read_cb před čtením; model WAIT u VRAM
+     *  podle něj určí T1r (M1 má 4 T, ostatní čtení 3 T). */
+    int mreq_m1;
 #endif /* MZARCH == 800 */
 
 #if MZARCH != 700
@@ -99,8 +104,8 @@ typedef enum en_INSIDEOP
     INSIDEOP_MREQ_E00x, /* MREQ pro mapovane porty */
     // Synchronizace MZ700 VRAM MREQ pri neaktivnim VBLN
     INSIDEOP_MREQ_MZ700_VRAMCTRL,        /* MZ700 VRAM MREQ */
-    INSIDEOP_MREQ_MZ800_VRAMCTRL_READ,   /* READ z MZ-800 grafickeho VRAM (HDL WAIT model) */
-    INSIDEOP_MREQ_MZ800_VRAMCTRL_WRITE,  /* WRITE do MZ-800 grafickeho VRAM (HDL WAIT model + start horke faze) */
+    INSIDEOP_MREQ_MZ800_VRAMCTRL_READ,   /* MZ-800 build: cteni VRAM pres GDG (model WAIT mz800_vramwait.h, rezim MZ-800 i MZ-700) */
+    INSIDEOP_MREQ_MZ800_VRAMCTRL_WRITE,  /* MZ-800 build: zapis do VRAM pres GDG (model WAIT mz800_vramwait.h, rezim MZ-800 i MZ-700) */
     INSIDEOP_IORQ_PSG_WRITE,             /* IORQ wite byte do PSG */
 } en_INSIDEOP;
 
